@@ -32,3 +32,12 @@ This plan implements the `SchemaProvider<T>` interface from [schema-providers.md
 
 - [x] Update patchwork README with new usage patterns
 - [x] Add JSDoc comments to `SchemaProvider` and `schemaOf`
+
+## Phase 6: Integration Examples
+
+Create `examples/` directory with end-to-end examples that demonstrate each schema provider pattern and serve as integration tests.
+
+- [ ] Example 1: Inline schema with `schemaOf<T>()` helper
+- [ ] Example 2: Zod adapter (`zodSchema()`)
+- [ ] Example 3: TypeBox adapter (`typeboxSchema()`)
+- [ ] Example 4: Build-time generated schemas (type-first pattern)
