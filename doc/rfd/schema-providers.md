@@ -31,7 +31,7 @@ Define a minimal interface that represents "something that can produce a JSON Sc
  *
  * This enables integration with various schema technologies:
  * - Schema-first libraries (Zod, TypeBox)
- * - Build-time type-to-schema generators (TypeSpec, ts-json-schema-transformer)
+ * - Build-time type-to-schema generators (TypeSpec, ts-json-schema-generator)
  * - Hand-written schemas with type associations
  */
 export interface SchemaProvider<T> {
@@ -164,7 +164,7 @@ const result = await patchwork
 
 ### Pattern 3: Type-First with Build-Time Generation
 
-For users who prefer to define TypeScript types and generate schemas at build time (using tools like TypeSpec or ts-json-schema-transformer):
+For users who prefer to define TypeScript types and generate schemas at build time (using tools like ts-json-schema-generator, TypeSpec, or ts-json-schema-transformer):
 
 ```typescript
 // types.ts (hand-written)
@@ -344,5 +344,6 @@ const result = await builder.run();  // Summary
 - [Zod](https://zod.dev) - TypeScript-first schema validation
 - [TypeBox](https://github.com/sinclairzx81/typebox) - JSON Schema Type Builder
 - [TypeSpec](https://typespec.io) - API-first language for defining APIs
-- [ts-json-schema-transformer](https://www.npmjs.com/package/@nrfcloud/ts-json-schema-transformer) - TypeScript to JSON Schema transformer
+- [ts-json-schema-generator](https://www.npmjs.com/package/ts-json-schema-generator)
+- [ts-json-schema-transformer](https://www.npmjs.com/package/@nrfcloud/ts-json-schema-transformer)
 - [JSON Schema Specification](https://json-schema.org/specification)

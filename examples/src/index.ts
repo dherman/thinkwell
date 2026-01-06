@@ -20,9 +20,9 @@
  *    - Includes typeboxSchema() adapter function
  *    - Best for performance-critical applications
  *
- * 4. Build-time Generated (04-types.ts + 04-types.schemas.ts)
- *    - Type-first pattern with generated schemas
- *    - Demonstrates clean separation of hand-written and generated code
+ * 4. Build-time Generated (04-types.ts + 04-types.schemas.generated.ts)
+ *    - Type-first pattern with auto-generated schemas
+ *    - Run: pnpm generate:schemas to regenerate
  *    - Best for large codebases
  */
 
@@ -79,4 +79,4 @@ export {
   AnalysisResultSchema as GeneratedAnalysisResultSchema,
   ConfigSchema as GeneratedConfigSchema,
   UserProfileSchema as GeneratedUserProfileSchema,
-} from "./04-types.schemas.js";
+} from "./04-types.schemas.generated.js";

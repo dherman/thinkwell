@@ -78,7 +78,7 @@ function parseCommand(cmd: string): string[] {
 import { SummarySchema as InlineSummarySchema } from "./01-inline-schema.js";
 import { zodSchema, SummaryZod } from "./02-zod-adapter.js";
 import { typeboxSchema, SummaryTypeBox } from "./03-typebox-adapter.js";
-import { SummarySchema as GeneratedSummarySchema } from "./04-types.schemas.js";
+import { SummarySchema as GeneratedSummarySchema } from "./04-types.schemas.generated.js";
 
 // Sample content to summarize
 const SAMPLE_CONTENT = `
@@ -137,11 +137,11 @@ async function runDemo(pattern: string) {
 
     console.log("\nSending prompt to LLM...\n");
 
-    const result = await patchwork
+    const result = (await patchwork
       .think(schema)
       .text("Please summarize the following content:\n\n")
       .display(SAMPLE_CONTENT)
-      .run();
+      .run()) as { title: string; points: string[]; wordCount: number };
 
     console.log("Result:");
     console.log("-".repeat(40));
