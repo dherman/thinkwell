@@ -113,7 +113,7 @@ export class McpServer {
   }
 
   /**
-   * Handle an MCP method call
+   * Handle an MCP method call or notification
    */
   async handleMethod(
     method: string,
@@ -127,6 +127,9 @@ export class McpServer {
         return this.handleToolsCall(params as McpToolsCallParams, context);
       case "initialize":
         return this.handleInitialize();
+      case "notifications/initialized":
+        // Client notification after initialize - no response needed
+        return undefined;
       default:
         throw new Error(`Unknown MCP method: ${method}`);
     }
@@ -136,10 +139,13 @@ export class McpServer {
     protocolVersion: string;
     serverInfo: { name: string; version: string };
     capabilities: { tools: Record<string, never> };
-    instructions?: string;
+    instructions: string;
   } {
+    // Use protocol version 2025-03-26 to match rmcp's behavior
+    // Always include instructions to help Claude Code understand how to use tools
+    const instructions = this._instructions ?? "You have access to tools. Call return_result when done.";
     return {
-      protocolVersion: "2024-11-05",
+      protocolVersion: "2025-03-26",
       serverInfo: {
         name: this.name,
         version: "0.1.0",
@@ -147,7 +153,7 @@ export class McpServer {
       capabilities: {
         tools: {},
       },
-      ...(this._instructions ? { instructions: this._instructions } : {}),
+      instructions,
     };
   }
 

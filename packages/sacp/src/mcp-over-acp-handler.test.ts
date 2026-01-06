@@ -95,7 +95,7 @@ describe("McpOverAcpHandler", () => {
   });
 
   describe("handleMessage", () => {
-    it("should route messages to the correct server", async () => {
+    it("should route messages to the correct server and return raw MCP result", async () => {
       const server = mcpServer("test")
         .tool("echo", "Echo input", { type: "object" }, { type: "object" }, async (input) => input)
         .build();
@@ -109,30 +109,30 @@ describe("McpOverAcpHandler", () => {
         acp_url: server.acpUrl,
       });
 
-      // Then send a message
+      // Then send a message - response is the raw MCP result
       const response = await handler.handleMessage({
         connectionId: "conn-1",
         method: "tools/call",
         params: { name: "echo", arguments: { message: "hello" } },
       });
 
-      assert.strictEqual(response.connectionId, "conn-1");
-      assert.ok(response.result);
+      // Response is the raw MCP tools/call result (not wrapped in {connectionId, result})
+      assert.ok(response);
+      assert.ok((response as { content: unknown[] }).content);
     });
 
-    it("should return error for unknown connection", async () => {
-      const response = await handler.handleMessage({
-        connectionId: "unknown-conn",
-        method: "tools/list",
-        params: {},
-      });
-
-      assert.strictEqual(response.connectionId, "unknown-conn");
-      assert.ok(response.error);
-      assert.ok(response.error.message.includes("Unknown connection"));
+    it("should throw error for unknown connection", async () => {
+      await assert.rejects(
+        () => handler.handleMessage({
+          connectionId: "unknown-conn",
+          method: "tools/list",
+          params: {},
+        }),
+        /Unknown connection/
+      );
     });
 
-    it("should handle tools/list requests", async () => {
+    it("should handle tools/list requests and return raw result", async () => {
       const server = mcpServer("test")
         .tool("tool1", "First tool", { type: "object" }, { type: "object" }, async () => ({}))
         .tool("tool2", "Second tool", { type: "object" }, { type: "object" }, async () => ({}))
@@ -145,13 +145,14 @@ describe("McpOverAcpHandler", () => {
         acp_url: server.acpUrl,
       });
 
+      // Response is the raw MCP tools/list result
       const response = await handler.handleMessage({
         connectionId: "conn-1",
         method: "tools/list",
         params: {},
       });
 
-      const result = response.result as { tools: { name: string }[] };
+      const result = response as { tools: { name: string }[] };
       assert.strictEqual(result.tools.length, 2);
     });
   });
@@ -171,15 +172,15 @@ describe("McpOverAcpHandler", () => {
         connectionId: "conn-1",
       });
 
-      // Subsequent messages should fail
-      const response = await handler.handleMessage({
-        connectionId: "conn-1",
-        method: "tools/list",
-        params: {},
-      });
-
-      assert.ok(response.error);
-      assert.ok(response.error.message.includes("Unknown connection"));
+      // Subsequent messages should throw
+      await assert.rejects(
+        () => handler.handleMessage({
+          connectionId: "conn-1",
+          method: "tools/list",
+          params: {},
+        }),
+        /Unknown connection/
+      );
     });
   });
 
@@ -268,6 +269,73 @@ describe("McpOverAcpHandler", () => {
       });
 
       assert.strictEqual(capturedSessionId, "my-session-id");
+    });
+  });
+
+  describe("waitForToolsDiscovery", () => {
+    it("should resolve when tools/list is called", async () => {
+      const server = mcpServer("test")
+        .tool("test", "Test tool", { type: "object" }, { type: "object" }, async () => ({}))
+        .build();
+
+      handler.register(server);
+      handler.setSessionId("session-1");
+
+      handler.handleConnect({
+        connectionId: "conn-1",
+        acp_url: server.acpUrl,
+      });
+
+      // Start waiting for tools discovery
+      const waitPromise = handler.waitForToolsDiscovery("session-1", 5000);
+
+      // Simulate agent calling tools/list
+      await handler.handleMessage({
+        connectionId: "conn-1",
+        method: "tools/list",
+        params: {},
+      });
+
+      // The wait promise should resolve quickly
+      await waitPromise;
+    });
+
+    it("should resolve on timeout if tools/list is never called", async () => {
+      handler.setSessionId("session-1");
+
+      const start = Date.now();
+      await handler.waitForToolsDiscovery("session-1", 50);
+      const elapsed = Date.now() - start;
+
+      // Should have taken approximately the timeout duration
+      assert.ok(elapsed >= 45, `Expected at least 45ms, got ${elapsed}ms`);
+      assert.ok(elapsed < 200, `Expected less than 200ms, got ${elapsed}ms`);
+    });
+
+    it("should handle multiple waiters for the same session", async () => {
+      const server = mcpServer("test").build();
+
+      handler.register(server);
+      handler.setSessionId("session-1");
+
+      handler.handleConnect({
+        connectionId: "conn-1",
+        acp_url: server.acpUrl,
+      });
+
+      // Start two waiters
+      const wait1 = handler.waitForToolsDiscovery("session-1", 5000);
+      const wait2 = handler.waitForToolsDiscovery("session-1", 5000);
+
+      // Trigger tools/list
+      await handler.handleMessage({
+        connectionId: "conn-1",
+        method: "tools/list",
+        params: {},
+      });
+
+      // Both should resolve
+      await Promise.all([wait1, wait2]);
     });
   });
 });

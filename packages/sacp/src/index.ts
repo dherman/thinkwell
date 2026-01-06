@@ -31,7 +31,7 @@ export { McpOverAcpHandler } from "./mcp-over-acp-handler.js";
 
 // Session
 export { ActiveSession, SessionBuilder } from "./session.js";
-export type { SessionUpdate, PromptMessage } from "./session.js";
+export type { SessionUpdate, PromptMessage, McpReadyOptions } from "./session.js";
 
 // Connection
 export { SacpConnection, connect } from "./connection.js";
