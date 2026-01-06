@@ -1,0 +1,12 @@
+TypeScript 5.0 introduced a major new feature called decorators, which are now
+part of the ECMAScript standard. Decorators provide a way to add metadata and
+modify class declarations, methods, properties, and parameters. They use the
+@ syntax and can be used for logging, validation, dependency injection, and more.
+
+Another key feature in TypeScript 5.0 is const type parameters, which allow
+generic functions to infer more precise literal types. This reduces the need
+for "as const" assertions in many cases.
+
+The release also improved performance significantly, with faster type-checking
+and reduced memory usage. The team reported up to 10-25% speed improvements
+in large codebases.

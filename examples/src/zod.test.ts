@@ -1,25 +1,23 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { Type, type Static } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
+import { z } from "zod";
 import {
-  typeboxSchema,
+  zodSchema,
   SummarySchema,
-  SummaryTypeBox,
+  SummaryZod,
   AnalysisResultSchema,
   ConfigSchema,
-  UserProfileSchema,
-} from "./03-typebox-adapter.js";
+} from "./zod.js";
 
-describe("Example 3: TypeBox adapter (typeboxSchema)", () => {
-  describe("typeboxSchema adapter", () => {
-    it("should convert TypeBox schema to JSON Schema", () => {
-      const schema = Type.Object({
-        name: Type.String(),
-        age: Type.Number(),
+describe("Example 2: Zod adapter (zodSchema)", () => {
+  describe("zodSchema adapter", () => {
+    it("should convert simple Zod schema to JSON Schema", () => {
+      const schema = z.object({
+        name: z.string(),
+        age: z.number(),
       });
 
-      const provider = typeboxSchema(schema);
+      const provider = zodSchema(schema);
       const jsonSchema = provider.toJsonSchema();
 
       assert.strictEqual(jsonSchema.type, "object");
@@ -28,34 +26,28 @@ describe("Example 3: TypeBox adapter (typeboxSchema)", () => {
       assert.strictEqual(jsonSchema.properties.age.type, "number");
     });
 
-    it("should return same schema reference on multiple calls", () => {
-      const schema = Type.String();
-      const provider = typeboxSchema(schema);
+    it("should cache the JSON Schema for repeated calls", () => {
+      const schema = z.string();
+      const provider = zodSchema(schema);
 
       const first = provider.toJsonSchema();
       const second = provider.toJsonSchema();
 
-      // TypeBox schemas are the same reference
       assert.strictEqual(first, second);
     });
 
-    it("should handle TypeBox literals/unions", () => {
-      const StatusSchema = Type.Union([
-        Type.Literal("pending"),
-        Type.Literal("active"),
-        Type.Literal("done"),
-      ]);
-
-      const provider = typeboxSchema(StatusSchema);
+    it("should handle Zod enums", () => {
+      const StatusSchema = z.enum(["pending", "active", "done"]);
+      const provider = zodSchema(StatusSchema);
       const jsonSchema = provider.toJsonSchema();
 
-      // TypeBox uses anyOf for unions
-      assert.ok(jsonSchema.anyOf);
+      assert.ok(jsonSchema.enum);
+      assert.deepStrictEqual(jsonSchema.enum, ["pending", "active", "done"]);
     });
 
-    it("should handle TypeBox arrays", () => {
-      const TagsSchema = Type.Array(Type.String());
-      const provider = typeboxSchema(TagsSchema);
+    it("should handle Zod arrays", () => {
+      const TagsSchema = z.array(z.string());
+      const provider = zodSchema(TagsSchema);
       const jsonSchema = provider.toJsonSchema();
 
       assert.strictEqual(jsonSchema.type, "array");
@@ -63,11 +55,11 @@ describe("Example 3: TypeBox adapter (typeboxSchema)", () => {
     });
 
     it("should preserve descriptions", () => {
-      const schema = Type.Object({
-        name: Type.String({ description: "The user name" }),
+      const schema = z.object({
+        name: z.string().describe("The user name"),
       });
 
-      const provider = typeboxSchema(schema);
+      const provider = zodSchema(schema);
       const jsonSchema = provider.toJsonSchema();
 
       assert.strictEqual(
@@ -78,7 +70,7 @@ describe("Example 3: TypeBox adapter (typeboxSchema)", () => {
   });
 
   describe("SummarySchema", () => {
-    it("should produce valid JSON Schema from TypeBox", () => {
+    it("should produce valid JSON Schema from Zod", () => {
       const schema = SummarySchema.toJsonSchema();
 
       assert.strictEqual(schema.type, "object");
@@ -94,26 +86,26 @@ describe("Example 3: TypeBox adapter (typeboxSchema)", () => {
       assert.strictEqual(props.wordCount.type, "integer");
     });
 
-    it("should allow validation with TypeBox Value module", () => {
+    it("should allow validation with original Zod schema", () => {
       const validData = {
         title: "Test Summary",
         points: ["point 1", "point 2"],
         wordCount: 100,
       };
 
-      const isValid = Value.Check(SummaryTypeBox, validData);
-      assert.ok(isValid);
+      const result = SummaryZod.safeParse(validData);
+      assert.ok(result.success);
     });
 
-    it("should reject invalid data with TypeBox Value module", () => {
+    it("should reject invalid data with Zod schema", () => {
       const invalidData = {
         title: "Test",
         points: "not an array",
         wordCount: -5,
       };
 
-      const isValid = Value.Check(SummaryTypeBox, invalidData);
-      assert.strictEqual(isValid, false);
+      const result = SummaryZod.safeParse(invalidData);
+      assert.strictEqual(result.success, false);
     });
   });
 
@@ -122,15 +114,18 @@ describe("Example 3: TypeBox adapter (typeboxSchema)", () => {
       const schema = AnalysisResultSchema.toJsonSchema();
 
       assert.strictEqual(schema.type, "object");
-      assert.ok(schema.properties?.sentiment);
+      assert.ok(schema.properties?.sentiment.enum);
       assert.strictEqual(schema.properties?.topics.type, "array");
     });
 
-    it("should use anyOf for union types", () => {
+    it("should include enum values for sentiment", () => {
       const schema = AnalysisResultSchema.toJsonSchema();
 
-      // TypeBox represents unions with anyOf
-      assert.ok(schema.properties?.sentiment.anyOf);
+      assert.deepStrictEqual(schema.properties?.sentiment.enum, [
+        "positive",
+        "negative",
+        "neutral",
+      ]);
     });
   });
 
@@ -153,26 +148,16 @@ describe("Example 3: TypeBox adapter (typeboxSchema)", () => {
     });
   });
 
-  describe("UserProfileSchema with formats", () => {
-    it("should include format specifications", () => {
-      const schema = UserProfileSchema.toJsonSchema();
-
-      assert.strictEqual(schema.properties?.id.format, "uuid");
-      assert.strictEqual(schema.properties?.email.format, "email");
-      assert.strictEqual(schema.properties?.createdAt.format, "date-time");
-    });
-  });
-
   describe("Type inference", () => {
-    it("should infer correct types from TypeBox schema", () => {
+    it("should infer correct types from Zod schema", () => {
       // This is a compile-time check - if types don't match, TypeScript will error
-      const testSchema = Type.Object({
-        count: Type.Number(),
-        items: Type.Array(Type.String()),
+      const testSchema = z.object({
+        count: z.number(),
+        items: z.array(z.string()),
       });
 
       type Expected = { count: number; items: string[] };
-      type Inferred = Static<typeof testSchema>;
+      type Inferred = z.infer<typeof testSchema>;
 
       // Type assertion to verify inference
       const _check: Inferred extends Expected

@@ -1,5 +1,5 @@
 /**
- * Example 2: Zod Adapter (zodSchema)
+ * Example: Zod Adapter (zodSchema)
  *
  * This example demonstrates the schema-first pattern using Zod.
  * Define your schema once with Zod and get both TypeScript types
@@ -18,6 +18,8 @@
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import type { SchemaProvider, JsonSchema } from "@dherman/sacp";
+import * as fs from "fs/promises";
+import connect from "./base-agent.js";
 
 /**
  * Creates a SchemaProvider from a Zod schema.
@@ -108,27 +110,26 @@ export type Config = z.infer<typeof ConfigZod>;
 
 export const ConfigSchema: SchemaProvider<Config> = zodSchema(ConfigZod);
 
-/**
- * Example usage (requires a running conductor):
- *
- * ```typescript
- * import { connect } from "@dherman/patchwork";
- * import { SummarySchema, SummaryZod } from "./02-zod-adapter.js";
- *
- * const patchwork = await connect(["sacp-conductor", "--agent", "claude"]);
- *
- * const summary = await patchwork
- *   .think(SummarySchema)
- *   .text("Summarize this document:")
- *   .display(documentContents)
- *   .run();
- *
- * // Type is inferred as Summary
- * console.log(summary.title);
- *
- * // You can also validate the response with Zod
- * const validated = SummaryZod.parse(summary);
- *
- * patchwork.close();
- * ```
- */
+export default async function main() {
+  const content = await fs.readFile(new URL("sample.txt", import.meta.url), "utf-8");
+  const agent = await connect();
+
+  try {
+    console.log("\nSending prompt to LLM...\n");
+
+    const result = await agent
+      .think(SummarySchema)
+      .text("Please summarize the following content:\n\n")
+      .display(content)
+      .run();
+
+    console.log(`Title: ${result.title}`);
+    console.log(`Word Count: ${result.wordCount}`);
+    console.log("Points:");
+    for (const point of result.points) {
+      console.log(`  • ${point}`);
+    }
+  } finally {
+    agent.close();
+  }
+}

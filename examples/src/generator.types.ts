@@ -1,13 +1,13 @@
 /**
- * Example 4: Build-time Schema Generation with ts-json-schema-generator
+ * Example: Build-time Schema Generation with ts-json-schema-generator
  *
  * This file contains hand-written TypeScript types. The companion file
- * (04-types.schemas.generated.ts) is auto-generated from these types.
+ * (generator.schemas.ts) is auto-generated from these types.
  *
  * Workflow:
  * 1. Define your types here with JSDoc annotations
  * 2. Run: pnpm generate:schemas
- * 3. Import generated SchemaProviders from 04-types.schemas.generated.ts
+ * 3. Import generated SchemaProviders from generator.schemas.ts
  *
  * The generator script (scripts/generate-schemas.ts) uses ts-json-schema-generator
  * to create a TypeScript module with SchemaProvider<T> exports for each type.

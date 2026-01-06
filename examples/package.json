@@ -13,7 +13,7 @@
     "demo:inline": "tsx src/demo.ts inline",
     "demo:zod": "tsx src/demo.ts zod",
     "demo:typebox": "tsx src/demo.ts typebox",
-    "demo:generated": "tsx src/demo.ts generated"
+    "demo:generator": "tsx src/demo.ts generator"
   },
   "dependencies": {
     "@dherman/patchwork": "workspace:*",

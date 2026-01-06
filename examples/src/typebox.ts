@@ -15,6 +15,8 @@
 
 import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import type { SchemaProvider, JsonSchema } from "@dherman/sacp";
+import * as fs from "fs/promises";
+import connect from "./base-agent.js";
 
 /**
  * Creates a SchemaProvider from a TypeBox schema.
@@ -117,29 +119,27 @@ export type UserProfile = Static<typeof UserProfileTypeBox>;
 export const UserProfileSchema: SchemaProvider<UserProfile> =
   typeboxSchema(UserProfileTypeBox);
 
-/**
- * Example usage (requires a running conductor):
- *
- * ```typescript
- * import { connect } from "@dherman/patchwork";
- * import { SummarySchema, SummaryTypeBox } from "./03-typebox-adapter.js";
- * import { Value } from "@sinclair/typebox/value";
- *
- * const patchwork = await connect(["sacp-conductor", "--agent", "claude"]);
- *
- * const summary = await patchwork
- *   .think(SummarySchema)
- *   .text("Summarize this document:")
- *   .display(documentContents)
- *   .run();
- *
- * // Type is inferred as Summary
- * console.log(summary.title);
- *
- * // You can also validate with TypeBox's Value module
- * const isValid = Value.Check(SummaryTypeBox, summary);
- * console.log("Valid:", isValid);
- *
- * patchwork.close();
- * ```
- */
+
+export default async function main() {
+  const content = await fs.readFile(new URL("sample.txt", import.meta.url), "utf-8");
+  const agent = await connect();
+
+  try {
+    console.log("\nSending prompt to LLM...\n");
+
+    const result = await agent
+      .think(SummarySchema)
+      .text("Please summarize the following content:\n\n")
+      .display(content)
+      .run();
+
+    console.log(`Title: ${result.title}`);
+    console.log(`Word Count: ${result.wordCount}`);
+    console.log("Points:");
+    for (const point of result.points) {
+      console.log(`  • ${point}`);
+    }
+  } finally {
+    agent.close();
+  }
+}

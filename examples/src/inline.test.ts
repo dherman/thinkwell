@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { SummarySchema, AnalysisResultSchema } from "./01-inline-schema.js";
+import { SummarySchema, AnalysisResultSchema } from "./inline.js";
 
 describe("Example 1: Inline schema with schemaOf<T>()", () => {
   describe("SummarySchema", () => {
