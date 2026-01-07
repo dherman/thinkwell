@@ -86,8 +86,8 @@ export class ThinkBuilder<Output> {
    *
    * @param name - The tool name
    * @param description - A description of what the tool does
-   * @param inputSchema - A SchemaProvider describing the expected input structure (or undefined for no input)
-   * @param outputSchema - A SchemaProvider describing the output structure (or undefined for untyped output)
+   * @param inputSchema - A SchemaProvider describing the expected input structure
+   * @param outputSchema - A SchemaProvider describing the output structure
    * @param handler - The function to execute when the tool is called
    *
    * @example
@@ -132,16 +132,64 @@ export class ThinkBuilder<Output> {
   tool<I, O>(
     name: string,
     description: string,
-    inputSchema: SchemaProvider<I> | undefined,
-    outputSchema: SchemaProvider<O> | undefined,
+    inputSchema: SchemaProvider<I>,
+    outputSchema: SchemaProvider<O>,
     handler: (input: I) => Promise<O>
+  ): this;
+
+  /**
+   * Register a tool with only an input schema.
+   */
+  tool<I>(
+    name: string,
+    description: string,
+    inputSchema: SchemaProvider<I>,
+    handler: (input: I) => Promise<unknown>
+  ): this;
+
+  /**
+   * Register a tool without schemas.
+   */
+  tool(
+    name: string,
+    description: string,
+    handler: (input: unknown) => Promise<unknown>
+  ): this;
+
+  tool<I, O>(
+    name: string,
+    description: string,
+    inputSchemaOrHandler: SchemaProvider<I> | ((input: I) => Promise<O>),
+    outputSchemaOrHandler?: SchemaProvider<O> | ((input: I) => Promise<O>),
+    handler?: (input: I) => Promise<O>
   ): this {
+    let inputSchema: SchemaProvider<unknown>;
+    let outputSchema: SchemaProvider<unknown>;
+    let actualHandler: (input: unknown) => Promise<unknown>;
+
+    if (typeof inputSchemaOrHandler === "function") {
+      // Overload 3: tool(name, description, handler)
+      inputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = inputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else if (typeof outputSchemaOrHandler === "function") {
+      // Overload 2: tool(name, description, inputSchema, handler)
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = outputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else {
+      // Overload 1: tool(name, description, inputSchema, outputSchema, handler)
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = outputSchemaOrHandler as SchemaProvider<unknown>;
+      actualHandler = handler as (input: unknown) => Promise<unknown>;
+    }
+
     this._tools.set(name, {
       name,
       description,
-      handler: handler as (input: unknown) => Promise<unknown>,
-      inputSchema: inputSchema ?? { toJsonSchema: () => ({ type: "object" }) },
-      outputSchema: outputSchema ?? { toJsonSchema: () => ({ type: "object" }) },
+      handler: actualHandler,
+      inputSchema,
+      outputSchema,
       includeInPrompt: true,
     });
     return this;
@@ -155,23 +203,71 @@ export class ThinkBuilder<Output> {
    *
    * @param name - The tool name
    * @param description - A description of what the tool does
-   * @param inputSchema - A SchemaProvider describing the expected input structure (or undefined for no input)
-   * @param outputSchema - A SchemaProvider describing the output structure (or undefined for untyped output)
+   * @param inputSchema - A SchemaProvider describing the expected input structure
+   * @param outputSchema - A SchemaProvider describing the output structure
    * @param handler - The function to execute when the tool is called
    */
   defineTool<I, O>(
     name: string,
     description: string,
-    inputSchema: SchemaProvider<I> | undefined,
-    outputSchema: SchemaProvider<O> | undefined,
+    inputSchema: SchemaProvider<I>,
+    outputSchema: SchemaProvider<O>,
     handler: (input: I) => Promise<O>
+  ): this;
+
+  /**
+   * Register a tool with only an input schema (no prompt reference).
+   */
+  defineTool<I>(
+    name: string,
+    description: string,
+    inputSchema: SchemaProvider<I>,
+    handler: (input: I) => Promise<unknown>
+  ): this;
+
+  /**
+   * Register a tool without schemas (no prompt reference).
+   */
+  defineTool(
+    name: string,
+    description: string,
+    handler: (input: unknown) => Promise<unknown>
+  ): this;
+
+  defineTool<I, O>(
+    name: string,
+    description: string,
+    inputSchemaOrHandler: SchemaProvider<I> | ((input: I) => Promise<O>),
+    outputSchemaOrHandler?: SchemaProvider<O> | ((input: I) => Promise<O>),
+    handler?: (input: I) => Promise<O>
   ): this {
+    let inputSchema: SchemaProvider<unknown>;
+    let outputSchema: SchemaProvider<unknown>;
+    let actualHandler: (input: unknown) => Promise<unknown>;
+
+    if (typeof inputSchemaOrHandler === "function") {
+      // Overload 3: defineTool(name, description, handler)
+      inputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = inputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else if (typeof outputSchemaOrHandler === "function") {
+      // Overload 2: defineTool(name, description, inputSchema, handler)
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = outputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else {
+      // Overload 1: defineTool(name, description, inputSchema, outputSchema, handler)
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = outputSchemaOrHandler as SchemaProvider<unknown>;
+      actualHandler = handler as (input: unknown) => Promise<unknown>;
+    }
+
     this._tools.set(name, {
       name,
       description,
-      handler: handler as (input: unknown) => Promise<unknown>,
-      inputSchema: inputSchema ?? { toJsonSchema: () => ({ type: "object" }) },
-      outputSchema: outputSchema ?? { toJsonSchema: () => ({ type: "object" }) },
+      handler: actualHandler,
+      inputSchema,
+      outputSchema,
       includeInPrompt: false,
     });
     return this;

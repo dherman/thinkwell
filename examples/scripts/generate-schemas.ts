@@ -28,8 +28,7 @@ const types = [
   "UserProfile",
   "DocumentSection",
   "DocumentAnalysis",
-  "SentimentInput",
-  "SentimentOutput",
+  "TextPassage",
 ];
 
 // Generate schema for a single type

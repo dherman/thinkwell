@@ -203,18 +203,8 @@ export default async function main() {
           },
           required: ["text"],
         }),
-        schemaOf<{ score: number; comparative: number; positive: string[]; negative: string[] }>({
-          type: "object",
-          properties: {
-            score: { type: "number", description: "Overall sentiment score" },
-            comparative: { type: "number", description: "Score normalized by text length" },
-            positive: { type: "array", items: { type: "string" }, description: "Positive words found" },
-            negative: { type: "array", items: { type: "string" }, description: "Negative words found" },
-          },
-          required: ["score", "comparative", "positive", "negative"],
-        }),
-        async (input: { text: string }) => {
-          const result = sentimentAnalyzer.analyze(input.text);
+        async (passage) => {
+          const result = sentimentAnalyzer.analyze(passage.text);
           console.log(
             `  Sentiment: score=${result.score}, comparative=${result.comparative.toFixed(3)}`
           );

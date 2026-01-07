@@ -139,23 +139,9 @@ export interface DocumentAnalysis {
 }
 
 /**
- * Input for the sentiment analysis tool.
+ * A text passage to analyze.
  */
-export interface SentimentInput {
+export interface TextPassage {
   /** The text passage to analyze */
   text: string;
-}
-
-/**
- * Output from the sentiment analysis tool.
- */
-export interface SentimentOutput {
-  /** Overall sentiment score */
-  score: number;
-  /** Score normalized by text length */
-  comparative: number;
-  /** Positive words found */
-  positive: string[];
-  /** Negative words found */
-  negative: string[];
 }

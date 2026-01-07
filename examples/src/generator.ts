@@ -23,8 +23,8 @@
  * 2. Prompt with a custom tool (sentiment analysis using an npm package)
  */
 
-import type { Summary, DocumentAnalysis, SentimentInput } from "./generator.types.js";
-import { SummarySchema, DocumentAnalysisSchema, SentimentInputSchema, SentimentOutputSchema } from "./generator.schemas.js";
+import type { Summary, DocumentAnalysis, TextPassage } from "./generator.types.js";
+import { SummarySchema, DocumentAnalysisSchema, TextPassageSchema } from "./generator.schemas.js";
 import * as fs from "fs/promises";
 import connect from "./base-agent.js";
 import Sentiment from "sentiment";
@@ -87,14 +87,13 @@ export default async function main() {
       .text(feedback)
 
       // Custom tool: wraps the `sentiment` npm package as an MCP tool
-      // Tool schemas generated from SentimentInput/SentimentOutput types in generator.types.ts
+      // Tool input schema generated from TextPassage type in generator.types.ts
       .tool(
         "analyze_sentiment",
         "Analyze the sentiment of a text passage. Returns a score (positive = good, negative = bad) and comparative score normalized by length.",
-        SentimentInputSchema,
-        SentimentOutputSchema,
-        async (input: SentimentInput) => {
-          const result = sentimentAnalyzer.analyze(input.text);
+        TextPassageSchema,
+        async (passage) => {
+          const result = sentimentAnalyzer.analyze(passage.text);
           console.log(
             `  Sentiment: score=${result.score}, comparative=${result.comparative.toFixed(3)}`
           );

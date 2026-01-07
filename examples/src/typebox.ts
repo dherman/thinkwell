@@ -163,16 +163,8 @@ export const DocumentAnalysisSchema: SchemaProvider<DocumentAnalysis> =
   typeboxSchema(DocumentAnalysisTypeBox);
 
 // Tool input schema for sentiment analysis
-const SentimentInputTypeBox = Type.Object({
+const TextPassageTypeBox = Type.Object({
   text: Type.String({ description: "The text passage to analyze" }),
-});
-
-// Tool output schema for sentiment analysis
-const SentimentOutputTypeBox = Type.Object({
-  score: Type.Number({ description: "Overall sentiment score" }),
-  comparative: Type.Number({ description: "Score normalized by text length" }),
-  positive: Type.Array(Type.String(), { description: "Positive words found" }),
-  negative: Type.Array(Type.String(), { description: "Negative words found" }),
 });
 
 // =============================================================================
@@ -230,14 +222,13 @@ export default async function main() {
       .text(feedback)
 
       // Custom tool: wraps the `sentiment` npm package as an MCP tool
-      // Tool schemas defined with TypeBox and converted via typeboxSchema()
+      // Tool input schema defined with TypeBox and converted via typeboxSchema()
       .tool(
         "analyze_sentiment",
         "Analyze the sentiment of a text passage. Returns a score (positive = good, negative = bad) and comparative score normalized by length.",
-        typeboxSchema(SentimentInputTypeBox),
-        typeboxSchema(SentimentOutputTypeBox),
-        async (input: Static<typeof SentimentInputTypeBox>) => {
-          const result = sentimentAnalyzer.analyze(input.text);
+        typeboxSchema(TextPassageTypeBox),
+        async (passage) => {
+          const result = sentimentAnalyzer.analyze(passage.text);
           console.log(
             `  Sentiment: score=${result.score}, comparative=${result.comparative.toFixed(3)}`
           );
