@@ -113,3 +113,27 @@ export interface UserProfile {
    */
   createdAt: string;
 }
+
+/**
+ * A section of a document with its sentiment analysis.
+ */
+export interface DocumentSection {
+  /** The section title */
+  title: string;
+  /** The sentiment score from the analysis tool */
+  sentimentScore: number;
+  /** A brief summary of the section */
+  summary: string;
+}
+
+/**
+ * Analysis of a document's sentiment and content.
+ */
+export interface DocumentAnalysis {
+  /** The overall emotional tone of the document */
+  overallTone: "positive" | "negative" | "mixed" | "neutral";
+  /** Analysis of each section */
+  sections: DocumentSection[];
+  /** A recommendation based on the analysis */
+  recommendation: string;
+}

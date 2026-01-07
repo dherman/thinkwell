@@ -17,10 +17,12 @@
   },
   "dependencies": {
     "@dherman/patchwork": "workspace:*",
-    "@dherman/sacp": "workspace:*"
+    "@dherman/sacp": "workspace:*",
+    "sentiment": "^5.0.2"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.30",
+    "@types/sentiment": "^5.0.4",
     "@types/node": "^24.10.4",
     "ts-json-schema-generator": "^2.4.0",
     "tsx": "^4.19.2",

@@ -20,7 +20,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..");
 
 // Types to generate schemas for (in order)
-const types = ["Summary", "AnalysisResult", "Topic", "Config", "UserProfile"];
+const types = [
+  "Summary",
+  "AnalysisResult",
+  "Topic",
+  "Config",
+  "UserProfile",
+  "DocumentSection",
+  "DocumentAnalysis",
+];
 
 // Generate schema for a single type
 function generateSchema(typeName: string): object {

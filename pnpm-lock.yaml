@@ -20,6 +20,9 @@ importers:
       '@dherman/sacp':
         specifier: workspace:*
         version: link:../packages/sacp
+      sentiment:
+        specifier: ^5.0.2
+        version: 5.0.2
     devDependencies:
       '@sinclair/typebox':
         specifier: ^0.34.30
@@ -27,6 +30,9 @@ importers:
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
+      '@types/sentiment':
+        specifier: ^5.0.4
+        version: 5.0.4
       ts-json-schema-generator:
         specifier: ^2.4.0
         version: 2.4.0
@@ -263,6 +269,9 @@ packages:
   '@types/node@24.10.4':
     resolution: {integrity: sha512-vnDVpYPMzs4wunl27jHrfmwojOGKya0xyM3sH+UE5iv5uPS6vX7UIoh6m+vQc5LGBq52HBKPIn/zcSZVzeDEZg==}
 
+  '@types/sentiment@5.0.4':
+    resolution: {integrity: sha512-6FL0CYijhnrR3gHbu7boAJn8zRCekJXBPfIHLkIgWbkY+hz5Dwfsq79FM7l/tLZKuEgQWktnzf6JqV2UCWKrbg==}
+
   '@types/uuid@10.0.0':
     resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
 
@@ -377,6 +386,10 @@ packages:
   safe-stable-stringify@2.5.0:
     resolution: {integrity: sha512-b3rppTKm9T+PsVCBEOUR46GWI7fdOs00VKZ1+9c1EWDaDMvjQc6tUwuFyIprgGgTcWoVHSKrU8H31ZHA2e0RHA==}
     engines: {node: '>=10'}
+
+  sentiment@5.0.2:
+    resolution: {integrity: sha512-ZeC3y0JsOYTdwujt5uOd7ILJNilbgFzUtg/LEG4wUv43LayFNLZ28ec8+Su+h3saHlJmIwYxBzfDHHZuiMA15g==}
+    engines: {node: '>=8.0'}
 
   shebang-command@2.0.0:
     resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==}
@@ -559,6 +572,8 @@ snapshots:
     dependencies:
       undici-types: 7.16.0
 
+  '@types/sentiment@5.0.4': {}
+
   '@types/uuid@10.0.0': {}
 
   ansi-regex@5.0.1: {}
@@ -673,6 +688,8 @@ snapshots:
   resolve-pkg-maps@1.0.0: {}
 
   safe-stable-stringify@2.5.0: {}
+
+  sentiment@5.0.2: {}
 
   shebang-command@2.0.0:
     dependencies:

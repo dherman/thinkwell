@@ -54,7 +54,7 @@ async function main() {
     console.log("Usage: pnpm demo [pattern]");
     console.log("");
     console.log("Patterns:");
-    console.log("  inline    - Use schemaOf<T>() inline schema helper");
+    console.log("  inline    - Use schemaOf<T>() with custom tools");
     console.log("  zod       - Use zodSchema() adapter");
     console.log("  typebox   - Use typeboxSchema() adapter");
     console.log("  generator - Use build-time generated schema");

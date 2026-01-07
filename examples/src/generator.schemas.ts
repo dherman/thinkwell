@@ -16,6 +16,8 @@ import type {
   Topic,
   Config,
   UserProfile,
+  DocumentSection,
+  DocumentAnalysis,
 } from "./generator.types.js";
 
 /**
@@ -203,6 +205,94 @@ export const UserProfileSchema: SchemaProvider<UserProfile> = schemaProvider<Use
       "id",
       "email",
       "createdAt"
+    ],
+    "type": "object"
+  });
+
+/**
+ * SchemaProvider for DocumentSection type.
+ * @generated
+ */
+export const DocumentSectionSchema: SchemaProvider<DocumentSection> = schemaProvider<DocumentSection>({
+    "additionalProperties": false,
+    "description": "A section of a document with its sentiment analysis.",
+    "properties": {
+      "sentimentScore": {
+        "description": "The sentiment score from the analysis tool",
+        "type": "number"
+      },
+      "summary": {
+        "description": "A brief summary of the section",
+        "type": "string"
+      },
+      "title": {
+        "description": "The section title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "title",
+      "sentimentScore",
+      "summary"
+    ],
+    "type": "object"
+  });
+
+/**
+ * SchemaProvider for DocumentAnalysis type.
+ * @generated
+ */
+export const DocumentAnalysisSchema: SchemaProvider<DocumentAnalysis> = schemaProvider<DocumentAnalysis>({
+    "additionalProperties": false,
+    "description": "Analysis of a document's sentiment and content.",
+    "properties": {
+      "overallTone": {
+        "description": "The overall emotional tone of the document",
+        "enum": [
+          "positive",
+          "negative",
+          "mixed",
+          "neutral"
+        ],
+        "type": "string"
+      },
+      "recommendation": {
+        "description": "A recommendation based on the analysis",
+        "type": "string"
+      },
+      "sections": {
+        "description": "Analysis of each section",
+        "items": {
+          "additionalProperties": false,
+          "description": "A section of a document with its sentiment analysis.",
+          "properties": {
+            "sentimentScore": {
+              "description": "The sentiment score from the analysis tool",
+              "type": "number"
+            },
+            "summary": {
+              "description": "A brief summary of the section",
+              "type": "string"
+            },
+            "title": {
+              "description": "The section title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "sentimentScore",
+            "summary"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "overallTone",
+      "sections",
+      "recommendation"
     ],
     "type": "object"
   });
