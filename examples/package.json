@@ -13,7 +13,8 @@
     "demo:inline": "tsx src/demo.ts inline",
     "demo:zod": "tsx src/demo.ts zod",
     "demo:typebox": "tsx src/demo.ts typebox",
-    "demo:generator": "tsx src/demo.ts generator"
+    "demo:generator": "tsx src/demo.ts generator",
+    "demo:unminify": "tsx src/demo.ts unminify"
   },
   "dependencies": {
     "@dherman/patchwork": "workspace:*",
@@ -22,8 +23,9 @@
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.30",
-    "@types/sentiment": "^5.0.4",
     "@types/node": "^24.10.4",
+    "@types/sentiment": "^5.0.4",
+    "prettier": "^3.7.4",
     "ts-json-schema-generator": "^2.4.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

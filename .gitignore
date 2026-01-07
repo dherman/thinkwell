@@ -4,3 +4,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 **/*.log
+
+# Generated output from unminify demo
+examples/data/underscore.js

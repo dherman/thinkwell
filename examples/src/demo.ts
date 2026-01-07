@@ -28,12 +28,14 @@ import inline from "./inline.js";
 import zod from './zod.js';
 import typebox from './typebox.js';
 import generator from './generator.js';
+import unminify from './unminify.js';
 
 const DEMOS: Record<string, () => Promise<void>> = {
   inline,
   zod,
   typebox,
   generator,
+  unminify,
 };
 
 async function main() {
@@ -48,7 +50,7 @@ async function main() {
     for (const demo of [inline, zod, typebox, generator]) {
       await demo();
     }
-  } else if (["inline", "zod", "typebox", "generator"].includes(pattern)) {
+  } else if (["inline", "zod", "typebox", "generator", "unminify"].includes(pattern)) {
     await DEMOS[pattern]();
   } else {
     console.log("Usage: pnpm demo [pattern]");
@@ -58,6 +60,7 @@ async function main() {
     console.log("  zod       - Use zodSchema() adapter");
     console.log("  typebox   - Use typeboxSchema() adapter");
     console.log("  generator - Use build-time generated schema");
+    console.log("  unminify  - JavaScript unminifier using LLM analysis");
     console.log("  all       - Run all patterns (default)");
     console.log("");
     console.log("Environment variables:");
