@@ -1,0 +1,33 @@
+{
+  "name": "@dherman/patchwork-examples",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Integration examples for SchemaProvider patterns",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "node --test --import tsx src/**/*.test.ts",
+    "generate:schemas": "tsx scripts/generate-schemas.ts",
+    "demo": "tsx src/demo.ts",
+    "demo:inline": "tsx src/demo.ts inline",
+    "demo:zod": "tsx src/demo.ts zod",
+    "demo:typebox": "tsx src/demo.ts typebox",
+    "demo:generator": "tsx src/demo.ts generator"
+  },
+  "dependencies": {
+    "@dherman/patchwork": "workspace:*",
+    "@dherman/sacp": "workspace:*",
+    "sentiment": "^5.0.2"
+  },
+  "devDependencies": {
+    "@sinclair/typebox": "^0.34.30",
+    "@types/sentiment": "^5.0.4",
+    "@types/node": "^24.10.4",
+    "ts-json-schema-generator": "^2.4.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.24.1"
+  }
+}

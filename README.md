@@ -12,18 +12,29 @@ This monorepo contains two packages:
 ## Quick Start
 
 ```typescript
-import { connect } from "@dherman/patchwork";
+import { connect, schemaOf } from "@dherman/patchwork";
 
 // Connect to an agent via the conductor
 const patchwork = await connect(["sacp-conductor", "--agent", "claude"]);
 
-// Use the think() API to compose prompts with tools
+// Define your output type and schema
 interface Summary {
   title: string;
   points: string[];
 }
 
-const summary = await patchwork.think<Summary>()
+const SummarySchema = schemaOf<Summary>({
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    points: { type: "array", items: { type: "string" } },
+  },
+  required: ["title", "points"],
+});
+
+// Use the think() API to compose prompts with tools
+const summary = await patchwork
+  .think(SummarySchema)
   .text("Summarize this document:")
   .display(documentContents)
   .tool("record", "Record an important item", async (input: { item: string }) => {
@@ -32,10 +43,51 @@ const summary = await patchwork.think<Summary>()
   })
   .run();
 
-console.log(summary.title);
-console.log(summary.points);
+console.log(summary.title);  // Typed as string
+console.log(summary.points); // Typed as string[]
 
 patchwork.close();
+```
+
+### Schema Providers
+
+The `schemaOf<T>()` helper creates a `SchemaProvider<T>` from a JSON Schema. This enables type-safe integration with the LLM's structured output:
+
+```typescript
+import { schemaOf, type SchemaProvider } from "@dherman/patchwork";
+
+// The type parameter flows through to the result
+const schema: SchemaProvider<{ name: string }> = schemaOf({
+  type: "object",
+  properties: { name: { type: "string" } },
+  required: ["name"],
+});
+
+const result = await patchwork.think(schema).text("...").run();
+// result.name is typed as string
+```
+
+For integration with schema libraries like Zod or TypeBox, create an adapter that implements `SchemaProvider<T>`:
+
+```typescript
+// Example Zod adapter
+import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
+import type { SchemaProvider } from "@dherman/patchwork";
+
+function zodSchema<T>(schema: z.ZodType<T>): SchemaProvider<T> {
+  return {
+    toJsonSchema: () => zodToJsonSchema(schema),
+  };
+}
+
+// Usage
+const Summary = z.object({
+  title: z.string(),
+  points: z.array(z.string()),
+});
+
+const result = await patchwork.think(zodSchema(Summary)).text("...").run();
 ```
 
 ## Development

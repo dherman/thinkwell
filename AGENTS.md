@@ -56,3 +56,9 @@ Common scopes for this repository:
 - `deps` - Dependency updates
 
 **Agents should help ensure commit messages follow this format.**
+
+## Implementation Plans
+
+Implementation plans are stored in doc/plan.md and are scoped to an individual pull request (by deleting from git before merge). This file should contain markdown checklists for tasks, and should contain high-level task descriptions, usually one line long. To avoid wasting time keeping the plan document in sync with the implementation, the plan should contain no code blocks of implementation details (high level signatures or usage examples are fine).
+
+When implementing a plan, remember to check off the tasks in the plan document as you work.

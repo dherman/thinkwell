@@ -5,6 +5,7 @@ import {
   mcpServer,
   SessionBuilder,
   type JsonSchema,
+  type SchemaProvider,
   type ToolHandler,
 } from "@dherman/sacp";
 
@@ -15,8 +16,8 @@ interface ToolDefinition<I = unknown, O = unknown> {
   name: string;
   description: string;
   handler: (input: I) => Promise<O>;
-  inputSchema: JsonSchema;
-  outputSchema: JsonSchema;
+  inputSchema: SchemaProvider<I>;
+  outputSchema: SchemaProvider<O>;
   includeInPrompt: boolean;
 }
 
@@ -34,13 +35,18 @@ export class ThinkBuilder<Output> {
   private readonly _mcpHandler: McpOverAcpHandler;
   private _promptParts: string[] = [];
   private _tools: Map<string, ToolDefinition> = new Map();
-  private _outputSchema: JsonSchema | undefined;
+  private _schemaProvider: SchemaProvider<Output> | undefined;
   private _cwd: string | undefined;
   private _systemPrompt: string | undefined;
 
-  constructor(connection: SacpConnection, mcpHandler: McpOverAcpHandler) {
+  constructor(
+    connection: SacpConnection,
+    mcpHandler: McpOverAcpHandler,
+    schema?: SchemaProvider<Output>
+  ) {
     this._connection = connection;
     this._mcpHandler = mcpHandler;
+    this._schemaProvider = schema;
   }
 
   /**
@@ -77,19 +83,113 @@ export class ThinkBuilder<Output> {
    *
    * The tool will be mentioned in the prompt text to help the LLM
    * understand that it's available.
+   *
+   * @param name - The tool name
+   * @param description - A description of what the tool does
+   * @param inputSchema - A SchemaProvider describing the expected input structure
+   * @param outputSchema - A SchemaProvider describing the output structure
+   * @param handler - The function to execute when the tool is called
+   *
+   * @example
+   * ```typescript
+   * import { schemaOf } from "@dherman/patchwork";
+   *
+   * interface SearchInput {
+   *   query: string;
+   *   limit?: number;
+   * }
+   *
+   * interface SearchResult {
+   *   matches: string[];
+   *   total: number;
+   * }
+   *
+   * patchwork.think(outputSchema)
+   *   .tool(
+   *     "search",
+   *     "Search for documents",
+   *     schemaOf<SearchInput>({
+   *       type: "object",
+   *       properties: {
+   *         query: { type: "string" },
+   *         limit: { type: "number" }
+   *       },
+   *       required: ["query"]
+   *     }),
+   *     schemaOf<SearchResult>({
+   *       type: "object",
+   *       properties: {
+   *         matches: { type: "array", items: { type: "string" } },
+   *         total: { type: "number" }
+   *       },
+   *       required: ["matches", "total"]
+   *     }),
+   *     async (input: SearchInput) => { ... }
+   *   )
+   *   .run();
+   * ```
    */
   tool<I, O>(
     name: string,
     description: string,
-    handler: (input: I) => Promise<O>,
-    inputSchema?: JsonSchema
+    inputSchema: SchemaProvider<I>,
+    outputSchema: SchemaProvider<O>,
+    handler: (input: I) => Promise<O>
+  ): this;
+
+  /**
+   * Register a tool with only an input schema.
+   */
+  tool<I>(
+    name: string,
+    description: string,
+    inputSchema: SchemaProvider<I>,
+    handler: (input: I) => Promise<unknown>
+  ): this;
+
+  /**
+   * Register a tool without schemas.
+   */
+  tool(
+    name: string,
+    description: string,
+    handler: (input: unknown) => Promise<unknown>
+  ): this;
+
+  tool<I, O>(
+    name: string,
+    description: string,
+    inputSchemaOrHandler: SchemaProvider<I> | ((input: I) => Promise<O>),
+    outputSchemaOrHandler?: SchemaProvider<O> | ((input: I) => Promise<O>),
+    handler?: (input: I) => Promise<O>
   ): this {
+    let inputSchema: SchemaProvider<unknown>;
+    let outputSchema: SchemaProvider<unknown>;
+    let actualHandler: (input: unknown) => Promise<unknown>;
+
+    if (typeof inputSchemaOrHandler === "function") {
+      // Overload 3: tool(name, description, handler)
+      inputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = inputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else if (typeof outputSchemaOrHandler === "function") {
+      // Overload 2: tool(name, description, inputSchema, handler)
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = outputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else {
+      // Overload 1: tool(name, description, inputSchema, outputSchema, handler)
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = outputSchemaOrHandler as SchemaProvider<unknown>;
+      actualHandler = handler as (input: unknown) => Promise<unknown>;
+    }
+
     this._tools.set(name, {
       name,
       description,
-      handler: handler as (input: unknown) => Promise<unknown>,
-      inputSchema: inputSchema ?? { type: "object" },
-      outputSchema: { type: "object" },
+      handler: actualHandler,
+      inputSchema,
+      outputSchema,
       includeInPrompt: true,
     });
     return this;
@@ -100,19 +200,74 @@ export class ThinkBuilder<Output> {
    *
    * Use this for tools that should be available but don't need
    * to be explicitly mentioned in the prompt.
+   *
+   * @param name - The tool name
+   * @param description - A description of what the tool does
+   * @param inputSchema - A SchemaProvider describing the expected input structure
+   * @param outputSchema - A SchemaProvider describing the output structure
+   * @param handler - The function to execute when the tool is called
    */
   defineTool<I, O>(
     name: string,
     description: string,
-    handler: (input: I) => Promise<O>,
-    inputSchema?: JsonSchema
+    inputSchema: SchemaProvider<I>,
+    outputSchema: SchemaProvider<O>,
+    handler: (input: I) => Promise<O>
+  ): this;
+
+  /**
+   * Register a tool with only an input schema (no prompt reference).
+   */
+  defineTool<I>(
+    name: string,
+    description: string,
+    inputSchema: SchemaProvider<I>,
+    handler: (input: I) => Promise<unknown>
+  ): this;
+
+  /**
+   * Register a tool without schemas (no prompt reference).
+   */
+  defineTool(
+    name: string,
+    description: string,
+    handler: (input: unknown) => Promise<unknown>
+  ): this;
+
+  defineTool<I, O>(
+    name: string,
+    description: string,
+    inputSchemaOrHandler: SchemaProvider<I> | ((input: I) => Promise<O>),
+    outputSchemaOrHandler?: SchemaProvider<O> | ((input: I) => Promise<O>),
+    handler?: (input: I) => Promise<O>
   ): this {
+    let inputSchema: SchemaProvider<unknown>;
+    let outputSchema: SchemaProvider<unknown>;
+    let actualHandler: (input: unknown) => Promise<unknown>;
+
+    if (typeof inputSchemaOrHandler === "function") {
+      // Overload 3: defineTool(name, description, handler)
+      inputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = inputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else if (typeof outputSchemaOrHandler === "function") {
+      // Overload 2: defineTool(name, description, inputSchema, handler)
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = outputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else {
+      // Overload 1: defineTool(name, description, inputSchema, outputSchema, handler)
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = outputSchemaOrHandler as SchemaProvider<unknown>;
+      actualHandler = handler as (input: unknown) => Promise<unknown>;
+    }
+
     this._tools.set(name, {
       name,
       description,
-      handler: handler as (input: unknown) => Promise<unknown>,
-      inputSchema: inputSchema ?? { type: "object" },
-      outputSchema: { type: "object" },
+      handler: actualHandler,
+      inputSchema,
+      outputSchema,
       includeInPrompt: false,
     });
     return this;
@@ -123,9 +278,14 @@ export class ThinkBuilder<Output> {
    *
    * This generates a return_result tool that the LLM must call
    * to provide the final output.
+   *
+   * @deprecated Use `patchwork.think(schemaOf<T>(schema))` instead to provide a typed schema at construction time.
    */
   outputSchema(schema: JsonSchema): this {
-    this._outputSchema = schema;
+    console.warn(
+      "ThinkBuilder.outputSchema() is deprecated. Use patchwork.think(schemaOf<T>(schema)) instead."
+    );
+    this._schemaProvider = { toJsonSchema: () => schema };
     return this;
   }
 
@@ -180,9 +340,6 @@ export class ThinkBuilder<Output> {
       }
     }
 
-    // Add return instruction
-    prompt += "\n\nWhen you have the final answer, call the return_result tool with your result.";
-
     // Create the MCP server builder
     const serverBuilder = mcpServer("patchwork");
 
@@ -190,8 +347,13 @@ export class ThinkBuilder<Output> {
     let resultReceived = false;
     let result: Output | undefined;
 
+    // Get the output schema for the return_result tool
+    const outputSchema = this._schemaProvider?.toJsonSchema() ?? { type: "object" };
+
+    // Add return instruction - the schema is already in the tool definition
+    prompt += "\n\nWhen you have your answer, call the `return_result` MCP tool with the result.";
+
     // Add the return_result tool
-    const outputSchema = this._outputSchema ?? { type: "object" };
     serverBuilder.tool(
       "return_result",
       "Return the final result",
@@ -209,8 +371,8 @@ export class ThinkBuilder<Output> {
       serverBuilder.tool(
         tool.name,
         tool.description,
-        tool.inputSchema,
-        tool.outputSchema,
+        tool.inputSchema.toJsonSchema(),
+        tool.outputSchema.toJsonSchema(),
         async (input: unknown, _context) => {
           return tool.handler(input);
         }
@@ -242,12 +404,11 @@ export class ThinkBuilder<Output> {
 
           if (update.type === "stop") {
             if (!resultReceived) {
-              reject(new Error("Session ended without returning a result"));
+              reject(new Error("Session ended without calling return_result"));
             }
             break;
           }
 
-          // Text updates are ignored (we just wait for tool calls)
           // Tool calls are handled by the MCP server
         }
 

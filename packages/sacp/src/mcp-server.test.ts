@@ -96,7 +96,7 @@ describe("McpServer", () => {
     const result = await server.handleMethod("initialize", {}, context);
 
     assert.deepStrictEqual(result, {
-      protocolVersion: "2024-11-05",
+      protocolVersion: "2025-03-26",
       serverInfo: { name: "test-server", version: "0.1.0" },
       capabilities: { tools: {} },
       instructions: "Test instructions",

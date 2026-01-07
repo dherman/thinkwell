@@ -44,7 +44,11 @@ export class ActiveSession {
    * Send a prompt to the agent
    */
   async sendPrompt(content: string): Promise<void> {
-    await this._connection.sendPrompt(this.sessionId, content);
+    const response = await this._connection.sendPrompt(this.sessionId, content);
+    // Push a stop update when the prompt completes
+    if (response.stopReason) {
+      this.pushUpdate({ type: "stop", reason: response.stopReason });
+    }
   }
 
   /**
@@ -110,6 +114,22 @@ export class ActiveSession {
 }
 
 /**
+ * Options for waiting for MCP readiness
+ */
+export interface McpReadyOptions {
+  /**
+   * Whether to wait for the agent to call tools/list before proceeding.
+   * Default: true when MCP servers are attached
+   */
+  enabled?: boolean;
+  /**
+   * Maximum time to wait for tools discovery in milliseconds.
+   * Default: 2000ms
+   */
+  timeout?: number;
+}
+
+/**
  * Builder for creating ACP sessions with MCP servers
  */
 export class SessionBuilder {
@@ -118,6 +138,7 @@ export class SessionBuilder {
   private _mcpServers: McpServer[] = [];
   private _cwd: string | undefined;
   private _systemPrompt: string | undefined;
+  private _mcpReadyOptions: McpReadyOptions = {};
 
   constructor(connection: SacpConnection, mcpHandler: McpOverAcpHandler) {
     this._connection = connection;
@@ -150,6 +171,21 @@ export class SessionBuilder {
   }
 
   /**
+   * Configure waiting for MCP tools discovery.
+   *
+   * By default, when MCP servers are attached, the session will wait for
+   * the agent to call tools/list before invoking the callback. This prevents
+   * a race condition where the prompt is sent before the agent knows about
+   * available tools.
+   *
+   * @param options - Options for MCP readiness waiting
+   */
+  waitForMcpReady(options: McpReadyOptions = {}): this {
+    this._mcpReadyOptions = options;
+    return this;
+  }
+
+  /**
    * Start the session and run a callback
    */
   async run<T>(callback: (session: ActiveSession) => Promise<T>): Promise<T> {
@@ -170,6 +206,15 @@ export class SessionBuilder {
     this._connection.setSessionHandler(sessionId, session);
 
     try {
+      // Wait for MCP tools discovery if we have MCP servers attached
+      const shouldWait = this._mcpServers.length > 0 &&
+        (this._mcpReadyOptions.enabled !== false);
+
+      if (shouldWait) {
+        const timeout = this._mcpReadyOptions.timeout ?? 2000;
+        await this._mcpHandler.waitForToolsDiscovery(sessionId, timeout);
+      }
+
       return await callback(session);
     } finally {
       session.close();

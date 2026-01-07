@@ -5,7 +5,11 @@
 import type { JsonValue } from "./json.js";
 
 /**
- * JSON Schema type for tool input/output validation
+ * JSON Schema type for tool input/output validation.
+ *
+ * This is a structural subset of JSON Schema, designed to be compatible
+ * with schemas produced by third-party libraries without requiring them
+ * as dependencies.
  */
 export interface JsonSchema {
   type?: string;
@@ -20,6 +24,23 @@ export interface JsonSchema {
   $ref?: string;
   additionalProperties?: boolean | JsonSchema;
   [key: string]: unknown;
+}
+
+/**
+ * Interface for types that can provide a JSON Schema representation.
+ *
+ * This enables integration with various schema technologies:
+ * - Schema-first libraries (Zod, TypeBox)
+ * - Build-time type-to-schema generators (TypeSpec, ts-json-schema-transformer)
+ * - Hand-written schemas with type associations
+ *
+ * @typeParam T - The TypeScript type that this schema describes
+ */
+export interface SchemaProvider<T> {
+  /**
+   * Returns the JSON Schema that describes type T.
+   */
+  toJsonSchema(): JsonSchema;
 }
 
 /**
@@ -64,6 +85,8 @@ export interface McpConnectResponse {
   capabilities: {
     tools?: Record<string, unknown>;
   };
+  /** Optional tool definitions - the bridge may use these to pre-populate tool info */
+  tools?: McpToolDefinition[];
 }
 
 /**

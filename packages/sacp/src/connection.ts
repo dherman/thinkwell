@@ -184,13 +184,17 @@ export class SacpConnection {
  * Create a Client implementation that handles incoming agent requests
  */
 function createClient(
-  connection: SacpConnection,
+  connectionHolder: { connection: SacpConnection | null },
   mcpHandler: McpOverAcpHandler
 ): Client {
   return {
     // Required: Handle session updates from the agent
     sessionUpdate(notification: SessionNotification): Promise<void> {
-      connection.handleSessionUpdate(notification);
+      if (!connectionHolder.connection) {
+        console.error("Connection not yet initialized, dropping session update");
+        return Promise.resolve();
+      }
+      connectionHolder.connection.handleSessionUpdate(notification);
       return Promise.resolve();
     },
 
@@ -315,17 +319,20 @@ export async function connect(command: string[]): Promise<SacpConnection> {
   // Create the MCP handler
   const mcpHandler = new McpOverAcpHandler();
 
-  // Create a placeholder for the connection (needed for circular reference)
-  let sacpConnection: SacpConnection;
+  // Use a holder object to break the circular reference.
+  // The client factory is called lazily by ClientSideConnection,
+  // so we need the holder to be populated before any messages arrive.
+  const connectionHolder: { connection: SacpConnection | null } = { connection: null };
 
   // Create the ACP client connection
   const clientConnection = new ClientSideConnection(
-    (_agent: Agent) => createClient(sacpConnection!, mcpHandler),
+    (_agent: Agent) => createClient(connectionHolder, mcpHandler),
     stream
   );
 
-  // Create our wrapper connection
-  sacpConnection = new SacpConnection(childProcess, clientConnection, mcpHandler);
+  // Create our wrapper connection and store it in the holder
+  const sacpConnection = new SacpConnection(childProcess, clientConnection, mcpHandler);
+  connectionHolder.connection = sacpConnection;
 
   return sacpConnection;
 }
