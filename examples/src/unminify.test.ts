@@ -7,8 +7,8 @@ import {
   FunctionAnalysisSchema,
   FunctionAnalysisBatchSchema,
   RenamedCodeSchema,
-  formatCode,
-} from "./unminify.js";
+} from "./unminify.schemas.js";
+import { formatCode } from "./unminify.js";
 
 describe("Unminify Demo", () => {
   describe("ModuleConversionSchema", () => {

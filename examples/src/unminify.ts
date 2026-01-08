@@ -8,173 +8,92 @@
  * 3. Extract list of functions
  * 4. Analyze each function to suggest better names
  * 5. Apply renames in a single pass
+ *
+ * This example uses the types-first approach with @JSONSchema JSDoc tags.
+ * Schemas are generated at build time by running: pnpm generate:schemas
  */
 
-import { schemaOf } from "@dherman/patchwork";
-import type { SchemaProvider } from "@dherman/sacp";
+import {
+  ModuleConversionSchema,
+  FunctionListSchema,
+  FunctionAnalysisBatchSchema,
+  RenamedCodeSchema,
+} from "./unminify.schemas.js";
 import connect from "./base-agent.js";
 import * as fs from "fs/promises";
 import * as prettier from "prettier";
 
 // =============================================================================
-// Schemas
+// Type Definitions (marked with @JSONSchema for schema generation)
 // =============================================================================
 
-interface ModuleConversion {
+/**
+ * Result of converting a UMD module to ESM.
+ * @JSONSchema
+ */
+export interface ModuleConversion {
+  /** The converted ESM code with default export */
   code: string;
+  /** The name of the main exported object/function */
   exportedName: string;
 }
 
-export type { ModuleConversion, FunctionInfo, FunctionList, FunctionAnalysis, FunctionAnalysisBatch, RenamedCode };
-
-export const ModuleConversionSchema: SchemaProvider<ModuleConversion> =
-  schemaOf<ModuleConversion>({
-    type: "object",
-    properties: {
-      code: {
-        type: "string",
-        description: "The converted ESM code with default export",
-      },
-      exportedName: {
-        type: "string",
-        description: "The name of the main exported object/function",
-      },
-    },
-    required: ["code", "exportedName"],
-  });
-
-interface FunctionInfo {
+/**
+ * Information about a function found in the code.
+ * @JSONSchema
+ */
+export interface FunctionInfo {
+  /** Current function name (may be minified) */
   name: string;
+  /** Function signature including parameters */
   signature: string;
+  /** Approximate line number where the function is defined */
   lineNumber: number;
 }
 
-interface FunctionList {
+/**
+ * List of functions extracted from the code.
+ * @JSONSchema
+ */
+export interface FunctionList {
+  /** List of all top-level functions in the code */
   functions: FunctionInfo[];
 }
 
-export const FunctionListSchema: SchemaProvider<FunctionList> =
-  schemaOf<FunctionList>({
-    type: "object",
-    properties: {
-      functions: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            name: {
-              type: "string",
-              description: "Current function name (may be minified)",
-            },
-            signature: {
-              type: "string",
-              description: "Function signature including parameters",
-            },
-            lineNumber: {
-              type: "number",
-              description: "Approximate line number where the function is defined",
-            },
-          },
-          required: ["name", "signature", "lineNumber"],
-        },
-        description: "List of all top-level functions in the code",
-      },
-    },
-    required: ["functions"],
-  });
-
-interface FunctionAnalysis {
+/**
+ * Analysis result for a single function.
+ * @JSONSchema
+ */
+export interface FunctionAnalysis {
+  /** The original minified function name */
   originalName: string;
+  /** Suggested descriptive name (camelCase, no underscores unless conventional) */
   suggestedName: string;
+  /** Brief description of what the function does */
   purpose: string;
+  /** Confidence level in the suggested name */
   confidence: "high" | "medium" | "low";
 }
 
-export const FunctionAnalysisSchema: SchemaProvider<FunctionAnalysis> =
-  schemaOf<FunctionAnalysis>({
-    type: "object",
-    properties: {
-      originalName: {
-        type: "string",
-        description: "The original minified function name",
-      },
-      suggestedName: {
-        type: "string",
-        description:
-          "Suggested descriptive name (camelCase, no underscores unless conventional)",
-      },
-      purpose: {
-        type: "string",
-        description: "Brief description of what the function does",
-      },
-      confidence: {
-        type: "string",
-        enum: ["high", "medium", "low"],
-        description: "Confidence level in the suggested name",
-      },
-    },
-    required: ["originalName", "suggestedName", "purpose", "confidence"],
-  });
-
-interface FunctionAnalysisBatch {
+/**
+ * Batch of function analyses.
+ * @JSONSchema
+ */
+export interface FunctionAnalysisBatch {
+  /** Array of function analyses */
   analyses: FunctionAnalysis[];
 }
 
-export const FunctionAnalysisBatchSchema: SchemaProvider<FunctionAnalysisBatch> =
-  schemaOf<FunctionAnalysisBatch>({
-    type: "object",
-    properties: {
-      analyses: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            originalName: {
-              type: "string",
-              description: "The original minified function name",
-            },
-            suggestedName: {
-              type: "string",
-              description:
-                "Suggested descriptive name (camelCase, no underscores unless conventional)",
-            },
-            purpose: {
-              type: "string",
-              description: "Brief description of what the function does",
-            },
-            confidence: {
-              type: "string",
-              enum: ["high", "medium", "low"],
-              description: "Confidence level in the suggested name",
-            },
-          },
-          required: ["originalName", "suggestedName", "purpose", "confidence"],
-        },
-        description: "Array of function analyses",
-      },
-    },
-    required: ["analyses"],
-  });
-
-interface RenamedCode {
+/**
+ * Result of applying renames to code.
+ * @JSONSchema
+ */
+export interface RenamedCode {
+  /** The code with all renames applied */
   code: string;
+  /** Number of identifiers that were renamed */
   renameCount: number;
 }
-
-export const RenamedCodeSchema: SchemaProvider<RenamedCode> = schemaOf<RenamedCode>({
-  type: "object",
-  properties: {
-    code: {
-      type: "string",
-      description: "The code with all renames applied",
-    },
-    renameCount: {
-      type: "number",
-      description: "Number of identifiers that were renamed",
-    },
-  },
-  required: ["code", "renameCount"],
-});
 
 // =============================================================================
 // Step 1: Pretty-print

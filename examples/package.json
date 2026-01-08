@@ -8,7 +8,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "test": "node --test --import tsx src/**/*.test.ts",
-    "generate:schemas": "build-schema-providers src/generator.ts",
+    "generate:schemas": "build-schema-providers src/generator.ts src/unminify.ts",
     "demo": "tsx src/demo.ts",
     "demo:inline": "tsx src/demo.ts inline",
     "demo:zod": "tsx src/demo.ts zod",
