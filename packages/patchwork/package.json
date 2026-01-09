@@ -28,6 +28,7 @@
   "author": "David Herman",
   "license": "MIT",
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.12.0",
     "@dherman/sacp": "workspace:*"
   },
   "devDependencies": {

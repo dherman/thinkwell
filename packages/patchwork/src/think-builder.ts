@@ -1,13 +1,14 @@
 import {
-  SacpConnection,
-  McpOverAcpHandler,
-  McpServerBuilder,
   mcpServer,
-  SessionBuilder,
   type JsonSchema,
   type SchemaProvider,
-  type ToolHandler,
+  type SessionUpdate,
 } from "@dherman/sacp";
+import type { AgentConnection, SessionHandler } from "./agent.js";
+import type {
+  NewSessionRequest,
+  McpServer as AcpMcpServer,
+} from "@agentclientprotocol/sdk";
 
 /**
  * Tool definition for internal tracking
@@ -22,6 +23,63 @@ interface ToolDefinition<I = unknown, O = unknown> {
 }
 
 /**
+ * Internal session handler for ThinkBuilder
+ */
+class ThinkSession implements SessionHandler {
+  readonly sessionId: string;
+  private readonly _conn: AgentConnection;
+  private _pendingUpdates: SessionUpdate[] = [];
+  private _updateResolvers: Array<(update: SessionUpdate) => void> = [];
+  private _closed: boolean = false;
+
+  constructor(sessionId: string, conn: AgentConnection) {
+    this.sessionId = sessionId;
+    this._conn = conn;
+  }
+
+  async sendPrompt(content: string): Promise<void> {
+    const response = await this._conn.connection.prompt({
+      sessionId: this.sessionId,
+      prompt: [{ type: "text", text: content }],
+    });
+    if (response.stopReason) {
+      this.pushUpdate({ type: "stop", reason: response.stopReason });
+    }
+  }
+
+  pushUpdate(update: SessionUpdate): void {
+    if (this._updateResolvers.length > 0) {
+      const resolver = this._updateResolvers.shift()!;
+      resolver(update);
+    } else {
+      this._pendingUpdates.push(update);
+    }
+  }
+
+  async readUpdate(): Promise<SessionUpdate> {
+    if (this._pendingUpdates.length > 0) {
+      return this._pendingUpdates.shift()!;
+    }
+
+    if (this._closed) {
+      return { type: "stop", reason: "session_closed" };
+    }
+
+    return new Promise((resolve) => {
+      this._updateResolvers.push(resolve);
+    });
+  }
+
+  close(): void {
+    this._closed = true;
+    for (const resolver of this._updateResolvers) {
+      resolver({ type: "stop", reason: "session_closed" });
+    }
+    this._updateResolvers = [];
+  }
+}
+
+/**
  * Fluent builder for composing prompts with tools.
  *
  * ThinkBuilder provides a chainable API for:
@@ -31,22 +89,21 @@ interface ToolDefinition<I = unknown, O = unknown> {
  * - Executing the prompt and returning a typed result
  */
 export class ThinkBuilder<Output> {
-  private readonly _connection: SacpConnection;
-  private readonly _mcpHandler: McpOverAcpHandler;
+  private readonly _conn: AgentConnection;
   private _promptParts: string[] = [];
   private _tools: Map<string, ToolDefinition> = new Map();
   private _schemaProvider: SchemaProvider<Output> | undefined;
   private _cwd: string | undefined;
-  private _systemPrompt: string | undefined;
+  private _existingSessionId: string | undefined;
 
   constructor(
-    connection: SacpConnection,
-    mcpHandler: McpOverAcpHandler,
-    schema?: SchemaProvider<Output>
+    conn: AgentConnection,
+    schema?: SchemaProvider<Output>,
+    existingSessionId?: string
   ) {
-    this._connection = connection;
-    this._mcpHandler = mcpHandler;
+    this._conn = conn;
     this._schemaProvider = schema;
+    this._existingSessionId = existingSessionId;
   }
 
   /**
@@ -128,7 +185,7 @@ export class ThinkBuilder<Output> {
    *   total: number;
    * }
    *
-   * patchwork.think(outputSchema)
+   * agent.think(outputSchema)
    *   .tool(
    *     "search",
    *     "Search for documents",
@@ -303,11 +360,11 @@ export class ThinkBuilder<Output> {
    * This generates a return_result tool that the LLM must call
    * to provide the final output.
    *
-   * @deprecated Use `patchwork.think(schemaOf<T>(schema))` instead to provide a typed schema at construction time.
+   * @deprecated Use `agent.think(schemaOf<T>(schema))` instead to provide a typed schema at construction time.
    */
   outputSchema(schema: JsonSchema): this {
     console.warn(
-      "ThinkBuilder.outputSchema() is deprecated. Use patchwork.think(schemaOf<T>(schema)) instead."
+      "ThinkBuilder.outputSchema() is deprecated. Use agent.think(schemaOf<T>(schema)) instead."
     );
     this._schemaProvider = { toJsonSchema: () => schema };
     return this;
@@ -318,14 +375,6 @@ export class ThinkBuilder<Output> {
    */
   cwd(path: string): this {
     this._cwd = path;
-    return this;
-  }
-
-  /**
-   * Set a system prompt for the session
-   */
-  systemPrompt(prompt: string): this {
-    this._systemPrompt = prompt;
     return this;
   }
 
@@ -350,6 +399,15 @@ export class ThinkBuilder<Output> {
     resolve: (value: Output) => void,
     reject: (error: Error) => void
   ): Promise<void> {
+    // Ensure initialized
+    if (!this._conn.initialized) {
+      await this._conn.connection.initialize({
+        protocolVersion: 1,
+        clientCapabilities: {},
+      });
+      this._conn.initialized = true;
+    }
+
     // Build the prompt
     let prompt = this._promptParts.join("");
 
@@ -374,7 +432,7 @@ export class ThinkBuilder<Output> {
     // Get the output schema for the return_result tool
     const outputSchema = this._schemaProvider?.toJsonSchema() ?? { type: "object" };
 
-    // Add return instruction - the schema is already in the tool definition
+    // Add return instruction
     prompt += "\n\nWhen you have your answer, call the `return_result` MCP tool with the result.";
 
     // Add the return_result tool
@@ -405,20 +463,46 @@ export class ThinkBuilder<Output> {
 
     const server = serverBuilder.build();
 
-    // Create and run the session
-    const sessionBuilder = new SessionBuilder(this._connection, this._mcpHandler);
-    sessionBuilder.withMcpServer(server);
-
-    if (this._cwd) {
-      sessionBuilder.cwd(this._cwd);
-    }
-
-    if (this._systemPrompt) {
-      sessionBuilder.systemPrompt(this._systemPrompt);
-    }
+    // Register the MCP server
+    this._conn.mcpHandler.register(server);
+    this._conn.mcpHandler.setSessionId(this._existingSessionId ?? "pending");
 
     try {
-      await sessionBuilder.run(async (session) => {
+      // Create or reuse session
+      let sessionId: string;
+
+      if (this._existingSessionId) {
+        // Reuse existing session
+        sessionId = this._existingSessionId;
+      } else {
+        // Create new ephemeral session
+        const mcpServers: AcpMcpServer[] = [{
+          type: "http" as const,
+          name: server.name,
+          url: server.acpUrl,
+          headers: [],
+        }];
+
+        const request: NewSessionRequest = {
+          cwd: this._cwd ?? process.cwd(),
+          mcpServers,
+        };
+
+        const response = await this._conn.connection.newSession(request);
+        sessionId = response.sessionId;
+      }
+
+      // Update MCP handler with actual session ID
+      this._conn.mcpHandler.setSessionId(sessionId);
+
+      // Create internal session handler
+      const session = new ThinkSession(sessionId, this._conn);
+      this._conn.sessionHandlers.set(sessionId, session);
+
+      // Wait for MCP tools discovery
+      await this._conn.mcpHandler.waitForToolsDiscovery(sessionId, 2000);
+
+      try {
         // Send the prompt
         await session.sendPrompt(prompt);
 
@@ -439,9 +523,13 @@ export class ThinkBuilder<Output> {
         if (resultReceived && result !== undefined) {
           resolve(result);
         }
-      });
-    } catch (error) {
-      reject(error instanceof Error ? error : new Error(String(error)));
+      } finally {
+        session.close();
+        this._conn.sessionHandlers.delete(sessionId);
+      }
+    } finally {
+      // Unregister MCP server
+      this._conn.mcpHandler.unregister(server);
     }
   }
 }
