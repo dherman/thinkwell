@@ -2,94 +2,60 @@
   <img src="packages/thinkwell/assets/logo.jpg" alt="Thinkwell Logo" width="200">
 </p>
 
-A TypeScript library for blending deterministic code with LLM-powered reasoning.
+A TypeScript library for easy scripting of AI agents. Thinkwell provides a fluent API for blending deterministic code with LLM-powered reasoning.
 
 ## Packages
 
 This monorepo contains two packages:
 
-- **[@thinkwell/acp](packages/acp)**: Core ACP library providing MCP-over-ACP protocol handling
 - **[thinkwell](packages/thinkwell)**: High-level API for blending deterministic code with LLM-powered reasoning
+- **[@thinkwell/acp](packages/acp)**: Core ACP library providing MCP-over-ACP protocol handling
 
 ## Quick Start
 
 ```typescript
-import { Agent, schemaOf } from "thinkwell";
+import { CLAUDE_CODE } from "thinkwell/connectors";
+import { Agent } from "thinkwell";
+import { GreetingSchema } from "./greeting.schemas.js";
 
-// Connect to an agent
-const agent = await Agent.connect("npx -y @zed-industries/claude-code-acp");
-
-// Define your output type and schema
-interface Summary {
-  title: string;
-  points: string[];
+/**
+ * A friendly greeting.
+ * @JSONSchema
+ */
+export interface Greeting {
+  /** The greeting message */
+  message: string;
 }
 
-const SummarySchema = schemaOf<Summary>({
-  type: "object",
-  properties: {
-    title: { type: "string" },
-    points: { type: "array", items: { type: "string" } },
-  },
-  required: ["title", "points"],
-});
+const agent = await Agent.connect(CLAUDE_CODE);
 
-// Use the think() API to compose prompts with tools
-const summary = await agent
-  .think(SummarySchema)
-  .text("Summarize this document:")
-  .quote(documentContents)
-  .tool("record", "Record an important item", async (input: { item: string }) => {
-    console.log("Recorded:", input.item);
-    return { success: true };
-  })
-  .run();
+try {
+  const greeting: Greeting = await agent
+    .think(GreetingSchema)
+    .text(`
+      Use the current_time tool to get the current time, and create a friendly
+      greeting message appropriate for that time of day.
+    `)
 
-console.log(summary.title);  // Typed as string
-console.log(summary.points); // Typed as string[]
+    .tool(
+      "current_time",
+      "Produces the current date, time, and time zone.",
+      async () => {
+        const now = new Date();
+        return {
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          time: now.toLocaleTimeString,
+          date: now.toLocaleDateString(),
+        };
+      }
+    )
 
-agent.close();
-```
+    .run();
 
-### Schema Providers
-
-The `schemaOf<T>()` helper creates a `SchemaProvider<T>` from a JSON Schema. This enables type-safe integration with the LLM's structured output:
-
-```typescript
-import { schemaOf, type SchemaProvider } from "thinkwell";
-
-// The type parameter flows through to the result
-const schema: SchemaProvider<{ name: string }> = schemaOf({
-  type: "object",
-  properties: { name: { type: "string" } },
-  required: ["name"],
-});
-
-const result = await agent.think(schema).text("...").run();
-// result.name is typed as string
-```
-
-For integration with schema libraries like Zod or TypeBox, create an adapter that implements `SchemaProvider<T>`:
-
-```typescript
-// Example Zod adapter
-import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import type { SchemaProvider } from "thinkwell";
-
-function zodSchema<T>(schema: z.ZodType<T>): SchemaProvider<T> {
-  return {
-    toJsonSchema: () => zodToJsonSchema(schema),
-  };
+  console.log(`✨ ${greeting.message}`);
+} finally {
+  agent.close();
 }
-
-// Usage
-const Summary = z.object({
-  title: z.string(),
-  points: z.array(z.string()),
-});
-
-const result = await agent.think(zodSchema(Summary)).text("...").run();
 ```
 
 ## Development

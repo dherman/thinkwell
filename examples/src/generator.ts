@@ -35,7 +35,7 @@
 import { SummarySchema, DocumentAnalysisSchema, TextPassageSchema } from "./generator.schemas.js";
 import * as fs from "fs/promises";
 import Sentiment from "sentiment";
-import DEFAULT_AGENT_CMD from "./claude-code.json" with { type: "json" };
+import { CLAUDE_CODE } from "thinkwell/connectors";
 import { Agent } from "thinkwell";
 
 // =============================================================================
@@ -133,7 +133,7 @@ export interface TextPassage {
 const sentimentAnalyzer = new Sentiment();
 
 export default async function main() {
-  const agent = await Agent.connect(process.env.PATCHWORK_AGENT_CMD ?? DEFAULT_AGENT_CMD);
+  const agent = await Agent.connect(process.env.PATCHWORK_AGENT_CMD ?? CLAUDE_CODE);
 
   try {
     // -------------------------------------------------------------------------

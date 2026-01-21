@@ -21,12 +21,13 @@
 
 
 // Default conductor command using Claude Code ACP
-import DEFAULT_AGENT_CMD from "./claude-code.json" with { type: "json" };
+import { CLAUDE_CODE } from "thinkwell/connectors";
 
 import inline from "./inline.js";
 import zod from './zod.js';
 import typebox from './typebox.js';
 import generator from './generator.js';
+import greeting from './greeting.js';
 import unminify from './unminify.js';
 
 const DEMOS: Record<string, () => Promise<void>> = {
@@ -34,6 +35,7 @@ const DEMOS: Record<string, () => Promise<void>> = {
   zod,
   typebox,
   generator,
+  greeting,
   unminify,
 };
 
@@ -46,7 +48,7 @@ async function main() {
     for (const demo of [inline, zod, typebox, generator]) {
       await demo();
     }
-  } else if (["inline", "zod", "typebox", "generator", "unminify"].includes(pattern)) {
+  } else if (["inline", "zod", "typebox", "generator", "greeting", "unminify"].includes(pattern)) {
     await DEMOS[pattern]();
   } else {
     console.log("Usage: pnpm demo [pattern]");
@@ -57,11 +59,12 @@ async function main() {
     console.log("  typebox   - Use typeboxSchema() adapter");
     console.log("  generator - Use build-time generated schema");
     console.log("  unminify  - JavaScript unminifier using LLM analysis");
+    console.log("  greeting  - Generate a simple greeting message using a tool");
     console.log("  all       - Run all patterns (default)");
     console.log("");
     console.log("Environment variables:");
     console.log(`  PATCHWORK_AGENT_CMD - Custom agent command`);
-    console.log(`                  (default: ${DEFAULT_AGENT_CMD})`);
+    console.log(`                  (default: ${CLAUDE_CODE})`);
     process.exit(1);
   }
 

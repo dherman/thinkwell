@@ -8,13 +8,14 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "test": "node --test --import tsx src/**/*.test.ts",
-    "generate:schemas": "build-schema-providers src/generator.ts src/unminify.ts",
+    "generate:schemas": "build-schema-providers src/generator.ts src/greeting.ts src/unminify.ts",
     "demo": "tsx src/demo.ts",
     "demo:inline": "tsx src/demo.ts inline",
     "demo:zod": "tsx src/demo.ts zod",
     "demo:typebox": "tsx src/demo.ts typebox",
     "demo:generator": "tsx src/demo.ts generator",
-    "demo:unminify": "tsx src/demo.ts unminify"
+    "demo:unminify": "tsx src/demo.ts unminify",
+    "demo:greeting": "tsx src/demo.ts greeting"
   },
   "dependencies": {
     "thinkwell": "workspace:*",
