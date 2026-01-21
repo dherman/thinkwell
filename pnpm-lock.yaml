@@ -14,12 +14,9 @@ importers:
 
   examples:
     dependencies:
-      '@dherman/patchwork':
+      '@thinkwell/acp':
         specifier: workspace:*
-        version: link:../packages/patchwork
-      '@dherman/sacp':
-        specifier: workspace:*
-        version: link:../packages/sacp
+        version: link:../packages/acp
       '@types/lodash':
         specifier: ^4.17.23
         version: 4.17.23
@@ -32,13 +29,16 @@ importers:
       sentiment:
         specifier: ^5.0.2
         version: 5.0.2
-    devDependencies:
-      '@dherman/build-schema-providers':
+      thinkwell:
         specifier: workspace:*
-        version: link:../packages/build-schema-providers
+        version: link:../packages/thinkwell
+    devDependencies:
       '@sinclair/typebox':
         specifier: ^0.34.30
         version: 0.34.46
+      '@thinkwell/build-schema-providers':
+        specifier: workspace:*
+        version: link:../packages/build-schema-providers
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
@@ -61,45 +61,7 @@ importers:
         specifier: ^3.24.1
         version: 3.25.1(zod@3.25.76)
 
-  packages/build-schema-providers:
-    dependencies:
-      '@dherman/sacp':
-        specifier: workspace:*
-        version: link:../sacp
-      glob:
-        specifier: ^11.0.0
-        version: 11.1.0
-      ts-json-schema-generator:
-        specifier: ^2.4.0
-        version: 2.4.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-    devDependencies:
-      '@types/node':
-        specifier: ^24.10.4
-        version: 24.10.4
-
-  packages/patchwork:
-    dependencies:
-      '@agentclientprotocol/sdk':
-        specifier: ^0.12.0
-        version: 0.12.0(zod@3.25.76)
-      '@dherman/sacp':
-        specifier: workspace:*
-        version: link:../sacp
-    devDependencies:
-      '@types/node':
-        specifier: ^24.10.4
-        version: 24.10.4
-      tsx:
-        specifier: ^4.19.2
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
-  packages/sacp:
+  packages/acp:
     dependencies:
       '@agentclientprotocol/sdk':
         specifier: ^0.4.0
@@ -114,6 +76,44 @@ importers:
       '@types/uuid':
         specifier: ^10.0.0
         version: 10.0.0
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/build-schema-providers:
+    dependencies:
+      '@thinkwell/acp':
+        specifier: workspace:*
+        version: link:../acp
+      glob:
+        specifier: ^11.0.0
+        version: 11.1.0
+      ts-json-schema-generator:
+        specifier: ^2.4.0
+        version: 2.4.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+
+  packages/thinkwell:
+    dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^0.12.0
+        version: 0.12.0(zod@3.25.76)
+      '@thinkwell/acp':
+        specifier: workspace:*
+        version: link:../acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
       tsx:
         specifier: ^4.19.2
         version: 4.21.0

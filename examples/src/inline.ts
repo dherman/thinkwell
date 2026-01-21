@@ -14,12 +14,12 @@
  * 2. Prompt with a custom tool (sentiment analysis using an npm package)
  */
 
-import { schemaOf } from "@dherman/patchwork";
-import type { SchemaProvider } from "@dherman/sacp";
+import { schemaOf } from "thinkwell";
+import type { SchemaProvider } from "@thinkwell/acp";
 import * as fs from "fs/promises";
 import Sentiment from "sentiment";
 import DEFAULT_AGENT_CMD from "./claude-code.json" with { type: "json" };
-import { Agent } from "@dherman/patchwork";
+import { Agent } from "thinkwell";
 
 // =============================================================================
 // Example 1: Simple summarization (no tools)

@@ -1,21 +1,21 @@
-# sacp-ts
+# thinkwell
 
-Experimental TypeScript port of [sacp-rs](https://github.com/symposium-dev/symposium-acp).
+A TypeScript library for blending deterministic code with LLM-powered reasoning.
 
 ## Packages
 
 This monorepo contains two packages:
 
-- **[@dherman/sacp](packages/sacp)**: Core SACP library providing MCP-over-ACP protocol handling
-- **[@dherman/patchwork](packages/patchwork)**: High-level API for blending deterministic code with LLM-powered reasoning
+- **[@thinkwell/acp](packages/acp)**: Core ACP library providing MCP-over-ACP protocol handling
+- **[thinkwell](packages/thinkwell)**: High-level API for blending deterministic code with LLM-powered reasoning
 
 ## Quick Start
 
 ```typescript
-import { connect, schemaOf } from "@dherman/patchwork";
+import { Agent, schemaOf } from "thinkwell";
 
-// Connect to an agent via the conductor
-const patchwork = await connect(["sacp-conductor", "--agent", "claude"]);
+// Connect to an agent
+const agent = await Agent.connect("npx -y @zed-industries/claude-code-acp");
 
 // Define your output type and schema
 interface Summary {
@@ -33,10 +33,10 @@ const SummarySchema = schemaOf<Summary>({
 });
 
 // Use the think() API to compose prompts with tools
-const summary = await patchwork
+const summary = await agent
   .think(SummarySchema)
   .text("Summarize this document:")
-  .display(documentContents)
+  .quote(documentContents)
   .tool("record", "Record an important item", async (input: { item: string }) => {
     console.log("Recorded:", input.item);
     return { success: true };
@@ -46,7 +46,7 @@ const summary = await patchwork
 console.log(summary.title);  // Typed as string
 console.log(summary.points); // Typed as string[]
 
-patchwork.close();
+agent.close();
 ```
 
 ### Schema Providers
@@ -54,7 +54,7 @@ patchwork.close();
 The `schemaOf<T>()` helper creates a `SchemaProvider<T>` from a JSON Schema. This enables type-safe integration with the LLM's structured output:
 
 ```typescript
-import { schemaOf, type SchemaProvider } from "@dherman/patchwork";
+import { schemaOf, type SchemaProvider } from "thinkwell";
 
 // The type parameter flows through to the result
 const schema: SchemaProvider<{ name: string }> = schemaOf({
@@ -63,7 +63,7 @@ const schema: SchemaProvider<{ name: string }> = schemaOf({
   required: ["name"],
 });
 
-const result = await patchwork.think(schema).text("...").run();
+const result = await agent.think(schema).text("...").run();
 // result.name is typed as string
 ```
 
@@ -73,7 +73,7 @@ For integration with schema libraries like Zod or TypeBox, create an adapter tha
 // Example Zod adapter
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import type { SchemaProvider } from "@dherman/patchwork";
+import type { SchemaProvider } from "thinkwell";
 
 function zodSchema<T>(schema: z.ZodType<T>): SchemaProvider<T> {
   return {
@@ -87,7 +87,7 @@ const Summary = z.object({
   points: z.array(z.string()),
 });
 
-const result = await patchwork.think(zodSchema(Summary)).text("...").run();
+const result = await agent.think(zodSchema(Summary)).text("...").run();
 ```
 
 ## Development
@@ -105,4 +105,4 @@ pnpm test
 
 ## Architecture
 
-See [doc/rfd/mvp/design.md](doc/rfd/mvp/design.md) for the full design document.
+See [doc/rfd/mvp.md](doc/rfd/mvp.md) for the design document.

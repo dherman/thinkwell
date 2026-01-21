@@ -2,18 +2,18 @@
 
 ## Summary
 
-A patchwork demo that takes a minified JavaScript library and produces a more readable version by:
+A thinkwell demo that takes a minified JavaScript library and produces a more readable version by:
 1. Pretty-printing
 2. Converting UMD boilerplate to ESM
 3. Renaming minified identifiers to descriptive names
 
-This demo showcases patchwork's core pattern: deterministic code handles orchestration and iteration, while the LLM handles semantic understanding.
+This demo showcases thinkwell's core pattern: deterministic code handles orchestration and iteration, while the LLM handles semantic understanding.
 
 ## Motivation
 
 Minified JavaScript is hard to read due to compressed formatting and single-letter variable names. While formatting can be fixed mechanically (Prettier), recovering meaningful names requires understanding what the code *does* - a task well-suited to LLMs.
 
-This demo illustrates how patchwork enables developers to:
+This demo illustrates how thinkwell enables developers to:
 - Use loops and control flow in TypeScript for predictable iteration
 - Delegate semantic analysis to the LLM
 - Combine multiple LLM calls into a coherent pipeline
@@ -66,7 +66,7 @@ interface ModuleConversion {
   code: string;
 }
 
-const esm = await patchwork
+const esm = await agent
   .think(schemaOf<ModuleConversion>({...}))
   .text("Convert this UMD module to ESM syntax.")
   .text("Remove the UMD boilerplate (the IIFE checking for exports/define/globalThis).")
@@ -89,7 +89,7 @@ interface FunctionList {
   functions: FunctionInfo[];
 }
 
-const functionList = await patchwork
+const functionList = await agent
   .think(schemaOf<FunctionList>({...}))
   .text("List all top-level function declarations and named function expressions.\n\n")
   .display(esm.code)
@@ -109,7 +109,7 @@ interface FunctionAnalysis {
 const renameMap = new Map<string, string>();
 
 for (const fn of functionList.functions) {
-  const analysis = await patchwork
+  const analysis = await agent
     .think(schemaOf<FunctionAnalysis>({...}))
     .text(`Analyze this function and suggest a descriptive name.\n`)
     .text(`Current name: ${fn.name}\n`)
@@ -132,7 +132,7 @@ interface RenamedCode {
   code: string;
 }
 
-const result = await patchwork
+const result = await agent
   .think(schemaOf<RenamedCode>({...}))
   .text("Rename these identifiers throughout the code:\n\n")
   .display(Object.fromEntries(renameMap))
@@ -147,7 +147,7 @@ const result = await patchwork
 
 This demo optimizes for ease of understanding over performance. Every transformation that requires semantic understanding goes to the LLM. The only mechanical step (pretty-printing) uses Prettier.
 
-This makes the code easy to read and demonstrates patchwork's value proposition: you don't need complex tooling when you can describe what you want in natural language.
+This makes the code easy to read and demonstrates thinkwell's value proposition: you don't need complex tooling when you can describe what you want in natural language.
 
 ### Why send full source for each function analysis?
 
@@ -177,7 +177,7 @@ examples/
 ## Dependencies
 
 - `prettier` - for initial formatting
-- `@dherman/patchwork` - for LLM orchestration
+- `thinkwell` - for LLM orchestration
 
 ## Future Enhancements (Out of Scope)
 

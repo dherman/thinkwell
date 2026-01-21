@@ -1,7 +1,7 @@
 {
-  "name": "@dherman/patchwork",
+  "name": "@thinkwell/acp",
   "version": "0.1.0",
-  "description": "TypeScript library for blending deterministic code with LLM-powered reasoning",
+  "description": "TypeScript implementation of ACP (Agent Client Protocol) extensions for Thinkwell",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,19 +20,21 @@
     "test": "node --test --import tsx src/**/*.test.ts"
   },
   "keywords": [
-    "patchwork",
-    "llm",
-    "ai",
-    "agent"
+    "acp",
+    "mcp",
+    "thinkwell",
+    "agent",
+    "llm"
   ],
   "author": "David Herman",
   "license": "MIT",
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.12.0",
-    "@dherman/sacp": "workspace:*"
+    "@agentclientprotocol/sdk": "^0.4.0",
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",
+    "@types/uuid": "^10.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

@@ -24,7 +24,7 @@ import * as prettier from "prettier";
 import pLimit from "p-limit";
 import _ from "lodash";
 import DEFAULT_AGENT_CMD from "./claude-code.json" with { type: "json" };
-import { Agent } from "@dherman/patchwork";
+import { Agent } from "thinkwell";
 
 // =============================================================================
 // Type Definitions (marked with @JSONSchema for schema generation)

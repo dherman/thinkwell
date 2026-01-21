@@ -1,17 +1,17 @@
-# SACP TypeScript MVP Design Document
+# Thinkwell ACP TypeScript MVP Design Document
 
-This document describes the design for a minimal TypeScript implementation of SACP (Symposium ACP extensions) sufficient to port the patchwork library.
+This document describes the design for a minimal TypeScript implementation of ACP (Agent Client Protocol) extensions sufficient for the Thinkwell library.
 
 ## Background
 
-### What is Patchwork?
+### What is Thinkwell?
 
-Patchwork is a library for blending deterministic code with LLM-powered reasoning. It provides a builder-style API for constructing prompts and registering typed tool functions that the LLM can invoke:
+Thinkwell is a library for blending deterministic code with LLM-powered reasoning. It provides a builder-style API for constructing prompts and registering typed tool functions that the LLM can invoke:
 
 ```typescript
-const summary: FileSummary = await patchwork.think()
+const summary: FileSummary = await agent.think(FileSummarySchema)
   .text("Summarize this file:")
-  .display(contents)
+  .quote(contents)
   .tool("record", "Record an item", async (input: RecordInput) => {
     results.push(input.item);
     return { success: true };
@@ -19,13 +19,13 @@ const summary: FileSummary = await patchwork.think()
   .run();
 ```
 
-The Rust implementation (patchwork-rs) depends on two crates:
-- **sacp**: Symposium's extensions to ACP for MCP-over-ACP and session management
+The architecture depends on:
+- **@thinkwell/acp**: Extensions to ACP for MCP-over-ACP and session management
 - **sacp-conductor**: A binary that orchestrates proxy chains and bridges MCP traffic
 
-### What is SACP?
+### What is @thinkwell/acp?
 
-SACP extends the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) with:
+The @thinkwell/acp package extends the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) with:
 
 1. **MCP-over-ACP**: Tunneling MCP tool calls through the ACP channel
    - `_mcp/connect` - Establish an MCP connection
@@ -42,7 +42,7 @@ SACP extends the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/)
 
 ## Design Goals
 
-1. **Minimal scope**: Only implement what patchwork needs
+1. **Minimal scope**: Only implement what thinkwell needs
 2. **Leverage existing SDKs**: Use the official ACP and MCP TypeScript SDKs where possible
 3. **No throwaway work**: Everything we build should be reusable in a fuller SACP port
 4. **Runtime portable**: Avoid Node-specific APIs where practical (e.g., prefer TCP over subprocess spawning)
@@ -55,7 +55,7 @@ SACP extends the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/)
 ┌────────────────────────────────────────────────────────────┐
 │                   Your Application                         │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │                  patchwork-ts                        │  │
+│  │                    thinkwell                          │  │
 │  │  - ThinkBuilder API                                  │  │
 │  │  - Tool registration                                 │  │
 │  │  - Prompt composition                                │  │
@@ -63,7 +63,7 @@ SACP extends the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/)
 │                            │                               │
 │                            ▼                               │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │                    sacp-ts                           │  │
+│  │                  @thinkwell/acp                       │  │
 │  │  - McpOverAcpHandler (handles _mcp/* requests)       │  │
 │  │  - McpServerBuilder (tool registration)              │  │
 │  │  - SessionBuilder (session + MCP server management)  │  │
@@ -117,9 +117,9 @@ We chose Option A because:
 
 ## Module Design
 
-### sacp-ts
+### @thinkwell/acp
 
-The core library providing SACP extensions over the official ACP SDK.
+The core library providing ACP extensions over the official ACP SDK.
 
 #### McpServerBuilder
 
@@ -225,22 +225,28 @@ interface McpOverAcpHandler {
 }
 ```
 
-### patchwork-ts
+### thinkwell
 
-The high-level API built on sacp-ts.
+The high-level API built on @thinkwell/acp.
 
-#### Patchwork
+#### Agent
 
-Main entry point for creating patchwork instances:
+Main entry point for connecting to agents:
 
 ```typescript
-interface Patchwork {
-  /** Create a new think builder */
-  think<Output>(): ThinkBuilder<Output>;
-}
+class Agent {
+  /** Connect to an agent */
+  static connect(command: string, options?: ConnectOptions): Promise<Agent>;
 
-/** Connect to an agent via conductor */
-function connect(conductorCommand: string[]): Promise<Patchwork>;
+  /** Create a new think builder */
+  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output>;
+
+  /** Create a session for multi-turn conversations */
+  createSession(options?: SessionOptions): Promise<Session>;
+
+  /** Close the connection */
+  close(): void;
+}
 ```
 
 #### ThinkBuilder
@@ -300,8 +306,8 @@ When the agent calls a tool:
      }
    }
    ```
-3. **sacp-ts** receives the request, dispatches to the registered tool handler
-4. **sacp-ts** sends response back:
+3. **@thinkwell/acp** receives the request, dispatches to the registered tool handler
+4. **@thinkwell/acp** sends response back:
    ```json
    {
      "result": {
@@ -316,9 +322,9 @@ When the agent calls a tool:
 
 When creating a session with tools:
 
-1. **patchwork-ts** builds prompt and registers tools with `McpServerBuilder`
-2. **sacp-ts** generates `acp:uuid` URL for the MCP server
-3. **sacp-ts** sends `session.new` request with:
+1. **thinkwell** builds prompt and registers tools with `McpServerBuilder`
+2. **@thinkwell/acp** generates `acp:uuid` URL for the MCP server
+3. **@thinkwell/acp** sends `session.new` request with:
    ```json
    {
      "method": "session.new",
@@ -338,7 +344,7 @@ When creating a session with tools:
 
 ### Required
 - `@agentclientprotocol/sdk` - Official ACP TypeScript SDK
-- `sacp-conductor` binary - For MCP bridging (Rust, from symposium-acp)
+- `sacp-conductor` binary - For MCP bridging
 
 ### Development
 - TypeScript 5.x
@@ -346,10 +352,10 @@ When creating a session with tools:
 
 ## What We're NOT Building (MVP Scope)
 
-The following SACP features are out of scope for the MVP:
+The following features are out of scope for the MVP:
 
 1. **Proxy protocol** (`_proxy/successor`, `_proxy/initialize`)
-   - Not needed for basic patchwork usage
+   - Not needed for basic thinkwell usage
    - Conductor handles proxy chains externally
 
 2. **Conductor as a library**
@@ -357,7 +363,7 @@ The following SACP features are out of scope for the MVP:
    - No need to port conductor orchestration logic
 
 3. **Component/Link type system**
-   - SACP's sophisticated Rust type system for composing components
+   - A sophisticated Rust type system for composing components
    - TypeScript can use simpler patterns
 
 4. **Handler chains / Responder pattern**
@@ -370,7 +376,7 @@ The following SACP features are out of scope for the MVP:
 
 ## Future Evolution
 
-After the MVP, a fuller sacp-ts implementation could add:
+After the MVP, a fuller @thinkwell/acp implementation could add:
 
 1. **Native MCP server hosting** - Eliminate conductor dependency for local development
 2. **Proxy building** - Implement `_proxy/*` protocol for custom proxies

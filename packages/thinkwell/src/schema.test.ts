@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import { schemaOf } from "./schema.js";
-import type { SchemaProvider, JsonSchema } from "@dherman/sacp";
+import type { SchemaProvider, JsonSchema } from "@thinkwell/acp";
 
 describe("schemaOf", () => {
   it("should create a SchemaProvider from a JsonSchema", () => {

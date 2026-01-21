@@ -1,7 +1,7 @@
 {
-  "name": "@dherman/sacp",
+  "name": "thinkwell",
   "version": "0.1.0",
-  "description": "TypeScript implementation of SACP (Symposium ACP extensions)",
+  "description": "TypeScript library for blending deterministic code with LLM-powered reasoning",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,21 +20,19 @@
     "test": "node --test --import tsx src/**/*.test.ts"
   },
   "keywords": [
-    "acp",
-    "mcp",
-    "sacp",
-    "agent",
-    "llm"
+    "thinkwell",
+    "llm",
+    "ai",
+    "agent"
   ],
   "author": "David Herman",
   "license": "MIT",
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.4.0",
-    "uuid": "^11.0.3"
+    "@agentclientprotocol/sdk": "^0.12.0",
+    "@thinkwell/acp": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",
-    "@types/uuid": "^10.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

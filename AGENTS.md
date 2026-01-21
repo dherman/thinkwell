@@ -1,4 +1,4 @@
-This repository contains the TypeScript port of the Symposium implementation of the Agent Client Protocol.
+This repository contains the TypeScript implementation of the Thinkwell library and the Agent Client Protocol (ACP) extensions.
 
 ## Conventional Commits
 
@@ -43,7 +43,7 @@ BREAKING CHANGE: conductor now requires explicit capability registration
 
 ```
 feat(conductor): add support for dynamic proxy chains
-fix(sacp): resolve deadlock in message routing
+fix(acp): resolve deadlock in message routing
 docs: update README with installation instructions
 chore: bump @agentclientprotocol/sdk to 0.12.0
 ```
@@ -51,7 +51,8 @@ chore: bump @agentclientprotocol/sdk to 0.12.0
 ### Scope Guidelines
 
 Common scopes for this repository:
-- `sacp` - Core protocol changes
+- `acp` - Core protocol changes
+- `thinkwell` - High-level API changes
 - `conductor` - Conductor-specific changes
 - `deps` - Dependency updates
 

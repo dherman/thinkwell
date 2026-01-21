@@ -1,5 +1,5 @@
 {
-  "name": "@dherman/patchwork-examples",
+  "name": "@thinkwell/examples",
   "version": "0.1.0",
   "private": true,
   "description": "Integration examples for SchemaProvider patterns",
@@ -17,15 +17,15 @@
     "demo:unminify": "tsx src/demo.ts unminify"
   },
   "dependencies": {
-    "@dherman/patchwork": "workspace:*",
-    "@dherman/sacp": "workspace:*",
+    "thinkwell": "workspace:*",
+    "@thinkwell/acp": "workspace:*",
     "@types/lodash": "^4.17.23",
     "lodash": "^4.17.21",
     "p-limit": "^7.2.0",
     "sentiment": "^5.0.2"
   },
   "devDependencies": {
-    "@dherman/build-schema-providers": "workspace:*",
+    "@thinkwell/build-schema-providers": "workspace:*",
     "@sinclair/typebox": "^0.34.30",
     "@types/node": "^24.10.4",
     "@types/sentiment": "^5.0.4",

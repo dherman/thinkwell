@@ -10,7 +10,7 @@ export { ThinkBuilder } from "./think-builder.js";
 export { schemaOf } from "./schema.js";
 
 // Re-export useful types from sacp
-export type { JsonSchema, SchemaProvider, JsonValue, JsonObject } from "@dherman/sacp";
+export type { JsonSchema, SchemaProvider, JsonValue, JsonObject } from "@thinkwell/acp";
 
 // Deprecated API - will be removed in next major version
 /** @deprecated Use Agent instead */

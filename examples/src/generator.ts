@@ -36,7 +36,7 @@ import { SummarySchema, DocumentAnalysisSchema, TextPassageSchema } from "./gene
 import * as fs from "fs/promises";
 import Sentiment from "sentiment";
 import DEFAULT_AGENT_CMD from "./claude-code.json" with { type: "json" };
-import { Agent } from "@dherman/patchwork";
+import { Agent } from "thinkwell";
 
 // =============================================================================
 // Type Definitions (marked with @JSONSchema for schema generation)

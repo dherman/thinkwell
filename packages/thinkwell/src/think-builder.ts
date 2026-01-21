@@ -3,7 +3,7 @@ import {
   type JsonSchema,
   type SchemaProvider,
   type SessionUpdate,
-} from "@dherman/sacp";
+} from "@thinkwell/acp";
 import type { AgentConnection, SessionHandler } from "./agent.js";
 import type {
   NewSessionRequest,

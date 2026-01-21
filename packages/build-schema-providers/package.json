@@ -1,5 +1,5 @@
 {
-  "name": "@dherman/build-schema-providers",
+  "name": "@thinkwell/build-schema-providers",
   "version": "0.1.0",
   "description": "Build tool for generating SchemaProvider modules from TypeScript types marked with @JSONSchema",
   "type": "module",
@@ -39,6 +39,6 @@
     "@types/node": "^24.10.4"
   },
   "peerDependencies": {
-    "@dherman/sacp": "workspace:*"
+    "@thinkwell/acp": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
 import type { AgentConnection, SessionOptions } from "./agent.js";
-import type { SchemaProvider } from "@dherman/sacp";
+import type { SchemaProvider } from "@thinkwell/acp";
 import { ThinkBuilder } from "./think-builder.js";
 
 /**

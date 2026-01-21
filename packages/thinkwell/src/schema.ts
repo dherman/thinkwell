@@ -1,4 +1,4 @@
-import type { JsonSchema, SchemaProvider } from "@dherman/sacp";
+import type { JsonSchema, SchemaProvider } from "@thinkwell/acp";
 
 /**
  * Creates a SchemaProvider from a raw JSON Schema object.

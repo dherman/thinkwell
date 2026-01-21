@@ -17,7 +17,7 @@ import {
   McpOverAcpHandler,
   type SchemaProvider,
   type SessionUpdate,
-} from "@dherman/sacp";
+} from "@thinkwell/acp";
 import { ThinkBuilder } from "./think-builder.js";
 import { Session } from "./session.js";
 

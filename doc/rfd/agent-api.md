@@ -1,14 +1,14 @@
-# RFD: Agent-Centric API for Patchwork
+# RFD: Agent-Centric API for Thinkwell
 
 ## Summary
 
-Redesign Patchwork's public API around the `Agent` type, with a static `Agent.connect()` method that hides conductor implementation details. Support both simple single-shot usage and advanced multi-session patterns.
+Redesign Thinkwell's public API around the `Agent` type, with a static `Agent.connect()` method that hides conductor implementation details. Support both simple single-shot usage and advanced multi-session patterns.
 
 ## Motivation
 
 The current API has several friction points:
 
-1. **Naming**: `connect()` returns `Patchwork`, but users think of themselves as connecting to an *agent*
+1. **Naming**: Users think of themselves as connecting to an *agent*
 2. **Conductor exposure**: Users must understand and construct conductor commands like `["sacp-conductor", "agent", "npx ..."]`
 3. **Session model hidden**: The powerful multi-session capability of ACP is not exposed
 
@@ -58,7 +58,7 @@ class Session {
 **Simple case (90% of users):**
 
 ```typescript
-import { Agent } from "@dherman/patchwork";
+import { Agent } from "thinkwell";
 
 const agent = await Agent.connect("npx -y @zed-industries/claude-code-acp");
 
@@ -159,7 +159,7 @@ The `Agent.connect()` method should find `sacp-conductor` automatically:
 
 ### Backward Compatibility
 
-The existing `connect()` function and `Patchwork` class should be deprecated but maintained for one major version:
+The existing deprecated APIs should be maintained for one major version:
 
 ```typescript
 /** @deprecated Use Agent.connect() instead */
@@ -195,9 +195,9 @@ When `session.think()` is called (with an explicit session):
 
 ## Alternatives Considered
 
-### Keep `Patchwork` as the name
+### Keep a different class name
 
-We could rename the static method to `Patchwork.connect()`. However, "Patchwork" is the library name, not the concept users are working with. "Agent" more directly describes what they're connecting to.
+We could use a different class name for the connection. However, "Agent" directly describes what users are connecting to and working with.
 
 ### Require explicit sessions always
 
