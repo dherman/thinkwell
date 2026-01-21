@@ -1,0 +1,2 @@
+# Don't publish assets directory (logo images, etc.)
+assets/
