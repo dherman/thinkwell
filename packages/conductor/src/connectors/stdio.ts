@@ -31,6 +31,7 @@ class StdioConnection implements ComponentConnection {
   private readonly process: ChildProcess;
   private readonly readline: ReadlineInterface;
   private closed = false;
+  private closingGracefully = false;
 
   constructor(process: ChildProcess) {
     this.process = process;
@@ -51,7 +52,8 @@ class StdioConnection implements ComponentConnection {
       if (code !== 0 && code !== null) {
         console.error(`Process exited with code ${code}`);
       }
-      if (signal) {
+      // Only log signal if it wasn't an expected graceful shutdown
+      if (signal && !this.closingGracefully) {
         console.error(`Process killed by signal ${signal}`);
       }
     });
@@ -113,6 +115,7 @@ class StdioConnection implements ComponentConnection {
     }
 
     this.closed = true;
+    this.closingGracefully = true;
     this.readline.close();
 
     // Close stdin to signal EOF to the subprocess
