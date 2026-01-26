@@ -57,5 +57,5 @@ This plan tracks the implementation of the TypeScript conductor. See [doc/rfd/co
 
 - [ ] Error handling refinement
 - [ ] Logging/debugging support
-- [ ] Optional NDJSON tracing output
+- [ ] Optional JSONL tracing output
 - [ ] Documentation
