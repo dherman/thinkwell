@@ -16,14 +16,14 @@ This plan tracks the implementation of the TypeScript conductor. See [doc/rfd/co
 
 ## Phase 2: Basic Routing
 
-- [ ] Implement basic `Conductor` class
-  - [ ] Message loop consuming from queue
-  - [ ] Left-to-right forwarding (client → agent)
-  - [ ] Right-to-left forwarding (agent → client)
-- [ ] Request/response correlation
-  - [ ] Pending request map
-  - [ ] Responder routing
-- [ ] Simple pass-through mode (no proxies, just agent)
+- [x] Implement basic `Conductor` class
+  - [x] Message loop consuming from queue
+  - [x] Left-to-right forwarding (client → agent)
+  - [x] Right-to-left forwarding (agent → client)
+- [x] Request/response correlation
+  - [x] Pending request map
+  - [x] Responder routing
+- [x] Simple pass-through mode (no proxies, just agent)
 
 ## Phase 3: Proxy Support
 

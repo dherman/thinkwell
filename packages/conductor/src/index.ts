@@ -5,6 +5,9 @@
  * It sits between every component, managing process lifecycle and message flow.
  */
 
+// Conductor
+export { Conductor, fromCommands, fromConnectors, type ConductorConfig } from "./conductor.js";
+
 // Types
 export type {
   RoleId,
