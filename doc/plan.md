@@ -34,10 +34,10 @@ This plan tracks the implementation of the TypeScript conductor. See [doc/rfd/co
 
 ## Phase 4: Initialization Protocol
 
-- [ ] `ComponentInstantiator` abstraction
-- [ ] Lazy instantiation on first `initialize` request
-- [ ] Static instantiation (list of commands)
-- [ ] Dynamic instantiation (factory function)
+- [x] `ComponentInstantiator` abstraction
+- [x] Lazy instantiation on first `initialize` request
+- [x] Static instantiation (list of commands)
+- [x] Dynamic instantiation (factory function)
 
 ## Phase 5: MCP Bridge
 

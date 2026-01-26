@@ -6,7 +6,19 @@
  */
 
 // Conductor
-export { Conductor, fromCommands, fromConnectors, type ConductorConfig } from "./conductor.js";
+export { Conductor, type ConductorConfig } from "./conductor.js";
+
+// Instantiators
+export {
+  fromCommands,
+  fromConnectors,
+  dynamic,
+  staticInstantiator,
+  type CommandSpec,
+  type CommandOptions,
+  type StaticInstantiatorConfig,
+  type DynamicInstantiatorFactory,
+} from "./instantiators.js";
 
 // Types
 export type {

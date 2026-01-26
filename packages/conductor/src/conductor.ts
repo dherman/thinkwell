@@ -789,41 +789,6 @@ export class Conductor {
   }
 }
 
-/**
- * Create a component instantiator from a list of commands
- *
- * The last command is treated as the agent, all others as proxies.
- */
-export function fromCommands(commands: string[]): ComponentInstantiator {
-  // Import StdioConnector dynamically to avoid circular dependency
-  return {
-    async instantiate(): Promise<{ proxies: ComponentConnector[]; agent: ComponentConnector }> {
-      const { StdioConnector } = await import("./connectors/stdio.js");
-
-      if (commands.length === 0) {
-        throw new Error("At least one command (the agent) is required");
-      }
-
-      const connectors = commands.map((cmd) => new StdioConnector(cmd));
-
-      return {
-        proxies: connectors.slice(0, -1),
-        agent: connectors[connectors.length - 1],
-      };
-    },
-  };
-}
-
-/**
- * Create a component instantiator from explicit connectors
- */
-export function fromConnectors(
-  agent: ComponentConnector,
-  proxies: ComponentConnector[] = []
-): ComponentInstantiator {
-  return {
-    async instantiate() {
-      return { proxies, agent };
-    },
-  };
-}
+// Re-export instantiator helpers for convenience
+export { fromCommands, fromConnectors, dynamic, staticInstantiator } from "./instantiators.js";
+export type { CommandSpec, CommandOptions, StaticInstantiatorConfig, DynamicInstantiatorFactory } from "./instantiators.js";
