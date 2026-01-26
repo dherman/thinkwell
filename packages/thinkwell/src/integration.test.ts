@@ -6,7 +6,6 @@ import { Agent, schemaOf } from "./index.js";
  * Integration tests for the thinkwell library.
  *
  * These tests require:
- * - sacp-conductor installed: `cargo install sacp-conductor`
  * - ANTHROPIC_API_KEY environment variable set
  *
  * Skip these tests by setting: SKIP_INTEGRATION_TESTS=1

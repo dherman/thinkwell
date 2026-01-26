@@ -5,7 +5,6 @@
  * This script demonstrates the SchemaProvider patterns with a real LLM.
  *
  * Prerequisites:
- * - A conductor binary in your PATH (e.g., sacp-conductor)
  * - An agent configured (e.g., ANTHROPIC_API_KEY environment variable)
  *
  * Usage:

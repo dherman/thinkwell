@@ -15,20 +15,13 @@ import {
 } from "@thinkwell/conductor";
 
 /**
- * Integration tests that require the sacp-conductor binary.
+ * Integration tests for the TypeScript conductor.
  *
  * These tests verify the full communication flow between the client
- * and an agent via the conductor.
+ * and an agent via the in-process conductor.
  *
- * Prerequisites:
- * - sacp-conductor must be installed: `cargo install sacp-conductor`
- * - An agent must be configured (e.g., Claude via API key)
- *
- * Skip these tests if conductor is not available by setting:
+ * Skip live agent tests by setting:
  * SKIP_INTEGRATION_TESTS=1
- *
- * Note: The conductor command is `sacp-conductor agent` which runs
- * the agent orchestrator. Without proxies, it acts as a simple passthrough.
  */
 
 const SKIP_INTEGRATION = process.env.SKIP_INTEGRATION_TESTS === "1";
@@ -261,22 +254,18 @@ describe("Integration tests", { skip: SKIP_INTEGRATION }, () => {
  * Run with: npx tsx src/integration.test.ts --manual
  *
  * This requires:
- * - sacp-conductor installed
  * - ANTHROPIC_API_KEY environment variable set (or other agent config)
  */
 async function manualIntegrationTest() {
   console.log("Starting manual integration test...");
-  console.log("Note: This requires sacp-conductor agent to be running with a configured agent.\n");
 
-  // The conductor command depends on your setup. Common options:
-  // - ["sacp-conductor", "agent"] - bare conductor with no proxies
-  // - ["sacp-conductor", "agent", "claude"] - with Claude proxy
-  const conductorCommand = process.env.CONDUCTOR_COMMAND?.split(" ") ?? ["sacp-conductor", "agent"];
+  // The agent command - defaults to Claude Code ACP
+  const agentCommand = process.env.AGENT_COMMAND?.split(" ") ?? ["npx", "-y", "@zed-industries/claude-code-acp"];
 
-  console.log("Using conductor command:", conductorCommand.join(" "));
+  console.log("Using agent command:", agentCommand.join(" "));
 
-  const connection = await connect(conductorCommand);
-  console.log("Connected to conductor");
+  const connection = await connect(agentCommand);
+  console.log("Connected to conductor (in-process)");
 
   try {
     await connection.initialize();

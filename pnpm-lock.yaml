@@ -144,6 +144,9 @@ importers:
       '@thinkwell/acp':
         specifier: workspace:*
         version: link:../acp
+      '@thinkwell/conductor':
+        specifier: workspace:*
+        version: link:../conductor
     devDependencies:
       '@types/node':
         specifier: ^24.10.4

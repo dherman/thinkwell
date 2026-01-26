@@ -1,18 +1,22 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { Readable, Writable } from "node:stream";
 import {
   ClientSideConnection,
-  ndJsonStream,
   type Client,
   type Agent as AcpAgent,
   type SessionNotification,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
   type NewSessionRequest,
-  type PromptRequest,
-  type PromptResponse,
-  type McpServer as AcpMcpServer,
+  type Stream,
+  type AnyMessage,
 } from "@agentclientprotocol/sdk";
+import {
+  Conductor,
+  fromCommands,
+  createChannelPair,
+  type ComponentConnection,
+  type ComponentConnector,
+  type JsonRpcMessage,
+} from "@thinkwell/conductor";
 import {
   McpOverAcpHandler,
   type SchemaProvider,
@@ -25,12 +29,6 @@ import { Session } from "./session.js";
  * Options for connecting to an agent
  */
 export interface ConnectOptions {
-  /**
-   * Path to the conductor binary.
-   * If not specified, uses SACP_CONDUCTOR_PATH env var or searches PATH.
-   */
-  conductorPath?: string;
-
   /**
    * Environment variables for the agent process
    */
@@ -70,7 +68,7 @@ export interface SessionHandler {
  * @internal
  */
 export interface AgentConnection {
-  process: ChildProcess;
+  conductor: Conductor;
   connection: ClientSideConnection;
   mcpHandler: McpOverAcpHandler;
   sessionHandlers: Map<string, SessionHandler>;
@@ -148,38 +146,26 @@ export class Agent {
    * ```
    */
   static async connect(command: string, options?: ConnectOptions): Promise<Agent> {
-    const conductorPath = findConductor(options?.conductorPath);
-    const conductorArgs = ["agent", command];
+    // Parse the command string into an array
+    const commandArray = command.split(/\s+/).filter(Boolean);
 
-    const childProcess = spawn(conductorPath, conductorArgs, {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: options?.env ? { ...process.env, ...options.env } : process.env,
+    // Create a conductor that spawns the agent as a subprocess
+    const conductor = new Conductor({
+      instantiator: fromCommands(commandArray),
     });
 
-    if (!childProcess.stdout || !childProcess.stdin) {
-      throw new Error("Conductor process must have stdio");
-    }
+    // Create an in-memory channel pair for client ↔ conductor communication
+    const pair = createChannelPair();
 
-    // Log stderr for debugging
-    childProcess.stderr?.on("data", (data: Buffer) => {
-      console.error("[conductor stderr]", data.toString());
-    });
-
-    // Convert Node streams to Web streams for the SDK
-    const { readable, writable } = nodeToWebStreams(
-      childProcess.stdout,
-      childProcess.stdin
-    );
-
-    // Create the ndjson stream
-    const stream = ndJsonStream(writable, readable);
+    // Create a Stream adapter from the ComponentConnection
+    const stream = componentConnectionToStream(pair.left);
 
     // Create the MCP handler
     const mcpHandler = new McpOverAcpHandler();
 
     // Build the connection state
     const conn: AgentConnection = {
-      process: childProcess,
+      conductor,
       connection: null!, // Set below after creating the client
       mcpHandler,
       sessionHandlers: new Map(),
@@ -192,6 +178,21 @@ export class Agent {
       stream
     );
     conn.connection = clientConnection;
+
+    // Create a connector that provides the other end of the channel
+    const clientConnector: ComponentConnector = {
+      async connect() {
+        return pair.right;
+      },
+    };
+
+    // Start the conductor's message loop in the background
+    const conductorPromise = conductor.connect(clientConnector);
+
+    // Handle conductor errors/completion
+    conductorPromise.catch((error) => {
+      console.error("Conductor error:", error);
+    });
 
     return new Agent(conn);
   }
@@ -267,11 +268,12 @@ export class Agent {
   /**
    * Close the connection to the agent.
    *
-   * This terminates the conductor process. Any active sessions will be
-   * invalidated.
+   * This shuts down the conductor. Any active sessions will be invalidated.
    */
   close(): void {
-    this._conn.process.kill();
+    this._conn.conductor.shutdown().catch((error) => {
+      console.error("Conductor shutdown error:", error);
+    });
   }
 
   /**
@@ -299,64 +301,30 @@ export class Agent {
 }
 
 /**
- * Find the conductor binary
+ * Convert a ComponentConnection to the SDK's Stream interface.
  */
-function findConductor(explicitPath?: string): string {
-  // 1. Use explicit path if provided
-  if (explicitPath) {
-    return explicitPath;
-  }
-
-  // 2. Check environment variable
-  const envPath = process.env.SACP_CONDUCTOR_PATH;
-  if (envPath) {
-    return envPath;
-  }
-
-  // 3. Assume it's in PATH
-  return "sacp-conductor";
-}
-
-/**
- * Convert Node.js streams to Web Streams for the ACP SDK
- */
-function nodeToWebStreams(
-  stdout: Readable,
-  stdin: Writable
-): { readable: ReadableStream<Uint8Array>; writable: WritableStream<Uint8Array> } {
-  const readable = new ReadableStream<Uint8Array>({
-    start(controller) {
-      stdout.on("data", (chunk: Buffer) => {
-        controller.enqueue(new Uint8Array(chunk));
-      });
-      stdout.on("end", () => {
+function componentConnectionToStream(connection: ComponentConnection): Stream {
+  // Create a ReadableStream from the async iterable
+  const readable = new ReadableStream<AnyMessage>({
+    async start(controller) {
+      try {
+        for await (const message of connection.messages) {
+          controller.enqueue(message as AnyMessage);
+        }
         controller.close();
-      });
-      stdout.on("error", (err) => {
-        controller.error(err);
-      });
-    },
-    cancel() {
-      stdout.destroy();
+      } catch (error) {
+        controller.error(error);
+      }
     },
   });
 
-  const writable = new WritableStream<Uint8Array>({
-    write(chunk) {
-      return new Promise((resolve, reject) => {
-        stdin.write(Buffer.from(chunk), (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
+  // Create a WritableStream that sends to the connection
+  const writable = new WritableStream<AnyMessage>({
+    write(message) {
+      connection.send(message as JsonRpcMessage);
     },
     close() {
-      return new Promise((resolve) => {
-        stdin.end(() => resolve());
-      });
-    },
-    abort(reason) {
-      stdin.destroy(reason instanceof Error ? reason : new Error(String(reason)));
+      connection.close();
     },
   });
 
