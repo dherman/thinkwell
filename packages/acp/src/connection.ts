@@ -1,8 +1,5 @@
-import { spawn } from "node:child_process";
-import { Readable, Writable } from "node:stream";
 import {
   ClientSideConnection,
-  ndJsonStream,
   type Client,
   type Agent,
   type SessionNotification,
@@ -15,11 +12,13 @@ import {
   type Stream,
   type AnyMessage,
 } from "@agentclientprotocol/sdk";
-import type {
+import {
   Conductor,
-  ComponentConnector,
-  ComponentConnection,
-  JsonRpcMessage,
+  fromCommands,
+  createChannelPair,
+  type ComponentConnector,
+  type ComponentConnection,
+  type JsonRpcMessage,
 } from "@thinkwell/conductor";
 import { McpOverAcpHandler } from "./mcp-over-acp-handler.js";
 import type { ActiveSession, SessionUpdate } from "./session.js";
@@ -255,104 +254,25 @@ function createClient(
 }
 
 /**
- * Convert Node.js streams to Web Streams for the ACP SDK
- */
-function nodeToWebStreams(
-  stdout: Readable,
-  stdin: Writable
-): { readable: ReadableStream<Uint8Array>; writable: WritableStream<Uint8Array> } {
-  // Convert Node readable to Web ReadableStream
-  const readable = new ReadableStream<Uint8Array>({
-    start(controller) {
-      stdout.on("data", (chunk: Buffer) => {
-        controller.enqueue(new Uint8Array(chunk));
-      });
-      stdout.on("end", () => {
-        controller.close();
-      });
-      stdout.on("error", (err) => {
-        controller.error(err);
-      });
-    },
-    cancel() {
-      stdout.destroy();
-    },
-  });
-
-  // Convert Node writable to Web WritableStream
-  const writable = new WritableStream<Uint8Array>({
-    write(chunk) {
-      return new Promise((resolve, reject) => {
-        stdin.write(Buffer.from(chunk), (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-    },
-    close() {
-      return new Promise((resolve) => {
-        stdin.end(() => resolve());
-      });
-    },
-    abort(reason) {
-      stdin.destroy(reason instanceof Error ? reason : new Error(String(reason)));
-    },
-  });
-
-  return { readable, writable };
-}
-
-/**
- * Connect to a conductor process
+ * Connect to an agent via the TypeScript conductor.
+ *
+ * This creates an in-process conductor that spawns the specified agent command
+ * as a subprocess and routes ACP messages through it.
+ *
+ * @param command - The agent command to run (e.g., ["claude-code-agent"])
+ * @returns A SacpConnection for communicating with the agent
  */
 export async function connect(command: string[]): Promise<SacpConnection> {
   if (command.length === 0) {
-    throw new Error("Conductor command cannot be empty");
+    throw new Error("Agent command cannot be empty");
   }
 
-  const [cmd, ...args] = command;
-  const childProcess = spawn(cmd, args, {
-    stdio: ["pipe", "pipe", "pipe"],
+  // Create a conductor that spawns the agent as a subprocess
+  const conductor = new Conductor({
+    instantiator: fromCommands(command),
   });
 
-  if (!childProcess.stdout || !childProcess.stdin) {
-    throw new Error("Conductor process must have stdio");
-  }
-
-  // Log stderr for debugging
-  childProcess.stderr?.on("data", (data: Buffer) => {
-    console.error("[conductor stderr]", data.toString());
-  });
-
-  // Convert Node streams to Web streams for the SDK
-  const { readable, writable } = nodeToWebStreams(
-    childProcess.stdout,
-    childProcess.stdin
-  );
-
-  // Create the ndjson stream
-  const stream = ndJsonStream(writable, readable);
-
-  // Create the MCP handler
-  const mcpHandler = new McpOverAcpHandler();
-
-  // Use a holder object to break the circular reference.
-  // The client factory is called lazily by ClientSideConnection,
-  // so we need the holder to be populated before any messages arrive.
-  const connectionHolder: { connection: SacpConnection | null } = { connection: null };
-
-  // Create the ACP client connection
-  const clientConnection = new ClientSideConnection(
-    (_agent: Agent) => createClient(connectionHolder, mcpHandler),
-    stream
-  );
-
-  // Create our wrapper connection and store it in the holder
-  const cleanup = () => childProcess.kill();
-  const sacpConnection = new SacpConnection(cleanup, clientConnection, mcpHandler);
-  connectionHolder.connection = sacpConnection;
-
-  return sacpConnection;
+  return connectToConductor(conductor);
 }
 
 /**
@@ -369,7 +289,6 @@ export async function connectToConductor(
   conductor: Conductor
 ): Promise<SacpConnection> {
   // Create an in-memory channel pair for client ↔ conductor communication
-  const { createChannelPair } = await import("@thinkwell/conductor");
   const pair = createChannelPair();
 
   // Create a Stream adapter from the ComponentConnection
