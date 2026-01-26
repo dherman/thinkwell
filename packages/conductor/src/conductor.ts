@@ -205,6 +205,16 @@ export class Conductor {
     (async () => {
       try {
         for await (const message of client.messages) {
+          // Responses from the client (to agent requests) need special handling
+          if (isJsonRpcResponse(message)) {
+            const dispatch = this.messageToDispatch(message, { type: "client" });
+            if (dispatch && dispatch.type === "response") {
+              // Route the response back via pendingRequests
+              this.handleResponse(dispatch);
+            }
+            continue;
+          }
+
           const dispatch = this.messageToDispatch(message, { type: "client" });
           if (dispatch) {
             this.messageQueue.push({
