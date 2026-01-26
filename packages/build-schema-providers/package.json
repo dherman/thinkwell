@@ -1,6 +1,6 @@
 {
   "name": "@thinkwell/build-schema-providers",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Build tool for generating SchemaProvider modules from TypeScript types marked with @JSONSchema",
   "type": "module",
   "main": "./dist/index.js",

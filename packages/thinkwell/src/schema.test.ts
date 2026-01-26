@@ -153,32 +153,6 @@ describe("ThinkBuilder schema integration", () => {
   });
 });
 
-describe("outputSchema deprecation", () => {
-  it("should emit deprecation warning when outputSchema is called", () => {
-    // Mock console.warn to capture the warning
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (msg: string) => warnings.push(msg);
-
-    try {
-      // Simulate the deprecated outputSchema behavior
-      const schema: JsonSchema = { type: "string" };
-      const schemaProvider = { toJsonSchema: () => schema };
-
-      // This simulates what the deprecated method does
-      console.warn(
-        "ThinkBuilder.outputSchema() is deprecated. Use agent.think(schemaOf<T>(schema)) instead."
-      );
-
-      assert.strictEqual(warnings.length, 1);
-      assert.ok(warnings[0].includes("deprecated"));
-      assert.ok(warnings[0].includes("schemaOf"));
-    } finally {
-      console.warn = originalWarn;
-    }
-  });
-});
-
 describe("Tool schema integration", () => {
   it("should create SchemaProvider for tool input using schemaOf", () => {
     interface SearchInput {

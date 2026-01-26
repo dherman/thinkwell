@@ -1,6 +1,5 @@
 import {
   mcpServer,
-  type JsonSchema,
   type SchemaProvider,
   type SessionUpdate,
 } from "@thinkwell/acp";
@@ -141,21 +140,6 @@ export class ThinkBuilder<Output> {
    */
   code(content: string, language: string = ""): this {
     this._promptParts.push(`\`\`\`${language}\n${content}\n\`\`\`\n`);
-    return this;
-  }
-
-  /**
-   * Interpolate a value using toString()
-   *
-   * @deprecated Use `text()` or `quote()` instead for clearer intent.
-   */
-  display(value: unknown): this {
-    const text = value === null || value === undefined
-      ? ""
-      : typeof value === "object"
-        ? JSON.stringify(value, null, 2)
-        : String(value);
-    this._promptParts.push(text);
     return this;
   }
 
@@ -351,22 +335,6 @@ export class ThinkBuilder<Output> {
       outputSchema,
       includeInPrompt: false,
     });
-    return this;
-  }
-
-  /**
-   * Set the expected output schema.
-   *
-   * This generates a return_result tool that the LLM must call
-   * to provide the final output.
-   *
-   * @deprecated Use `agent.think(schemaOf<T>(schema))` instead to provide a typed schema at construction time.
-   */
-  outputSchema(schema: JsonSchema): this {
-    console.warn(
-      "ThinkBuilder.outputSchema() is deprecated. Use agent.think(schemaOf<T>(schema)) instead."
-    );
-    this._schemaProvider = { toJsonSchema: () => schema };
     return this;
   }
 

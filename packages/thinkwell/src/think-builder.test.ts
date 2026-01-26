@@ -25,16 +25,6 @@ describe("ThinkBuilder prompt composition", () => {
       return this;
     }
 
-    display(value: unknown): this {
-      const text = value === null || value === undefined
-        ? ""
-        : typeof value === "object"
-          ? JSON.stringify(value, null, 2)
-          : String(value);
-      this._promptParts.push(text);
-      return this;
-    }
-
     tool(name: string, description: string): this {
       this._tools.set(name, { name, description, includeInPrompt: true });
       return this;
@@ -101,76 +91,6 @@ describe("ThinkBuilder prompt composition", () => {
 
       const prompt = builder.buildPrompt();
       assert.ok(prompt.startsWith("Line 1\nLine 2\n"));
-    });
-  });
-
-  describe("display()", () => {
-    it("should convert strings to text", () => {
-      const builder = new TestableThinkBuilder()
-        .text("Value: ")
-        .display("hello");
-
-      const prompt = builder.buildPrompt();
-      assert.ok(prompt.startsWith("Value: hello"));
-    });
-
-    it("should convert numbers to text", () => {
-      const builder = new TestableThinkBuilder()
-        .text("Count: ")
-        .display(42);
-
-      const prompt = builder.buildPrompt();
-      assert.ok(prompt.startsWith("Count: 42"));
-    });
-
-    it("should convert booleans to text", () => {
-      const builder = new TestableThinkBuilder()
-        .text("Active: ")
-        .display(true);
-
-      const prompt = builder.buildPrompt();
-      assert.ok(prompt.startsWith("Active: true"));
-    });
-
-    it("should convert objects to JSON", () => {
-      const builder = new TestableThinkBuilder()
-        .text("Data: ")
-        .display({ name: "test", value: 123 });
-
-      const prompt = builder.buildPrompt();
-      assert.ok(prompt.includes('"name": "test"'));
-      assert.ok(prompt.includes('"value": 123'));
-    });
-
-    it("should convert arrays to JSON", () => {
-      const builder = new TestableThinkBuilder()
-        .text("Items: ")
-        .display([1, 2, 3]);
-
-      const prompt = builder.buildPrompt();
-      assert.ok(prompt.includes("1"));
-      assert.ok(prompt.includes("2"));
-      assert.ok(prompt.includes("3"));
-    });
-
-    it("should handle null as empty string", () => {
-      const builder = new TestableThinkBuilder()
-        .text("Before")
-        .display(null)
-        .text("After");
-
-      const prompt = builder.buildPrompt();
-      assert.ok(prompt.startsWith("BeforeAfter"));
-    });
-
-    it("should handle undefined as empty string", () => {
-      const builder = new TestableThinkBuilder()
-        .text("Before")
-        .display(undefined)
-        .text("After");
-
-      const prompt = builder.buildPrompt();
-      assert.ok(prompt.startsWith("BeforeAfter"));
     });
   });
 
@@ -259,8 +179,7 @@ describe("ThinkBuilder prompt composition", () => {
     it("should build a complete prompt with all parts", () => {
       const builder = new TestableThinkBuilder()
         .textln("# Task")
-        .text("Process this data: ")
-        .display({ items: [1, 2, 3] })
+        .text("Process this data: [1, 2, 3]")
         .tool("process", "Process the items")
         .tool("validate", "Validate results");
 
@@ -269,7 +188,6 @@ describe("ThinkBuilder prompt composition", () => {
       // Check structure
       assert.ok(prompt.startsWith("# Task\n"));
       assert.ok(prompt.includes("Process this data:"));
-      assert.ok(prompt.includes('"items"'));
       assert.ok(prompt.includes("Available tools:"));
       assert.ok(prompt.includes("- process: Process the items"));
       assert.ok(prompt.includes("- validate: Validate results"));
@@ -282,7 +200,7 @@ describe("ThinkBuilder prompt composition", () => {
       const builder = new TestableThinkBuilder()
         .text("A")
         .textln("B")
-        .display("C")
+        .text("C")
         .tool("d", "D")
         .defineTool("e", "E")
         .text("F");

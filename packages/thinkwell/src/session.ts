@@ -70,16 +70,7 @@ export class Session {
    *   .run();
    * ```
    */
-  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output>;
-
-  /**
-   * Create a new think builder without a schema.
-   *
-   * @deprecated Use `think(schemaOf<T>(schema))` instead to provide a typed schema.
-   */
-  think<Output>(): ThinkBuilder<Output>;
-
-  think<Output>(schema?: SchemaProvider<Output>): ThinkBuilder<Output> {
+  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output> {
     if (this._closed) {
       throw new Error("Session is closed");
     }
