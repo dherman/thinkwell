@@ -25,9 +25,9 @@ This plan tracks the implementation of the `thinkwell` CLI and Bun plugin for au
 
 ## Phase 3: IDE Support
 
-- [ ] Generate ambient `.d.ts` files for type checking
-- [ ] Add file watcher to regenerate declarations on changes
-- [ ] Document tsconfig.json setup for IDE integration
+- [x] Generate ambient `.d.ts` files for type checking
+- [x] Add file watcher to regenerate declarations on changes
+- [x] Document tsconfig.json setup for IDE integration (see README.md)
 
 ## Phase 4: Cross-File Types
 

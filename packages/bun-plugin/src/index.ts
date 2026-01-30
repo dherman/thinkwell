@@ -165,3 +165,20 @@ plugin(thinkwellPlugin);
 export default thinkwellPlugin;
 export type { TypeInfo } from "./transform.js";
 export { THINKWELL_MODULES } from "./modules.js";
+
+// Declaration file generation for IDE support
+export {
+  generateDeclarationContent,
+  getDeclarationPath,
+  writeDeclarationFile,
+  removeDeclarationFile,
+  generateDeclarations,
+  type DeclarationGeneratorOptions,
+} from "./declarations.js";
+
+// File watcher for automatic declaration regeneration
+export {
+  DeclarationWatcher,
+  watchDeclarations,
+  type WatcherOptions,
+} from "./watcher.js";

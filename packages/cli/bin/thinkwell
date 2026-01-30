@@ -29,6 +29,11 @@ function getPluginPath() {
   return resolve(__dirname, "../node_modules/@thinkwell/bun-plugin/dist/index.js");
 }
 
+// Get the path to the types command script
+function getTypesCommandPath() {
+  return resolve(__dirname, "../dist/types-command.js");
+}
+
 // Parse version from package.json
 async function getVersion() {
   const packagePath = resolve(__dirname, "../package.json");
@@ -42,19 +47,25 @@ function showHelp() {
 thinkwell - Run TypeScript scripts with automatic schema generation
 
 Usage:
-  thinkwell <script.ts> [args...]    Run a TypeScript script
+  thinkwell <script.ts> [args...]     Run a TypeScript script
   thinkwell run <script.ts> [args...] Explicit run command
-  thinkwell --help                   Show this help message
-  thinkwell --version                Show version
+  thinkwell types [dir]               Generate .d.ts files for IDE support
+  thinkwell types --watch [dir]       Watch and regenerate .d.ts files
+  thinkwell --help                    Show this help message
+  thinkwell --version                 Show version
 
 Examples:
   thinkwell hello.ts                 Run hello.ts
   thinkwell run hello.ts --verbose   Run with arguments
   ./script.ts                        Via shebang: #!/usr/bin/env thinkwell
+  thinkwell types                    Generate declarations in current dir
+  thinkwell types src                Generate declarations in src/
+  thinkwell types --watch            Watch for changes and regenerate
 
 The thinkwell CLI automatically:
   - Generates JSON Schema for types marked with @JSONSchema
   - Resolves thinkwell:* imports to built-in modules
+  - Creates .thinkwell.d.ts files for IDE autocomplete (types command)
 
 For more information, visit: https://github.com/anthropics/thinkwell
 `);
@@ -81,6 +92,29 @@ async function main() {
     console.error("Error: Bun is required but not found.");
     console.error("Install it from: https://bun.sh");
     process.exit(1);
+  }
+
+  // Handle "types" subcommand
+  if (args[0] === "types") {
+    const typesArgs = args.slice(1);
+    const typesCommandPath = getTypesCommandPath();
+    const bunArgs = [typesCommandPath, ...typesArgs];
+
+    const child = spawn("bun", bunArgs, {
+      stdio: "inherit",
+      env: process.env,
+    });
+
+    child.on("error", (err) => {
+      console.error(`Failed to start bun: ${err.message}`);
+      process.exit(1);
+    });
+
+    child.on("exit", (code) => {
+      process.exit(code ?? 0);
+    });
+
+    return;
   }
 
   // Handle "run" subcommand - just strip it
