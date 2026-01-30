@@ -25,6 +25,8 @@ export interface TypeInfo {
   name: string;
   /** The TypeScript AST node */
   node: ts.Node;
+  /** The end position of the type declaration in the source */
+  endPosition: number;
 }
 
 /**
@@ -60,7 +62,7 @@ export function findMarkedTypes(path: string, source: string): TypeInfo[] {
         // For class declarations, the name might be undefined (anonymous class)
         const name = node.name?.text;
         if (name) {
-          results.push({ name, node });
+          results.push({ name, node, endPosition: node.getEnd() });
         }
       }
     }

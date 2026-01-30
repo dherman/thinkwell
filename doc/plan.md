@@ -14,12 +14,14 @@ This plan tracks the implementation of the `thinkwell` CLI and Bun plugin for au
 
 ## Phase 2: CLI
 
-- [ ] Create `thinkwell` CLI package
-- [ ] Bundle thinkwell modules for `thinkwell:*` resolution
-- [ ] Implement Bun delegation with plugin preload
-- [ ] Add `--help` and `--version` flags
-- [ ] Set up npm distribution with Node.js launcher
-- [ ] Test shebang support across platforms (macOS, Linux)
+- [x] Create `@thinkwell/cli` package structure
+- [x] Bundle thinkwell modules for `thinkwell:*` resolution (via workspace dependencies)
+- [x] Implement Bun delegation with plugin preload
+- [x] Add `--help` and `--version` flags
+- [x] Set up npm distribution with Node.js launcher (`bin/thinkwell`)
+- [x] Test shebang support (macOS verified)
+- [x] Fix bun-plugin for Bun runtime plugin compatibility (transpile workaround)
+- [x] Handle shebang stripping in plugin
 
 ## Phase 3: IDE Support
 

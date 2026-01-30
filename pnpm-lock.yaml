@@ -127,6 +127,28 @@ importers:
         specifier: ^24.10.4
         version: 24.10.4
 
+  packages/cli:
+    dependencies:
+      '@thinkwell/acp':
+        specifier: workspace:*
+        version: link:../acp
+      '@thinkwell/bun-plugin':
+        specifier: workspace:*
+        version: link:../bun-plugin
+      '@thinkwell/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      thinkwell:
+        specifier: workspace:*
+        version: link:../thinkwell
+    devDependencies:
+      '@types/bun':
+        specifier: ^1.2.4
+        version: 1.3.8
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+
   packages/conductor:
     dependencies:
       '@thinkwell/protocol':

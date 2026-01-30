@@ -5,6 +5,87 @@
 import type { TypeInfo } from "./transform.js";
 
 /**
+ * An insertion to be made into the source code.
+ */
+export interface Insertion {
+  /** Position in the source to insert after */
+  position: number;
+  /** The code to insert */
+  code: string;
+}
+
+/**
+ * Generate a namespace declaration for a single type.
+ */
+function generateNamespace(name: string, schema: object): string {
+  const schemaJson = JSON.stringify(schema, null, 2)
+    .split("\n")
+    .map((line, i) => (i === 0 ? line : "      " + line))
+    .join("\n");
+
+  return [
+    `namespace ${name} {`,
+    `  export const Schema: SchemaProvider<${name}> = {`,
+    `    toJsonSchema: () => (${schemaJson}) as JsonSchema,`,
+    `  };`,
+    `}`,
+  ].join("\n");
+}
+
+/**
+ * Generate insertions for namespace declarations that should be inserted
+ * immediately after each type declaration.
+ *
+ * @param types - The types to generate namespaces for
+ * @param schemas - Map from type name to JSON schema object
+ * @returns Array of insertions to make, sorted by position (descending for safe insertion)
+ */
+export function generateInsertions(
+  types: TypeInfo[],
+  schemas: Map<string, object>
+): Insertion[] {
+  const insertions: Insertion[] = [];
+
+  for (const { name, endPosition } of types) {
+    const schema = schemas.get(name);
+    if (!schema) {
+      continue;
+    }
+
+    insertions.push({
+      position: endPosition,
+      code: "\n" + generateNamespace(name, schema),
+    });
+  }
+
+  // Sort by position descending so we can insert from end to start
+  // without invalidating earlier positions
+  return insertions.sort((a, b) => b.position - a.position);
+}
+
+/**
+ * Generate the import statement needed for the injected code.
+ */
+export function generateImport(): string {
+  return 'import type { SchemaProvider, JsonSchema } from "thinkwell:acp";';
+}
+
+/**
+ * Apply insertions to source code.
+ *
+ * @param source - The original source code
+ * @param insertions - Insertions to apply (must be sorted by position descending)
+ * @returns The modified source code
+ */
+export function applyInsertions(source: string, insertions: Insertion[]): string {
+  let result = source;
+  for (const { position, code } of insertions) {
+    result = result.slice(0, position) + code + result.slice(position);
+  }
+  return result;
+}
+
+/**
  * Generate TypeScript code that injects namespace declarations with
  * SchemaProvider implementations for each marked type.
  *
@@ -15,6 +96,7 @@ import type { TypeInfo } from "./transform.js";
  * @param types - The types to generate namespaces for
  * @param schemas - Map from type name to JSON schema object
  * @returns TypeScript code to be appended to the source
+ * @deprecated Use generateInsertions and applyInsertions instead for proper positioning
  */
 export function generateInjections(
   types: TypeInfo[],

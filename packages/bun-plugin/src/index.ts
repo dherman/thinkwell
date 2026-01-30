@@ -30,13 +30,45 @@
 import { plugin, type BunPlugin } from "bun";
 import { findMarkedTypes, type TypeInfo } from "./transform.js";
 import { generateSchemas } from "./schema-generator.js";
-import { generateInjections } from "./codegen.js";
+import {
+  generateInsertions,
+  generateImport,
+  applyInsertions,
+} from "./codegen.js";
 import { SchemaCache } from "./schema-cache.js";
 import { THINKWELL_MODULES } from "./modules.js";
 
 const JSONSCHEMA_TAG = "@JSONSchema";
 
 const schemaCache = new SchemaCache();
+
+/**
+ * Strip shebang line from source if present.
+ * Returns tuple of [shebang line or empty string, rest of source].
+ * Shebangs are valid for executable scripts but not valid JS/TS syntax.
+ */
+function extractShebang(source: string): [string, string] {
+  if (source.startsWith("#!")) {
+    const newlineIndex = source.indexOf("\n");
+    if (newlineIndex !== -1) {
+      return [source.slice(0, newlineIndex + 1), source.slice(newlineIndex + 1)];
+    }
+    return [source, ""];
+  }
+  return ["", source];
+}
+
+/**
+ * Transpile TypeScript/TSX to JavaScript.
+ *
+ * Due to a Bun bug (as of 1.2.x), returning `loader: "ts"` from onLoad
+ * doesn't properly transpile TypeScript in runtime plugins. As a workaround,
+ * we use Bun.Transpiler to manually convert to JS before returning.
+ */
+function transpile(source: string, loader: "ts" | "tsx"): string {
+  const transpiler = new Bun.Transpiler({ loader });
+  return transpiler.transformSync(source);
+}
 
 /**
  * The thinkwell Bun plugin for automatic schema generation.
@@ -67,14 +99,19 @@ export const thinkwellPlugin: BunPlugin = {
     });
 
     build.onLoad({ filter: /\.tsx?$/ }, async ({ path }) => {
-      const source = await Bun.file(path).text();
+      const rawSource = await Bun.file(path).text();
+      const loader = path.endsWith(".tsx") ? "tsx" : "ts";
+
+      // Extract shebang if present - we'll strip it since we're transpiling to JS
+      const [, source] = extractShebang(rawSource);
 
       // Fast path: skip files without @JSONSchema
       if (!source.includes(JSONSCHEMA_TAG)) {
-        return undefined; // Let Bun handle normally
+        // Transpile to JS as a workaround for Bun's loader bug
+        return { contents: transpile(source, loader), loader: "js" };
       }
 
-      // Check cache
+      // Check cache (use rawSource mtime, but process without shebang)
       const stat = Bun.file(path);
       const mtime = (await stat.stat()).mtime.getTime();
       const cached = schemaCache.get(path, mtime);
@@ -90,7 +127,7 @@ export const thinkwellPlugin: BunPlugin = {
         markedTypes = findMarkedTypes(path, source);
 
         if (markedTypes.length === 0) {
-          return undefined;
+          return { contents: transpile(source, loader), loader: "js" };
         }
 
         // Generate schemas using ts-json-schema-generator
@@ -101,16 +138,22 @@ export const thinkwellPlugin: BunPlugin = {
       }
 
       if (markedTypes.length === 0) {
-        return undefined;
+        return { contents: transpile(source, loader), loader: "js" };
       }
 
-      // Inject namespace declarations with schemas
-      const injectedCode = generateInjections(markedTypes, schemas);
-      const modifiedSource = source + "\n" + injectedCode;
+      // Generate namespace insertions positioned right after each type
+      const insertions = generateInsertions(markedTypes, schemas);
 
+      // Apply insertions to the source (insertions are sorted descending by position)
+      let modifiedSource = applyInsertions(source, insertions);
+
+      // Add the import statement at the top of the file
+      modifiedSource = generateImport() + "\n" + modifiedSource;
+
+      // Transpile the modified source to JS
       return {
-        contents: modifiedSource,
-        loader: path.endsWith(".tsx") ? "tsx" : "ts",
+        contents: transpile(modifiedSource, loader),
+        loader: "js",
       };
     });
   },
