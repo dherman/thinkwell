@@ -9,10 +9,13 @@ This plan tracks the implementation of the `thinkwell` CLI and Bun plugin for au
 - [x] Integrate ts-json-schema-generator for schema extraction
 - [x] Generate namespace injections
 - [x] Add basic mtime-based caching
+- [ ] Implement `onResolve` hook for `thinkwell:*` URI scheme
+- [ ] Update codegen to import from `thinkwell:acp` instead of `@thinkwell/acp`
 
 ## Phase 2: CLI
 
 - [ ] Create `thinkwell` CLI package
+- [ ] Bundle thinkwell modules for `thinkwell:*` resolution
 - [ ] Implement Bun delegation with plugin preload
 - [ ] Add `--help` and `--version` flags
 - [ ] Set up npm distribution with Node.js launcher
