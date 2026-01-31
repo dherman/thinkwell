@@ -111,81 +111,21 @@ thinkwell run script.ts       # Explicit run subcommand (equivalent)
 ./script.ts                   # Via shebang: #!/usr/bin/env thinkwell
 ```
 
-#### CLI Implementation
-
-The CLI is a Bun script compiled to a standalone binary using `bun build --compile`:
-
-```typescript
-// packages/cli/src/index.ts
-import { spawn } from "bun";
-import { resolve, dirname } from "path";
-
-const pluginPath = resolve(dirname(Bun.main), "./plugin.js");
-const args = Bun.argv.slice(2);
-
-// Handle subcommands
-const command = args[0];
-if (command === "run") {
-  args.shift();  // Remove "run", pass rest to bun
-}
-
-// Delegate to bun with our plugin preloaded
-const proc = spawn(["bun", "--preload", pluginPath, ...args], {
-  stdio: ["inherit", "inherit", "inherit"],
-  env: process.env,
-});
-
-await proc.exited;
-process.exit(proc.exitCode ?? 0);
-```
-
-#### Build Process
-
-```bash
-# Build standalone binary
-bun build --compile --outfile thinkwell ./src/index.ts
-
-# The result is a single executable (~50MB with Bun runtime embedded)
-# Or smaller if we require Bun to be installed separately
-```
-
 #### Distribution
 
-Two distribution options:
+The CLI is distributed as an npm package that requires Bun to be installed:
 
-1. **npm package** (requires Bun installed):
-   ```bash
-   npm install -g thinkwell
-   # or
-   bun install -g thinkwell
-   ```
-   The package includes a Node.js launcher that delegates to Bun.
+```bash
+npm install -g @thinkwell/cli
+# or
+bun install -g @thinkwell/cli
+```
 
-2. **Standalone binary** (self-contained):
-   ```bash
-   curl -fsSL https://thinkwell.dev/install.sh | bash
-   ```
-   Single binary with Bun runtime embedded. No dependencies.
-
-**Recommendation**: Start with npm distribution (Option 1). Users interested in thinkwell likely already have Bun. Add standalone binaries later for CI/CD environments.
+The package includes a Node.js launcher script (`bin/thinkwell`) that delegates to Bun with the plugin preloaded. This allows the CLI to be installed via npm/pnpm while using Bun as the actual runtime.
 
 ### Module Resolution
 
-The plugin uses Bun's `onResolve` hook to intercept `thinkwell:*` imports and resolve them to bundled modules:
-
-```typescript
-// In the plugin setup
-build.onResolve({ filter: /^thinkwell:/ }, (args) => {
-  // thinkwell:agent -> bundled agent module
-  // thinkwell:acp -> bundled acp module
-  // thinkwell:connectors -> bundled connectors module
-  const moduleName = args.path.replace("thinkwell:", "");
-  return {
-    path: resolve(THINKWELL_MODULES_DIR, `${moduleName}.js`),
-    namespace: "file",
-  };
-});
-```
+The plugin uses Bun's `onResolve` hook to intercept `thinkwell:*` imports and resolve them to the corresponding npm packages.
 
 Available built-in modules:
 
@@ -216,103 +156,6 @@ The plugin uses Bun's `onLoad` hook to intercept TypeScript files and inject sch
                                     │ ts-json-schema- │
                                     │ generator       │
                                     └─────────────────┘
-```
-
-### Plugin Implementation
-
-```typescript
-// @thinkwell/bun-plugin/src/index.ts
-import { plugin } from "bun";
-import ts from "typescript";
-import { createGenerator, type Config } from "ts-json-schema-generator";
-
-const JSONSCHEMA_TAG = "JSONSchema";
-
-export default plugin({
-  name: "thinkwell-schema",
-
-  setup(build) {
-    build.onLoad({ filter: /\.tsx?$/ }, async ({ path }) => {
-      const source = await Bun.file(path).text();
-
-      // Fast path: skip files without @JSONSchema
-      if (!source.includes(`@${JSONSCHEMA_TAG}`)) {
-        return undefined;  // Let Bun handle normally
-      }
-
-      // Parse with TypeScript to find marked types
-      const sourceFile = ts.createSourceFile(
-        path,
-        source,
-        ts.ScriptTarget.Latest,
-        true
-      );
-
-      const markedTypes = findMarkedTypes(sourceFile);
-      if (markedTypes.length === 0) {
-        return undefined;
-      }
-
-      // Generate schemas using ts-json-schema-generator
-      const schemas = generateSchemas(path, markedTypes);
-
-      // Inject namespace declarations with schemas
-      const injectedCode = generateInjections(markedTypes, schemas);
-      const modifiedSource = source + "\n" + injectedCode;
-
-      return {
-        contents: modifiedSource,
-        loader: path.endsWith(".tsx") ? "tsx" : "ts"
-      };
-    });
-  },
-});
-
-function findMarkedTypes(sourceFile: ts.SourceFile): TypeInfo[] {
-  const results: TypeInfo[] = [];
-
-  ts.forEachChild(sourceFile, function visit(node) {
-    if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
-      if (hasJsDocTag(node, JSONSCHEMA_TAG)) {
-        results.push({
-          name: node.name.text,
-          node,
-        });
-      }
-    }
-    ts.forEachChild(node, visit);
-  });
-
-  return results;
-}
-
-function generateInjections(
-  types: TypeInfo[],
-  schemas: Map<string, object>
-): string {
-  const lines: string[] = [
-    "",
-    "// Auto-generated by @thinkwell/bun-plugin",
-    'import type { SchemaProvider, JsonSchema } from "thinkwell:acp";',
-    "",
-  ];
-
-  for (const { name } of types) {
-    const schema = schemas.get(name);
-    const schemaJson = JSON.stringify(schema, null, 2);
-
-    lines.push(
-      `namespace ${name} {`,
-      `  export const Schema: SchemaProvider<${name}> = {`,
-      `    toJsonSchema: () => (${schemaJson}) as JsonSchema,`,
-      `  };`,
-      `}`,
-      ""
-    );
-  }
-
-  return lines.join("\n");
-}
 ```
 
 ### Usage
@@ -416,15 +259,11 @@ The `thinkwell:agent` and `thinkwell:connectors` imports are resolved by the plu
 
 ### TypeScript Language Service Integration
 
-For IDE support (autocomplete, type checking), we need TypeScript to understand that `Greeting.Schema` exists. Two approaches:
-
-#### Approach A: Ambient Declaration File
-
-Generate a `.d.ts` file that declares the namespace:
+For IDE support (autocomplete, type checking), the CLI generates ambient `.d.ts` files that declare the namespace:
 
 ```typescript
 // greeting.thinkwell.d.ts (auto-generated, gitignored)
-import type { SchemaProvider } from "thinkwell:acp";
+import type { SchemaProvider } from "@thinkwell/acp";
 import type { Greeting } from "./greeting.js";
 
 declare namespace Greeting {
@@ -432,24 +271,7 @@ declare namespace Greeting {
 }
 ```
 
-The plugin can generate these on first load and update them when types change.
-
-#### Approach B: TypeScript Plugin
-
-A TypeScript language service plugin that provides virtual declarations:
-
-```json
-// tsconfig.json
-{
-  "compilerOptions": {
-    "plugins": [{ "name": "@thinkwell/ts-plugin" }]
-  }
-}
-```
-
-This approach provides a better IDE experience but requires additional tooling.
-
-**Recommendation**: Start with Approach A (ambient declarations). It's simpler and works immediately. Add a TS plugin later if needed.
+Use `thinkwell types` to generate these files, or `thinkwell types --watch` to regenerate them automatically when source files change.
 
 ## Performance Considerations
 
@@ -464,36 +286,7 @@ For a typical script with 1-3 types, expect ~50-100ms additional startup time.
 
 ### Caching Strategy
 
-To minimize repeat work:
-
-```typescript
-const schemaCache = new Map<string, { mtime: number; schemas: Map<string, object> }>();
-
-build.onLoad({ filter: /\.tsx?$/ }, async ({ path }) => {
-  const stat = await Bun.file(path).stat();
-  const cached = schemaCache.get(path);
-
-  if (cached && cached.mtime === stat.mtime) {
-    // Use cached schemas
-    return generateOutput(cached.schemas);
-  }
-
-  // Generate fresh and cache
-  const schemas = generateSchemas(path);
-  schemaCache.set(path, { mtime: stat.mtime, schemas });
-  return generateOutput(schemas);
-});
-```
-
-### Parallel Type Checking
-
-For projects with many `@JSONSchema` types, we can use Bun's worker threads:
-
-```typescript
-// Future optimization
-const worker = new Worker("./schema-worker.ts");
-const schemas = await worker.generateSchemas(path, typeNames);
-```
+The plugin uses mtime-based caching to avoid regenerating schemas for unchanged files. Additionally, the TypeScript program is cached per-project (keyed by tsconfig.json location) to amortize the cost of type resolution across multiple files.
 
 ## Limitations
 
@@ -503,22 +296,9 @@ This approach only works with Bun. Users of Node.js, Deno, or other runtimes mus
 
 **Mitigation**: The build tool remains available. This plugin is an additional convenience, not a replacement.
 
-### 2. No Cross-File Type Resolution (Initial Version)
+### 2. Cross-File Type Resolution
 
-The initial implementation handles types defined in the same file. Types imported from other files require the TypeScript program API:
-
-```typescript
-// This works
-/** @JSONSchema */
-interface Greeting { message: string; }
-
-// This requires more work
-import { BaseType } from "./types.js";
-/** @JSONSchema */
-interface Greeting extends BaseType { message: string; }
-```
-
-**Mitigation**: Use `ts.createProgram()` with all project files for full type resolution. This adds startup cost but enables full type support.
+Types that extend or reference types from other files are supported via `ts-json-schema-generator`'s program-based resolution. The plugin caches the TypeScript program per-project to minimize overhead.
 
 ### 3. Declaration Merging Complexity
 
@@ -587,9 +367,36 @@ Continue requiring `build-schema-providers` for all use cases.
 
 **Decision**: Keep build tool for production, add plugin for development/scripting.
 
-## Implementation Plan
+### 4. TypeScript Language Service Plugin
 
-See [plan.md](../plan.md) for the detailed implementation checklist.
+A TypeScript language service plugin could provide virtual declarations without generating files:
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "plugins": [{ "name": "@thinkwell/ts-plugin" }]
+  }
+}
+```
+
+**Pros**: Better IDE experience, no generated files to manage
+**Cons**: Requires additional tooling, more complex implementation
+
+**Decision**: Rejected for initial implementation. Ambient declaration files (`thinkwell types`) are simpler and work immediately. A TS plugin could be added later if needed.
+
+### 5. Standalone Binary Distribution
+
+Distribute the CLI as a standalone binary with Bun runtime embedded:
+
+```bash
+curl -fsSL https://thinkwell.dev/install.sh | bash
+```
+
+**Pros**: Single binary with no dependencies, good for CI/CD environments
+**Cons**: Larger download (~50MB), more complex release process
+
+**Decision**: Deferred. npm distribution is sufficient for initial release. Standalone binaries can be added later for CI/CD use cases.
 
 ## Package Structure
 
@@ -598,59 +405,24 @@ packages/
   bun-plugin/              # @thinkwell/bun-plugin
     src/
       index.ts             # Plugin entry point
-      transform.ts         # Source transformation logic
-      schema-cache.ts      # Caching layer
+      transform.ts         # AST utilities for finding @JSONSchema types
+      codegen.ts           # Code generation for namespace injections
+      schema-generator.ts  # Schema generation via ts-json-schema-generator
+      schema-cache.ts      # Mtime-based caching layer
+      program-cache.ts     # TypeScript program caching
       declarations.ts      # .d.ts file generation
+      watcher.ts           # File watcher for --watch mode
+      modules.ts           # thinkwell:* module mappings
     package.json
     README.md
 
-  cli/                     # thinkwell (npm: thinkwell)
-    src/
-      index.ts             # CLI entry point
-      commands/
-        run.ts             # Default command: run a script
+  cli/                     # @thinkwell/cli
     bin/
-      thinkwell            # npm bin entry (Node.js launcher)
+      thinkwell            # Node.js launcher that delegates to Bun
+    src/
+      types-command.ts     # Implementation of `thinkwell types`
     package.json           # depends on @thinkwell/bun-plugin
     README.md
-```
-
-### CLI Package Details
-
-```json
-// packages/cli/package.json
-{
-  "name": "thinkwell",
-  "version": "0.1.0",
-  "bin": {
-    "thinkwell": "./bin/thinkwell"
-  },
-  "dependencies": {
-    "@thinkwell/bun-plugin": "workspace:*"
-  }
-}
-```
-
-The `bin/thinkwell` launcher detects the environment and delegates appropriately:
-
-```bash
-#!/usr/bin/env node
-// Detect if bun is available, delegate with plugin preload
-const { execSync, spawn } = require("child_process");
-const path = require("path");
-
-try {
-  execSync("bun --version", { stdio: "ignore" });
-} catch {
-  console.error("Error: Bun is required. Install it from https://bun.sh");
-  process.exit(1);
-}
-
-const pluginPath = path.resolve(__dirname, "../node_modules/@thinkwell/bun-plugin");
-const args = process.argv.slice(2);
-
-spawn("bun", ["--preload", pluginPath, ...args], { stdio: "inherit" })
-  .on("exit", (code) => process.exit(code ?? 0));
 ```
 
 ## Security Considerations
@@ -675,23 +447,22 @@ spawn("bun", ["--preload", pluginPath, ...args], { stdio: "inherit" })
    - Environment-based: plugin in dev, build tool in prod
    - Add `thinkwell build` command that pre-generates schemas
 
-2. **How should we handle schema generation errors?**
-
-   If a type can't be converted to JSON Schema:
-   - Throw at load time (fail fast)
-   - Log warning and skip (permissive)
-   - Generate a permissive schema with `additionalProperties: true`
-
-3. **Should we support other runtimes via similar plugins?**
-
-   Deno has a similar plugin system. Node.js has loaders. Worth exploring after Bun version is stable.
-
-4. **Future CLI commands?**
+2. **Future CLI commands?**
 
    The `thinkwell` CLI could grow to include:
    - `thinkwell build` - Bundle for production with pre-generated schemas
    - `thinkwell init` - Scaffold a new thinkwell project
    - `thinkwell check` - Validate types and schemas without running
+
+## Resolved Questions
+
+1. **How should we handle schema generation errors?**
+
+   **Decision**: Log a warning and skip the type. This allows scripts to run even if some types can't be converted to JSON Schema. The warning includes helpful hints for debugging.
+
+2. **Should we support other runtimes via similar plugins?**
+
+   **Decision**: Yes, Node.js support is feasible. See the Future Work section for the implementation strategy.
 
 ## Future Work
 
