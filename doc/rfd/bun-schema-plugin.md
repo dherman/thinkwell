@@ -438,22 +438,6 @@ packages/
 3. **Snapshot tests**: Verify output for various type patterns
 4. **Comparison tests**: Ensure parity with build-schema-providers output
 
-## Open Questions
-
-1. **Should the plugin work in production builds?**
-
-   The plugin adds latency. For production, users might prefer pre-generated schemas. Options:
-   - Always use plugin (simplicity)
-   - Environment-based: plugin in dev, build tool in prod
-   - Add `thinkwell build` command that pre-generates schemas
-
-2. **Future CLI commands?**
-
-   The `thinkwell` CLI could grow to include:
-   - `thinkwell build` - Bundle for production with pre-generated schemas
-   - `thinkwell init` - Scaffold a new thinkwell project
-   - `thinkwell check` - Validate types and schemas without running
-
 ## Resolved Questions
 
 1. **How should we handle schema generation errors?**
@@ -465,6 +449,14 @@ packages/
    **Decision**: Yes, Node.js support is feasible. See the Future Work section for the implementation strategy.
 
 ## Future Work
+
+### Additional CLI Commands
+
+The `thinkwell` CLI could grow to include:
+
+- **`thinkwell build`** - Bundle for production with pre-generated schemas, eliminating runtime startup latency
+- **`thinkwell init`** - Scaffold a new thinkwell project
+- **`thinkwell check`** - Validate types and schemas without running
 
 ### Node.js Runtime Support
 
