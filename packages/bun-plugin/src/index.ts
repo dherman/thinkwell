@@ -40,6 +40,32 @@ import { THINKWELL_MODULES } from "./modules.js";
 
 const JSONSCHEMA_TAG = "@JSONSchema";
 
+/**
+ * Rewrite thinkwell:* imports to their actual npm package names.
+ *
+ * This is necessary because Bun's runtime plugins have a bug where
+ * URL-like imports (containing ':') are validated as URLs before
+ * the plugin's onResolve hook can intercept them. By rewriting
+ * in onLoad, we avoid this issue.
+ */
+function rewriteThinkwellImports(source: string): string {
+  // Match import/export statements with thinkwell:* specifiers
+  // Handles: import { x } from "thinkwell:foo"
+  //          import x from 'thinkwell:foo'
+  //          export { x } from "thinkwell:foo"
+  return source.replace(
+    /(from\s+['"])thinkwell:(\w+)(['"])/g,
+    (_, prefix, moduleName, suffix) => {
+      const npmPackage = THINKWELL_MODULES[moduleName];
+      if (npmPackage) {
+        return `${prefix}${npmPackage}${suffix}`;
+      }
+      // Unknown module - leave as is (will error at resolution)
+      return `${prefix}thinkwell:${moduleName}${suffix}`;
+    }
+  );
+}
+
 const schemaCache = new SchemaCache();
 
 /**
@@ -130,7 +156,10 @@ export const thinkwellPlugin: BunPlugin = {
       const loader = path.endsWith(".tsx") ? "tsx" : "ts";
 
       // Extract shebang if present - we'll strip it since we're transpiling to JS
-      const [, source] = extractShebang(rawSource);
+      let [, source] = extractShebang(rawSource);
+
+      // Rewrite thinkwell:* imports to npm packages (must happen before transpilation)
+      source = rewriteThinkwellImports(source);
 
       // Fast path: skip files without @JSONSchema
       if (!source.includes(JSONSCHEMA_TAG)) {

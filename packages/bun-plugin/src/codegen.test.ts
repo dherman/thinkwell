@@ -67,7 +67,7 @@ describe("generateInjections", () => {
     const result = generateInjections(types, schemas);
 
     expect(result).toContain(
-      'import type { SchemaProvider, JsonSchema } from "thinkwell:acp"'
+      'import type { SchemaProvider, JsonSchema } from "@thinkwell/acp"'
     );
   });
 

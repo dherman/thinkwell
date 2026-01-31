@@ -30,6 +30,11 @@ function getPluginPath() {
   return resolve(__dirname, "../node_modules/@thinkwell/bun-plugin/dist/index.js");
 }
 
+// Get the path to our node_modules (where thinkwell packages are installed)
+function getNodeModulesPath() {
+  return resolve(__dirname, "../node_modules");
+}
+
 // Get the path to the types command script
 function getTypesCommandPath() {
   return resolve(__dirname, "../dist/types-command.js");
@@ -180,11 +185,18 @@ async function main() {
 
   // Delegate to bun with plugin preloaded
   const pluginPath = getPluginPath();
+  const nodeModulesPath = getNodeModulesPath();
   const bunArgs = ["--preload", pluginPath, ...runArgs];
+
+  // Add our node_modules to NODE_PATH so Bun can find thinkwell packages
+  // regardless of where the script is located
+  const nodePath = process.env.NODE_PATH
+    ? `${nodeModulesPath}:${process.env.NODE_PATH}`
+    : nodeModulesPath;
 
   const child = spawn("bun", bunArgs, {
     stdio: "inherit",
-    env: process.env,
+    env: { ...process.env, NODE_PATH: nodePath },
   });
 
   child.on("error", (err) => {
