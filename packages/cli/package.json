@@ -1,0 +1,37 @@
+{
+  "name": "@thinkwell/cli",
+  "version": "0.2.0",
+  "description": "Thinkwell CLI for running scripts with automatic schema generation",
+  "type": "module",
+  "bin": {
+    "thinkwell": "./bin/thinkwell"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "bun test src/**/*.test.ts"
+  },
+  "keywords": [
+    "thinkwell",
+    "cli",
+    "bun",
+    "json-schema",
+    "typescript"
+  ],
+  "author": "David Herman",
+  "license": "MIT",
+  "dependencies": {
+    "@thinkwell/bun-plugin": "workspace:*",
+    "@thinkwell/acp": "workspace:*",
+    "@thinkwell/protocol": "workspace:*",
+    "thinkwell": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.4",
+    "@types/node": "^24.10.4"
+  }
+}

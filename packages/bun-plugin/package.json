@@ -1,0 +1,43 @@
+{
+  "name": "@thinkwell/bun-plugin",
+  "version": "0.2.0",
+  "description": "Bun plugin for automatic JSON Schema generation from TypeScript types marked with @JSONSchema",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "bun test src/**/*.test.ts"
+  },
+  "keywords": [
+    "bun",
+    "plugin",
+    "json-schema",
+    "typescript",
+    "thinkwell",
+    "schema-provider"
+  ],
+  "author": "David Herman",
+  "license": "MIT",
+  "dependencies": {
+    "ts-json-schema-generator": "^2.4.0",
+    "typescript": "^5.7.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.4",
+    "@types/node": "^24.10.4"
+  },
+  "peerDependencies": {
+    "@thinkwell/acp": "workspace:*"
+  }
+}
