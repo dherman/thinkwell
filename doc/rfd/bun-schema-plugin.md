@@ -693,11 +693,151 @@ spawn("bun", ["--preload", pluginPath, ...args], { stdio: "inherit" })
    - `thinkwell init` - Scaffold a new thinkwell project
    - `thinkwell check` - Validate types and schemas without running
 
+## Future Work
+
+### Node.js Runtime Support
+
+While this RFD focuses on Bun as the primary runtime, Node.js support is technically feasible using Node's experimental module hooks API (`registerHooks` from `node:module`). This section documents the investigation and potential implementation strategy.
+
+#### What's Portable
+
+Most of the core plugin logic is already Node.js-compatible:
+
+- **Schema generation** (`ts-json-schema-generator`) - Pure Node.js library
+- **TypeScript AST parsing** (`typescript` compiler API) - Works in Node.js
+- **Code generation and injection** - Pure string manipulation
+- **Program caching** - Uses `node:fs` and `node:path`
+
+#### Bun-Specific APIs Requiring Replacement
+
+| Bun API | Node.js Equivalent |
+|---------|-------------------|
+| `Bun.Transpiler` | `esbuild.transformSync()` or `swc` |
+| `Bun.file(path).text()` | `fs.readFileSync(path, 'utf-8')` |
+| `Bun.file(path).stat()` | `fs.statSync(path)` |
+| `plugin()` from "bun" | `registerHooks()` from "node:module" |
+
+#### Node.js Loader Implementation Sketch
+
+```javascript
+// @thinkwell/node-loader
+import { registerHooks } from 'node:module';
+import { readFileSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import esbuild from 'esbuild';
+
+// Reuse portable modules from bun-plugin
+import { findMarkedTypes } from './transform.js';
+import { generateSchemas } from './schema-generator.js';
+import { generateInsertions, generateImport, applyInsertions } from './codegen.js';
+import { THINKWELL_MODULES } from './modules.js';
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.startsWith('thinkwell:')) {
+      const moduleName = specifier.slice(10);
+      const npmPackage = THINKWELL_MODULES[moduleName];
+      if (npmPackage) {
+        return nextResolve(npmPackage, context);
+      }
+    }
+    return nextResolve(specifier, context);
+  },
+
+  load(url, context, nextLoad) {
+    if (!url.endsWith('.ts') && !url.endsWith('.tsx')) {
+      return nextLoad(url, context);
+    }
+
+    const filePath = fileURLToPath(url);
+    let source = readFileSync(filePath, 'utf-8');
+
+    // Rewrite thinkwell:* imports
+    source = rewriteThinkwellImports(source);
+
+    // Check for @JSONSchema
+    if (!source.includes('@JSONSchema')) {
+      const js = esbuild.transformSync(source, { loader: 'ts' }).code;
+      return { source: js, format: 'module', shortCircuit: true };
+    }
+
+    // Generate schemas and inject
+    const types = findMarkedTypes(filePath, source);
+    const schemas = generateSchemas(filePath, types);
+    const insertions = generateInsertions(types, schemas);
+    let modified = applyInsertions(source, insertions);
+    modified = generateImport() + '\n' + modified;
+
+    const js = esbuild.transformSync(modified, { loader: 'ts' }).code;
+    return { source: js, format: 'module', shortCircuit: true };
+  }
+});
+```
+
+#### CLI Runtime Selection Strategy
+
+When adding Node.js support to the CLI, there are several options for selecting which runtime to use:
+
+**Option 1: Autodetect**
+
+The CLI automatically detects which runtimes are available and selects one:
+- If running under Bun (detected via `process.versions.bun`), use Bun
+- If running under Node.js and Bun is installed, prefer Bun
+- If only Node.js is available, use the Node.js loader
+
+Pros: Zero configuration, "just works"
+Cons: May surprise users if behavior differs between environments
+
+**Option 2: Environment Variable with Bun Default**
+
+Use an environment variable (e.g., `THINKWELL_RUNTIME`) to explicitly select the runtime:
+- `THINKWELL_RUNTIME=bun` - Use Bun (requires Bun installed)
+- `THINKWELL_RUNTIME=node` - Use Node.js with the node-loader
+- If unset, default to Bun (error if not installed)
+
+Pros: Explicit, predictable, easy to configure in CI/CD
+Cons: Requires configuration for Node.js users
+
+**Option 3: Hybrid (Recommended)**
+
+Combine Options 1 and 2:
+- `THINKWELL_RUNTIME=bun` - Use Bun
+- `THINKWELL_RUNTIME=node` - Use Node.js
+- `THINKWELL_RUNTIME=auto` - Autodetect (Option 1 behavior)
+- If unset, default to Bun
+
+This provides explicit control when needed while allowing autodetection as an opt-in feature.
+
+#### Trade-offs
+
+| Factor | Bun | Node.js |
+|--------|-----|---------|
+| TypeScript support | Native | Requires esbuild/swc |
+| Performance | Fast | ~20-50% slower |
+| API stability | Stable | `registerHooks` is experimental |
+| Deployment | Requires Bun | More universally available |
+
+#### Alternative: Build-Time Only for Node.js
+
+Instead of full runtime support, Node.js users could use a build-time workflow:
+- Run `thinkwell build` (or existing `build-schema-providers`) to pre-generate schemas
+- Execute the built output with plain Node.js
+
+This mirrors how most TypeScript tooling works with Node.js today.
+
+#### Recommendation
+
+Implement Node.js runtime support in a follow-up PR with:
+1. A new `@thinkwell/node-loader` package sharing code with `bun-plugin`
+2. Option 3 (hybrid) runtime selection in the CLI
+3. Documentation for both runtime and build-time Node.js workflows
+
 ## References
 
 - [Bun Plugin API](https://bun.sh/docs/bundler/plugins)
 - [Bun Runtime Plugins](https://bun.sh/docs/runtime/plugins)
 - [Bun Build --compile](https://bun.sh/docs/bundler/executables)
+- [Node.js Module Customization Hooks](https://nodejs.org/api/module.html#customization-hooks)
 - [ts-json-schema-generator](https://github.com/vega/ts-json-schema-generator)
 - [TypeScript Compiler API](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API)
 - [TypeScript-Go Issue #516: Transformer Plugin Support](https://github.com/microsoft/typescript-go/issues/516)
