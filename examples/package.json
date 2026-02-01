@@ -2,38 +2,24 @@
   "name": "@thinkwell/examples",
   "version": "0.2.0",
   "private": true,
-  "description": "Integration examples for SchemaProvider patterns",
+  "description": "Thinkwell usage examples",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "clean": "rm -rf dist",
-    "test": "node --test --import tsx src/**/*.test.ts",
-    "generate:schemas": "build-schema-providers src/generator.ts src/greeting.ts src/unminify.ts",
-    "demo": "tsx src/demo.ts",
-    "demo:inline": "tsx src/demo.ts inline",
-    "demo:zod": "tsx src/demo.ts zod",
-    "demo:typebox": "tsx src/demo.ts typebox",
-    "demo:generator": "tsx src/demo.ts generator",
-    "demo:unminify": "tsx src/demo.ts unminify",
-    "demo:greeting": "tsx src/demo.ts greeting"
+    "summarize": "thinkwell src/summarize.ts",
+    "sentiment": "thinkwell src/sentiment.ts",
+    "greeting": "thinkwell src/greeting.ts",
+    "unminify": "thinkwell src/unminify.ts"
   },
   "dependencies": {
-    "thinkwell": "workspace:*",
-    "@thinkwell/acp": "workspace:*",
     "@types/lodash": "^4.17.23",
     "lodash": "^4.17.21",
     "p-limit": "^7.2.0",
     "sentiment": "^5.0.2"
   },
   "devDependencies": {
-    "@thinkwell/build-schema-providers": "workspace:*",
-    "@sinclair/typebox": "^0.34.30",
+    "@thinkwell/cli": "workspace:*",
     "@types/node": "^24.10.4",
     "@types/sentiment": "^5.0.4",
-    "prettier": "^3.7.4",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "zod": "^3.24.2",
-    "zod-to-json-schema": "^3.24.1"
+    "prettier": "^3.7.4"
   }
 }

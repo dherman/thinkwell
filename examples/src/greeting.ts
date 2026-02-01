@@ -1,6 +1,15 @@
-import { CLAUDE_CODE } from "thinkwell/connectors";
-import { Agent } from "thinkwell";
-import { GreetingSchema } from "./greeting.schemas.js";
+/**
+ * Example: Greeting with Custom Tool
+ *
+ * This example demonstrates using a simple custom tool with the LLM.
+ * The tool provides the current time so the LLM can generate
+ * a time-appropriate greeting.
+ *
+ * Run with: thinkwell src/greeting.ts
+ */
+
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
 
 /**
  * A friendly greeting.
@@ -11,12 +20,12 @@ export interface Greeting {
   message: string;
 }
 
-export default async function main() {
+async function main() {
   const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
 
   try {
-    const greeting: Greeting = await agent
-      .think(GreetingSchema)
+    const greeting = await agent
+      .think(Greeting.Schema)
       .text(`
         Use the current_time tool to get the current time, and create a
         friendly greeting message appropriate for that time of day.
@@ -37,8 +46,10 @@ export default async function main() {
 
       .run();
 
-    console.log(`✨ ${greeting.message}`);
+    console.log(`${greeting.message}`);
   } finally {
     agent.close();
   }
 }
+
+main();

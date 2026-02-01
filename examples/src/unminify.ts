@@ -9,22 +9,15 @@
  * 4. Analyze each function to suggest better names
  * 5. Apply renames in a single pass
  *
- * This example uses the types-first approach with @JSONSchema JSDoc tags.
- * Schemas are generated at build time by running: pnpm generate:schemas
+ * Run with: thinkwell src/unminify.ts
  */
 
-import {
-  ModuleConversionSchema,
-  FunctionListSchema,
-  FunctionAnalysisBatchSchema,
-  RenamedCodeSchema,
-} from "./unminify.schemas.js";
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
 import * as fs from "fs/promises";
 import * as prettier from "prettier";
 import pLimit from "p-limit";
 import _ from "lodash";
-import { CLAUDE_CODE } from "thinkwell/connectors";
-import { Agent } from "thinkwell";
 
 // =============================================================================
 // Type Definitions (marked with @JSONSchema for schema generation)
@@ -116,7 +109,7 @@ export async function formatCode(code: string): Promise<string> {
 // Main
 // =============================================================================
 
-export default async function main() {
+async function main() {
   const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
 
   try {
@@ -144,8 +137,8 @@ export default async function main() {
     // Step 2: Convert UMD to ESM
     // -------------------------------------------------------------------------
     console.log("Step 2: Converting UMD wrapper to ESM...");
-    const conversion: ModuleConversion = await agent
-      .think(ModuleConversionSchema)
+    const conversion = await agent
+      .think(ModuleConversion.Schema)
       .text(`
         Convert this UMD module to an ESM module with a default export.
         Remove the UMD wrapper boilerplate (the IIFE that checks for exports/define/globalThis).
@@ -166,8 +159,8 @@ export default async function main() {
     // Step 3: Extract function list
     // -------------------------------------------------------------------------
     console.log("Step 3: Extracting function list...");
-    const functionList: FunctionList = await agent
-      .think(FunctionListSchema)
+    const functionList = await agent
+      .think(FunctionList.Schema)
       .text(`
         Extract a list of all top-level function declarations and function expressions
         assigned to variables in this code. Include the function name, its signature
@@ -201,7 +194,7 @@ export default async function main() {
             .join("\n");
 
           return agent
-            .think(FunctionAnalysisBatchSchema)
+            .think(FunctionAnalysisBatch.Schema)
             .text(`
               Analyze each of the following minified functions and suggest better, more descriptive names.
 
@@ -227,7 +220,7 @@ export default async function main() {
       for (const analysis of batch.analyses) {
         if (analysis.suggestedName !== analysis.originalName) {
           renames.set(analysis.originalName, analysis.suggestedName);
-          console.log(`  ${analysis.originalName} → ${analysis.suggestedName}`);
+          console.log(`  ${analysis.originalName} -> ${analysis.suggestedName}`);
         }
       }
     }
@@ -241,11 +234,11 @@ export default async function main() {
     // -------------------------------------------------------------------------
     console.log("Step 5: Applying renames...");
     const renameList = Array.from(renames.entries())
-      .map(([from, to]) => `  ${from} → ${to}`)
+      .map(([from, to]) => `  ${from} -> ${to}`)
       .join("\n");
 
-    const renamed: RenamedCode = await agent
-      .think(RenamedCodeSchema)
+    const renamed = await agent
+      .think(RenamedCode.Schema)
       .text(`
         Apply the following renames to the code. Be careful to only rename
         the function definitions and all their usages, not unrelated identifiers
@@ -285,3 +278,5 @@ export default async function main() {
     agent.close();
   }
 }
+
+main();

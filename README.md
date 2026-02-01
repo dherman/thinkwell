@@ -6,10 +6,12 @@ A TypeScript library for easy scripting of AI agents. Thinkwell provides a fluen
 
 ## Packages
 
-This monorepo contains two packages:
+This monorepo contains the following packages:
 
 - **[thinkwell](packages/thinkwell)**: High-level API for blending deterministic code with LLM-powered reasoning
 - **[@thinkwell/acp](packages/acp)**: Core ACP library providing MCP-over-ACP protocol handling
+- **[@thinkwell/bun-plugin](packages/bun-plugin)**: Bun plugin for automatic JSON Schema generation
+- **[@thinkwell/cli](packages/cli)**: CLI for running thinkwell scripts with zero configuration
 
 ## Quick Start
 
@@ -57,6 +59,57 @@ try {
   agent.close();
 }
 ```
+
+## Thinkwell CLI
+
+The `thinkwell` CLI provides a zero-configuration experience for running TypeScript scripts with automatic schema generation:
+
+```bash
+# Run a script - schemas are generated automatically
+thinkwell script.ts
+
+# Or use a shebang
+#!/usr/bin/env thinkwell
+```
+
+Scripts can use the `thinkwell:*` import scheme for built-in modules:
+
+```typescript
+#!/usr/bin/env thinkwell
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+/** @JSONSchema */
+interface Greeting {
+  message: string;
+}
+
+const agent = await Agent.connect(CLAUDE_CODE);
+const greeting = await agent.think(Greeting.Schema).text("Say hello").run();
+console.log(greeting.message);
+```
+
+### IDE Support
+
+To get IDE autocomplete for auto-generated `TypeName.Schema` namespaces:
+
+1. Generate declaration files:
+   ```bash
+   thinkwell types          # One-time generation
+   thinkwell types --watch  # Watch mode for development
+   ```
+
+2. Add `.thinkwell.d.ts` files to your tsconfig.json:
+   ```json
+   {
+     "include": ["src/**/*.ts", "src/**/*.thinkwell.d.ts"]
+   }
+   ```
+
+3. Add to `.gitignore`:
+   ```
+   *.thinkwell.d.ts
+   ```
 
 ## Development
 

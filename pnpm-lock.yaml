@@ -14,9 +14,6 @@ importers:
 
   examples:
     dependencies:
-      '@thinkwell/acp':
-        specifier: workspace:*
-        version: link:../packages/acp
       '@types/lodash':
         specifier: ^4.17.23
         version: 4.17.23
@@ -29,16 +26,10 @@ importers:
       sentiment:
         specifier: ^5.0.2
         version: 5.0.2
-      thinkwell:
-        specifier: workspace:*
-        version: link:../packages/thinkwell
     devDependencies:
-      '@sinclair/typebox':
-        specifier: ^0.34.30
-        version: 0.34.46
-      '@thinkwell/build-schema-providers':
+      '@thinkwell/cli':
         specifier: workspace:*
-        version: link:../packages/build-schema-providers
+        version: link:../packages/cli
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
@@ -48,18 +39,6 @@ importers:
       prettier:
         specifier: ^3.7.4
         version: 3.7.4
-      tsx:
-        specifier: ^4.19.2
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-      zod:
-        specifier: ^3.24.2
-        version: 3.25.76
-      zod-to-json-schema:
-        specifier: ^3.24.1
-        version: 3.25.1(zod@3.25.76)
 
   packages/acp:
     dependencies:
@@ -104,6 +83,47 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
     devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+
+  packages/bun-plugin:
+    dependencies:
+      '@thinkwell/acp':
+        specifier: workspace:*
+        version: link:../acp
+      ts-json-schema-generator:
+        specifier: ^2.4.0
+        version: 2.4.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+    devDependencies:
+      '@types/bun':
+        specifier: ^1.2.4
+        version: 1.3.8
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+
+  packages/cli:
+    dependencies:
+      '@thinkwell/acp':
+        specifier: workspace:*
+        version: link:../acp
+      '@thinkwell/bun-plugin':
+        specifier: workspace:*
+        version: link:../bun-plugin
+      '@thinkwell/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      thinkwell:
+        specifier: workspace:*
+        version: link:../thinkwell
+    devDependencies:
+      '@types/bun':
+        specifier: ^1.2.4
+        version: 1.3.8
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
@@ -336,8 +356,8 @@ packages:
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
 
-  '@sinclair/typebox@0.34.46':
-    resolution: {integrity: sha512-kiW7CtS/NkdvTUjkjUJo7d5JsFfbJ14YjdhDk9KoEgK6nFjKNXZPrX0jfLA8ZlET4cFLHxOZ/0vFKOP+bOxIOQ==}
+  '@types/bun@1.3.8':
+    resolution: {integrity: sha512-3LvWJ2q5GerAXYxO2mffLTqOzEu5qnhEAlh48Vnu8WQfnmSwbgagjGZV6BoHKJztENYEDn6QmVd949W4uESRJA==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -369,6 +389,9 @@ packages:
   ansi-styles@6.2.3:
     resolution: {integrity: sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg==}
     engines: {node: '>=12'}
+
+  bun-types@1.3.8:
+    resolution: {integrity: sha512-fL99nxdOWvV4LqjmC+8Q9kW3M4QTtTR1eePs94v5ctGqU8OeceWrSUaRw3JYb7tU3FkMIAjkueehrHPPPGKi5Q==}
 
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
@@ -552,11 +575,6 @@ packages:
     resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
     engines: {node: '>=12.20'}
 
-  zod-to-json-schema@3.25.1:
-    resolution: {integrity: sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==}
-    peerDependencies:
-      zod: ^3.25 || ^4
-
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
@@ -663,7 +681,9 @@ snapshots:
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
 
-  '@sinclair/typebox@0.34.46': {}
+  '@types/bun@1.3.8':
+    dependencies:
+      bun-types: 1.3.8
 
   '@types/json-schema@7.0.15': {}
 
@@ -686,6 +706,10 @@ snapshots:
       color-convert: 2.0.1
 
   ansi-styles@6.2.3: {}
+
+  bun-types@1.3.8:
+    dependencies:
+      '@types/node': 24.10.4
 
   color-convert@2.0.1:
     dependencies:
@@ -871,9 +895,5 @@ snapshots:
       strip-ansi: 7.1.2
 
   yocto-queue@1.2.2: {}
-
-  zod-to-json-schema@3.25.1(zod@3.25.76):
-    dependencies:
-      zod: 3.25.76
 
   zod@3.25.76: {}
