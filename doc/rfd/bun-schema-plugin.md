@@ -77,7 +77,7 @@ This same code works identically whether it's a standalone script or part of a l
 |--------|---------------------|------------------------|
 | Invocation | `#!/usr/bin/env thinkwell` or `thinkwell script.ts` | `thinkwell src/main.ts` |
 | Dependencies | Built-in only (`thinkwell:*`) | Built-in + npm packages |
-| Type checking | Via `thinkwell types` | Via `thinkwell types` or tsconfig integration |
+| Type checking | Via tsconfig integration (see Future Work) | Via tsconfig integration |
 
 Adding a `package.json` doesn't require changing your imports or switching runtimes—the `thinkwell` CLI remains the primary way to run thinkwell code.
 
@@ -278,22 +278,6 @@ The `thinkwell:agent` and `thinkwell:connectors` imports are resolved by the plu
 
 Note: The `import type` statement must be at module scope rather than nested inside the namespace because TypeScript prohibits import declarations inside namespaces that reference external modules (error TS1147). The mangled namespace name `$$__thinkwell__acp__$$` avoids polluting the module scope with identifiers that could conflict with user code.
 
-### TypeScript Language Service Integration
-
-For IDE support (autocomplete, type checking), the CLI generates ambient `.d.ts` files that declare the namespace:
-
-```typescript
-// greeting.thinkwell.d.ts (auto-generated, gitignored)
-import type { SchemaProvider } from "@thinkwell/acp";
-import type { Greeting } from "./greeting.js";
-
-declare namespace Greeting {
-  export const Schema: SchemaProvider<Greeting>;
-}
-```
-
-Use `thinkwell types` to generate these files, or `thinkwell types --watch` to regenerate them automatically when source files change.
-
 ## Performance Considerations
 
 ### Startup Latency
@@ -404,7 +388,7 @@ A TypeScript language service plugin could provide virtual declarations without 
 **Pros**: Better IDE experience, no generated files to manage
 **Cons**: Requires additional tooling, more complex implementation
 
-**Decision**: Rejected for initial implementation. Ambient declaration files (`thinkwell types`) are simpler and work immediately. A TS plugin could be added later if needed.
+**Decision**: Deferred. IDE integration remains an open design question (see Future Work). The runtime transformation works; IDE support can be addressed separately.
 
 ### 5. Standalone Binary Distribution
 
@@ -447,8 +431,8 @@ packages/
       schema-generator.ts  # Schema generation via ts-json-schema-generator
       schema-cache.ts      # Mtime-based caching layer
       program-cache.ts     # TypeScript program caching
-      declarations.ts      # .d.ts file generation
-      watcher.ts           # File watcher for --watch mode
+      declarations.ts      # .d.ts file generation (for future IDE integration)
+      watcher.ts           # File watcher for --watch mode (for future IDE integration)
       modules.ts           # thinkwell:* module mappings
       errors.ts            # Error types and diagnostic formatting
     package.json
@@ -458,7 +442,7 @@ packages/
     bin/
       thinkwell            # Node.js launcher that delegates to Bun
     src/
-      types-command.ts     # Implementation of `thinkwell types`
+      types-command.ts     # Implementation of `thinkwell types` (experimental)
     package.json           # depends on @thinkwell/bun-plugin
     README.md
 ```
@@ -566,9 +550,17 @@ The `thinkwell` CLI could grow to include:
 - **`thinkwell init`** - Scaffold a new thinkwell project
 - **`thinkwell check`** - Validate types and schemas without running
 
-### TypeScript Language Service Plugin
+### IDE Integration
 
-A TypeScript language service plugin (`@thinkwell/ts-plugin`) could provide IDE support for `thinkwell:*` imports without requiring npm packages or running `thinkwell types`:
+The runtime transformation works seamlessly when running code via `thinkwell`, but IDEs like VSCode don't know about these transformations. This creates several challenges:
+
+1. **Namespace augmentation not recognized** - VSCode's TypeScript server doesn't see that `Greeting` has been augmented with a `.Schema` property, so `Greeting.Schema` shows as an error
+2. **`thinkwell:*` URI scheme unknown** - Custom import schemes like `thinkwell:agent` are not recognized by the TypeScript language service
+3. **Missing project configuration** - Scripts without `tsconfig.json` don't get proper type checking for Node/Bun globals
+
+#### Potential Solutions
+
+**TypeScript Language Service Plugin** - A TS plugin (`@thinkwell/ts-plugin`) could provide IDE support without runtime changes:
 
 ```json
 // tsconfig.json
@@ -581,10 +573,20 @@ A TypeScript language service plugin (`@thinkwell/ts-plugin`) could provide IDE 
 
 This would:
 - Resolve `thinkwell:*` imports to their type definitions
-- Provide autocomplete for `Type.Schema` on `@JSONSchema`-annotated types
-- Eliminate the need for generated `.d.ts` files in most workflows
+- Provide virtual declarations for `Type.Schema` on `@JSONSchema`-annotated types
+- Work transparently without generating files
 
-This is a natural evolution of the current `thinkwell types` approach for projects that want tighter IDE integration.
+**VSCode Extension** - A dedicated extension could:
+- Handle `thinkwell:*` import resolution
+- Auto-generate type declarations on file save
+- Provide a status bar indicator for thinkwell projects
+
+**Generated Declaration Files** - The current `thinkwell types` command generates `.thinkwell.d.ts` files, but this approach has UX issues:
+- Files are littered alongside source files
+- Must be manually run or integrated into a watch process
+- Generated files would be committed to git and published to npm by default unless properly gitignored
+
+The TS plugin approach is the most seamless but requires more implementation effort. This remains an open design question for future work.
 
 ### Node.js Runtime Support
 
