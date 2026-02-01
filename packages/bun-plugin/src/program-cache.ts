@@ -14,6 +14,7 @@
 import { dirname, join } from "node:path";
 import { existsSync, statSync } from "node:fs";
 import { createGenerator, type Config, type SchemaGenerator } from "ts-json-schema-generator";
+import { TypeScriptProgramError } from "./errors.js";
 
 /**
  * Find tsconfig.json by walking up from the given directory.
@@ -109,15 +110,12 @@ export class ProgramCache {
 
       return generator;
     } catch (error) {
-      // If project-wide generator fails, fall back to single-file generator
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(
-        `[@thinkwell/bun-plugin] Failed to create project-wide schema generator\n` +
-          `  tsconfig: ${tsconfigPath}\n` +
-          `  Error: ${message}\n` +
-          `  Falling back to single-file mode (cross-file type resolution may not work)`
-      );
-      return this.createSingleFileGenerator(filePath);
+      // Fail fast with a clear error message
+      throw new TypeScriptProgramError({
+        tsconfigPath,
+        filePath,
+        cause: error,
+      });
     }
   }
 

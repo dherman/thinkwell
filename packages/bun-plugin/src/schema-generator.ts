@@ -1,5 +1,8 @@
 /**
  * Schema generation using ts-json-schema-generator.
+ *
+ * Uses fail-fast semantics: any schema generation error immediately throws
+ * rather than logging warnings and continuing with partial results.
  */
 
 import { dirname, join } from "node:path";
@@ -7,6 +10,7 @@ import { existsSync } from "node:fs";
 import { createGenerator, type Config } from "ts-json-schema-generator";
 import type { TypeInfo } from "./transform.js";
 import { programCache, findTsConfig } from "./program-cache.js";
+import { SchemaGenerationError } from "./errors.js";
 
 /**
  * Recursively inline $ref references to make schemas self-contained.
@@ -54,12 +58,14 @@ function inlineRefs(
  *
  * @param path - The path to the TypeScript file
  * @param types - The types to generate schemas for
+ * @param sourceCode - The source code (for error messages)
  * @param useCache - Whether to use the program cache (default: true)
  * @returns Map from type name to JSON schema object
  */
 export function generateSchemas(
   path: string,
   types: TypeInfo[],
+  sourceCode?: string,
   useCache: boolean = true
 ): Map<string, object> {
   const schemas = new Map<string, object>();
@@ -73,7 +79,8 @@ export function generateSchemas(
     ? programCache.getGenerator(path)
     : createUncachedGenerator(path);
 
-  for (const { name } of types) {
+  for (const typeInfo of types) {
+    const { name, line, column, declarationLength } = typeInfo;
     try {
       const schema = generator.createSchema(name);
       const definitions = (schema.definitions || {}) as Record<string, unknown>;
@@ -94,13 +101,16 @@ export function generateSchemas(
         schemas.set(name, result as object);
       }
     } catch (error) {
-      // Log warning but continue with other types
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(
-        `[@thinkwell/bun-plugin] Failed to generate schema for "${name}" in ${path}\n` +
-          `  Error: ${message}\n` +
-          `  Hint: Ensure the type is valid and doesn't use unsupported TypeScript features`
-      );
+      // Fail fast with a clear, actionable error message
+      throw new SchemaGenerationError({
+        typeName: name,
+        filePath: path,
+        sourceCode,
+        line,
+        column,
+        length: declarationLength,
+        cause: error,
+      });
     }
   }
 

@@ -27,6 +27,7 @@
 
 import { dirname, basename, relative, resolve } from "path";
 import type { TypeInfo } from "./transform.js";
+import { FileReadError, FileWriteError, DeclarationGenerationError } from "./errors.js";
 
 /**
  * Generate the content of an ambient declaration file for the given types.
@@ -202,9 +203,7 @@ export async function generateDeclarations(
         try {
           source = await Bun.file(file).text();
         } catch (readError) {
-          const err = new Error(
-            `Failed to read file: ${readError instanceof Error ? readError.message : String(readError)}`
-          );
+          const err = new FileReadError({ filePath: file, cause: readError });
           onError?.(err, file);
           continue;
         }
@@ -226,14 +225,15 @@ export async function generateDeclarations(
             onWrite?.(file, declPath);
           }
         } catch (writeError) {
-          const err = new Error(
-            `Failed to write declaration file: ${writeError instanceof Error ? writeError.message : String(writeError)}`
-          );
+          const err = new FileWriteError({
+            filePath: getDeclarationPath(file),
+            cause: writeError,
+          });
           onError?.(err, file);
         }
       } catch (error) {
         // Catch any other unexpected errors (e.g., in findMarkedTypes)
-        const err = error instanceof Error ? error : new Error(String(error));
+        const err = new DeclarationGenerationError({ sourceFile: file, cause: error });
         onError?.(err, file);
       }
     }

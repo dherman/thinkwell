@@ -15,6 +15,7 @@ import {
   removeDeclarationFile,
   getDeclarationPath,
 } from "./declarations.js";
+import { DeclarationGenerationError } from "./errors.js";
 
 /**
  * Options for the declaration watcher.
@@ -160,7 +161,8 @@ export class DeclarationWatcher {
         this.onWrite?.(filePath, declPath);
       }
     } catch (error) {
-      this.onError?.(error as Error, filePath);
+      const err = new DeclarationGenerationError({ sourceFile: filePath, cause: error });
+      this.onError?.(err, filePath);
     }
   }
 

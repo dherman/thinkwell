@@ -25,8 +25,16 @@ export interface TypeInfo {
   name: string;
   /** The TypeScript AST node */
   node: ts.Node;
+  /** The start position of the type declaration in the source */
+  startPosition: number;
   /** The end position of the type declaration in the source */
   endPosition: number;
+  /** 1-based line number of the type declaration */
+  line: number;
+  /** 1-based column number of the type declaration */
+  column: number;
+  /** Length of the type declaration keyword + name (for error underlining) */
+  declarationLength: number;
 }
 
 /**
@@ -62,7 +70,28 @@ export function findMarkedTypes(path: string, source: string): TypeInfo[] {
         // For class declarations, the name might be undefined (anonymous class)
         const name = node.name?.text;
         if (name) {
-          results.push({ name, node, endPosition: node.getEnd() });
+          // Get line and column from the source file
+          const { line, character } = sourceFile.getLineAndCharacterOfPosition(
+            node.getStart()
+          );
+
+          // Calculate the declaration length for error underlining
+          // e.g., "interface Foo" = 13 characters
+          let keyword = "interface";
+          if (ts.isTypeAliasDeclaration(node)) keyword = "type";
+          else if (ts.isEnumDeclaration(node)) keyword = "enum";
+          else if (ts.isClassDeclaration(node)) keyword = "class";
+          const declarationLength = keyword.length + 1 + name.length;
+
+          results.push({
+            name,
+            node,
+            startPosition: node.getStart(),
+            endPosition: node.getEnd(),
+            line: line + 1, // Convert to 1-based
+            column: character + 1, // Convert to 1-based
+            declarationLength,
+          });
         }
       }
     }

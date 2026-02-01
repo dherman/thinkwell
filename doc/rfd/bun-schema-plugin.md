@@ -413,6 +413,7 @@ packages/
       declarations.ts      # .d.ts file generation
       watcher.ts           # File watcher for --watch mode
       modules.ts           # thinkwell:* module mappings
+      errors.ts            # Error types and diagnostic formatting
     package.json
     README.md
 
@@ -442,7 +443,83 @@ packages/
 
 1. **How should we handle schema generation errors?**
 
-   **Decision**: Log a warning and skip the type. This allows scripts to run even if some types can't be converted to JSON Schema. The warning includes helpful hints for debugging.
+   **Decision**: Fail fast with a Rust/Cargo-style diagnostic format. Each error includes:
+   - An error code and summary on the first line
+   - Source location with file path and line number
+   - Quoted source context with line numbers
+   - Carets pointing to the relevant code
+   - A `help:` line with actionable fix suggestions
+
+   ### Error Format Specification
+
+   Errors follow a format inspired by Rust's compiler diagnostics:
+
+   ```
+   error[E0001]: type `Foo` not found
+    --> src/example.ts:2:1
+     |
+   1 | /** @JSONSchema */
+   2 | interface Foo {
+     | ^^^^^^^^^^^^^
+     |
+   help: ensure the type is exported: `export interface Foo`
+   ```
+
+   #### ANSI Color Scheme
+
+   When output is a TTY, errors use ANSI colors for visual clarity:
+
+   | Element | Color | Style |
+   |---------|-------|-------|
+   | `error[E0001]:` | Red | Bold |
+   | Error message | White | Bold |
+   | Arrow (`-->`) | Bright Blue | Bold |
+   | File path | Default | Normal |
+   | Gutter (line numbers, `\|`) | Bright Blue | Bold |
+   | Source code | Default | Normal |
+   | Carets (`^^^`) | Yellow | Bold |
+   | `help:` | Green | Bold |
+   | Help message | Default | Normal |
+   | Inline code in help | Cyan | Normal |
+
+   #### Error Codes
+
+   Each error type has a unique code for searchability and documentation:
+
+   | Code | Error Type |
+   |------|------------|
+   | E0001 | Type not found |
+   | E0002 | Circular type reference |
+   | E0003 | Unresolved generic type parameter |
+   | E0004 | Function type not representable in JSON Schema |
+   | E0005 | Symbol type not representable in JSON Schema |
+   | E0006 | BigInt type not representable in JSON Schema |
+   | E0007 | Complex conditional type |
+   | E0008 | Complex mapped type |
+   | E0009 | Template literal type cannot be enumerated |
+   | E0010 | TypeScript program creation failed |
+   | E0011 | File read error |
+   | E0012 | File write error |
+   | E0013 | Transpilation error (syntax error) |
+   | E0014 | Unknown thinkwell:* module |
+
+   #### Source Context
+
+   The error formatter extracts source context by:
+   1. Reading the source file (already available during plugin execution)
+   2. Using the type's start position from the TypeScript AST
+   3. Showing 1-2 lines of context above the error line
+   4. Underlining the type name or declaration with carets
+
+   #### Implementation Notes
+
+   The error formatting is implemented in `errors.ts` with:
+   - A `formatDiagnostic()` function that produces the formatted output
+   - TTY detection via `process.stdout.isTTY` to enable/disable colors
+   - Source location extraction from TypeInfo (already captured during parsing)
+   - Error codes as static properties on each error class
+
+   This approach ensures users immediately see problems with clear context rather than wading through verbose stack traces. The format is familiar to developers who use Rust, TypeScript, or other modern compilers.
 
 2. **Should we support other runtimes via similar plugins?**
 

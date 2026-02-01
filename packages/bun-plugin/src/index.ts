@@ -37,6 +37,11 @@ import {
 } from "./codegen.js";
 import { SchemaCache } from "./schema-cache.js";
 import { THINKWELL_MODULES } from "./modules.js";
+import {
+  FileReadError,
+  TranspilationError,
+  UnknownModuleError,
+} from "./errors.js";
 
 const JSONSCHEMA_TAG = "@JSONSchema";
 
@@ -94,19 +99,14 @@ function extractShebang(source: string): [string, string] {
  * @param source - The TypeScript source code
  * @param loader - The loader type ("ts" or "tsx")
  * @param filePath - The file path (for error messages)
- * @throws Error with helpful message if transpilation fails
+ * @throws TranspilationError if transpilation fails
  */
 function safeTranspile(source: string, loader: "ts" | "tsx", filePath: string): string {
   try {
     const transpiler = new Bun.Transpiler({ loader });
     return transpiler.transformSync(source);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `[@thinkwell/bun-plugin] Failed to transpile: ${filePath}\n` +
-        `  Error: ${message}\n` +
-        `  Hint: Check for syntax errors in the file`
-    );
+    throw new TranspilationError({ filePath, cause: error });
   }
 }
 
@@ -123,14 +123,11 @@ export const thinkwellPlugin: BunPlugin = {
       const npmPackage = THINKWELL_MODULES[moduleName];
 
       if (!npmPackage) {
-        const available = Object.keys(THINKWELL_MODULES)
-          .map((m) => `thinkwell:${m}`)
-          .join(", ");
-        throw new Error(
-          `[@thinkwell/bun-plugin] Unknown module: "${args.path}"\n` +
-            `  Available modules: ${available}\n` +
-            `  Imported from: ${args.importer || "unknown"}`
-        );
+        throw new UnknownModuleError({
+          moduleName: args.path,
+          availableModules: Object.keys(THINKWELL_MODULES).map((m) => `thinkwell:${m}`),
+          importer: args.importer,
+        });
       }
 
       // Resolve to the npm package - Bun will handle the actual resolution
@@ -146,11 +143,7 @@ export const thinkwellPlugin: BunPlugin = {
       try {
         rawSource = await Bun.file(path).text();
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `[@thinkwell/bun-plugin] Failed to read file: ${path}\n` +
-            `  Error: ${message}`
-        );
+        throw new FileReadError({ filePath: path, cause: error });
       }
 
       const loader = path.endsWith(".tsx") ? "tsx" : "ts";
@@ -194,7 +187,7 @@ export const thinkwellPlugin: BunPlugin = {
         }
 
         // Generate schemas using ts-json-schema-generator
-        schemas = generateSchemas(path, markedTypes);
+        schemas = generateSchemas(path, markedTypes, source);
 
         // Cache the results
         schemaCache.set(path, mtime, markedTypes, schemas);
@@ -255,3 +248,15 @@ export {
 
 // Program cache for performance
 export { ProgramCache, programCache, findTsConfig } from "./program-cache.js";
+
+// Error types for handling schema generation failures
+export {
+  ThinkwellError,
+  SchemaGenerationError,
+  TypeScriptProgramError,
+  FileReadError,
+  FileWriteError,
+  TranspilationError,
+  UnknownModuleError,
+  DeclarationGenerationError,
+} from "./errors.js";
