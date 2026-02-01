@@ -439,91 +439,85 @@ packages/
 3. **Snapshot tests**: Verify output for various type patterns
 4. **Comparison tests**: Ensure parity with build-schema-providers output
 
-## Resolved Questions
+## Error Handling
 
-1. **How should we handle schema generation errors?**
+The plugin uses fail-fast semantics with Rust/Cargo-style diagnostic formatting. Each error includes:
+- An error code and summary on the first line
+- Source location with file path and line number
+- Quoted source context with line numbers
+- Carets pointing to the relevant code
+- A `help:` line with actionable fix suggestions
 
-   **Decision**: Fail fast with a Rust/Cargo-style diagnostic format. Each error includes:
-   - An error code and summary on the first line
-   - Source location with file path and line number
-   - Quoted source context with line numbers
-   - Carets pointing to the relevant code
-   - A `help:` line with actionable fix suggestions
+### Error Format
 
-   ### Error Format Specification
+Errors follow a format inspired by Rust's compiler diagnostics:
 
-   Errors follow a format inspired by Rust's compiler diagnostics:
+```
+error[E0001]: type `Foo` not found
+ --> src/example.ts:2:1
+  |
+1 | /** @JSONSchema */
+2 | interface Foo {
+  | ^^^^^^^^^^^^^
+  |
+help: ensure the type is exported: `export interface Foo`
+```
 
-   ```
-   error[E0001]: type `Foo` not found
-    --> src/example.ts:2:1
-     |
-   1 | /** @JSONSchema */
-   2 | interface Foo {
-     | ^^^^^^^^^^^^^
-     |
-   help: ensure the type is exported: `export interface Foo`
-   ```
+### ANSI Color Scheme
 
-   #### ANSI Color Scheme
+When output is a TTY, errors use ANSI colors for visual clarity:
 
-   When output is a TTY, errors use ANSI colors for visual clarity:
+| Element | Color | Style |
+|---------|-------|-------|
+| `error[E0001]:` | Red | Bold |
+| Error message | White | Bold |
+| Arrow (`-->`) | Bright Blue | Bold |
+| File path | Default | Normal |
+| Gutter (line numbers, `\|`) | Bright Blue | Bold |
+| Source code | Default | Normal |
+| Carets (`^^^`) | Yellow | Bold |
+| `help:` | Green | Bold |
+| Help message | Default | Normal |
+| Inline code in help | Cyan | Normal |
 
-   | Element | Color | Style |
-   |---------|-------|-------|
-   | `error[E0001]:` | Red | Bold |
-   | Error message | White | Bold |
-   | Arrow (`-->`) | Bright Blue | Bold |
-   | File path | Default | Normal |
-   | Gutter (line numbers, `\|`) | Bright Blue | Bold |
-   | Source code | Default | Normal |
-   | Carets (`^^^`) | Yellow | Bold |
-   | `help:` | Green | Bold |
-   | Help message | Default | Normal |
-   | Inline code in help | Cyan | Normal |
+### Error Codes
 
-   #### Error Codes
+Each error type has a unique code for searchability and documentation:
 
-   Each error type has a unique code for searchability and documentation:
+| Code | Error Type |
+|------|------------|
+| E0001 | Type not found |
+| E0002 | Circular type reference |
+| E0003 | Unresolved generic type parameter |
+| E0004 | Function type not representable in JSON Schema |
+| E0005 | Symbol type not representable in JSON Schema |
+| E0006 | BigInt type not representable in JSON Schema |
+| E0007 | Complex conditional type |
+| E0008 | Complex mapped type |
+| E0009 | Template literal type cannot be enumerated |
+| E0010 | TypeScript program creation failed |
+| E0011 | File read error |
+| E0012 | File write error |
+| E0013 | Transpilation error (syntax error) |
+| E0014 | Unknown thinkwell:* module |
 
-   | Code | Error Type |
-   |------|------------|
-   | E0001 | Type not found |
-   | E0002 | Circular type reference |
-   | E0003 | Unresolved generic type parameter |
-   | E0004 | Function type not representable in JSON Schema |
-   | E0005 | Symbol type not representable in JSON Schema |
-   | E0006 | BigInt type not representable in JSON Schema |
-   | E0007 | Complex conditional type |
-   | E0008 | Complex mapped type |
-   | E0009 | Template literal type cannot be enumerated |
-   | E0010 | TypeScript program creation failed |
-   | E0011 | File read error |
-   | E0012 | File write error |
-   | E0013 | Transpilation error (syntax error) |
-   | E0014 | Unknown thinkwell:* module |
+### Source Context
 
-   #### Source Context
+The error formatter extracts source context by:
+1. Reading the source file (already available during plugin execution)
+2. Using the type's start position from the TypeScript AST
+3. Showing 1-2 lines of context above the error line
+4. Underlining the type name or declaration with carets
 
-   The error formatter extracts source context by:
-   1. Reading the source file (already available during plugin execution)
-   2. Using the type's start position from the TypeScript AST
-   3. Showing 1-2 lines of context above the error line
-   4. Underlining the type name or declaration with carets
+### Implementation Notes
 
-   #### Implementation Notes
+The error formatting is implemented in `errors.ts` with:
+- A `formatDiagnostic()` function that produces the formatted output
+- TTY detection via `process.stdout.isTTY` to enable/disable colors
+- Source location extraction from TypeInfo (already captured during parsing)
+- Error codes as static properties on each error class
 
-   The error formatting is implemented in `errors.ts` with:
-   - A `formatDiagnostic()` function that produces the formatted output
-   - TTY detection via `process.stdout.isTTY` to enable/disable colors
-   - Source location extraction from TypeInfo (already captured during parsing)
-   - Error codes as static properties on each error class
-
-   This approach ensures users immediately see problems with clear context rather than wading through verbose stack traces. The format is familiar to developers who use Rust, TypeScript, or other modern compilers.
-
-2. **Should we support other runtimes via similar plugins?**
-
-   **Decision**: Yes, Node.js support is feasible. See the Future Work section for the implementation strategy.
+This approach ensures users immediately see problems with clear context rather than wading through verbose stack traces. The format is familiar to developers who use Rust, TypeScript, or other modern compilers.
 
 ## Future Work
 
