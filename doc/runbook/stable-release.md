@@ -10,17 +10,12 @@ This runbook describes how to publish a stable release of thinkwell to npm and H
 
 ## 1. Version Bump
 
-Update the version in `packages/thinkwell/package.json`:
-
-```bash
-cd packages/thinkwell
-# Edit package.json to set version to "0.3.0" (remove -alpha.N suffix)
-```
+Update the version in all `packages/*/package.json` files to the new version (e.g., remove `-alpha.N` suffix). All packages must have matching versions.
 
 Commit the version bump:
 
 ```bash
-git add packages/thinkwell/package.json
+git add packages/*/package.json
 git commit -m "chore: bump version to 0.3.0"
 ```
 
@@ -40,29 +35,32 @@ This triggers the GitHub Actions release workflow, which:
 ## 3. Publish to npm
 
 ```bash
-cd packages/thinkwell
-npm publish
+pnpm -r publish --access public --no-git-checks
 ```
 
-This publishes to the `latest` tag (default for stable releases).
+This publishes all packages to the `latest` tag (default for stable releases).
 
 ## 4. Update Homebrew Formula
 
 After the GitHub Release is created (wait for the workflow to complete):
 
-```bash
-./homebrew/update-formula.sh 0.3.0
-```
+1. Fetch the SHA256 checksums from the release:
+   ```bash
+   gh release download v0.3.0 --repo dherman/thinkwell --pattern 'SHA256SUMS.txt' --output -
+   ```
 
-This fetches the SHA256 checksums from the release and updates the formula.
+2. Update the formula in the Homebrew tap repository (separate repo):
+   - Update `version` to the new version
+   - Update all `url` fields to point to the new release
+   - Update all `sha256` fields with the new checksums
 
-Commit and push the formula update:
-
-```bash
-git add homebrew/Formula/thinkwell.rb
-git commit -m "chore: update Homebrew formula to 0.3.0"
-git push origin main
-```
+3. Commit and push the formula update:
+   ```bash
+   cd /path/to/homebrew-thinkwell
+   git add Formula/thinkwell.rb
+   git commit -m "chore: update formula to 0.3.0"
+   git push origin main
+   ```
 
 ## 5. Verify Installation
 
@@ -83,9 +81,9 @@ brew install dherman/thinkwell/thinkwell
 
 For pre-release versions (alpha, beta, rc):
 
-1. Set version to `0.3.0-alpha.2` (or similar)
+1. Set version in all `packages/*/package.json` files to `0.3.0-alpha.2` (or similar)
 2. Tag as `v0.3.0-alpha.2`
-3. Publish to npm with next tag: `npm publish --tag next`
+3. Publish to npm with next tag: `pnpm -r publish --tag next --access public --no-git-checks`
 4. Update Homebrew formula (optional for pre-releases)
 
 Users install pre-releases via:
