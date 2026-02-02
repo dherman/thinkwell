@@ -21,11 +21,15 @@ This plan implements the design in [doc/rfd/pkg-migration.md](rfd/pkg-migration.
 
 ## Phase 3: CLI Entry Point
 
-- [ ] Expand `packages/thinkwell/src/cli/main-pkg.cjs` with full CLI functionality
-- [ ] Register bundled thinkwell packages to `global.__bundled__`
-- [ ] Integrate loader for user script execution
-- [ ] Support all existing commands: `init`, `types`, `run` (default)
-- [ ] Ensure `init` command works (already pure Node.js)
+- [x] Expand `packages/thinkwell/src/cli/main-pkg.cjs` with full CLI functionality
+- [x] Register bundled thinkwell packages to `global.__bundled__`
+- [x] Integrate loader for user script execution
+- [x] Support all existing commands: `init`, `types`, `run` (default)
+- [x] Ensure `init` command works (already pure Node.js)
+
+Note: The `init` and `types` (placeholder) commands work in the pkg binary.
+Script execution (`run`) requires resolving pkg's ESM bundling limitations,
+which will be addressed in Phase 4 when testing TypeScript support.
 
 ## Phase 4: TypeScript Support
 

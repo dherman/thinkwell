@@ -64,12 +64,14 @@ function buildTarget(target: Target, version: string, verbose: boolean): void {
 
   // Build command using pkg
   // --options experimental-strip-types enables native TypeScript support in Node 24
+  // --public includes source files instead of bytecode (required for ESM modules)
   const cmd = [
     "npx",
     "pkg",
     CLI_ENTRY,
     `--targets=${pkgTarget}`,
     "--options=experimental-strip-types",
+    "--public",
     `--output=${outputPath}`,
   ];
 

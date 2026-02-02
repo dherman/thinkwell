@@ -10,10 +10,7 @@
  * The pkg binary uses a custom loader to:
  * - Route thinkwell:* imports to bundled packages
  * - Resolve external packages from user's node_modules
- * - Handle @JSONSchema type processing
- *
- * Phase 1 stub: This is a minimal implementation to verify pkg bundling works.
- * Full implementation will be added in Phase 2 (Loader) and Phase 3 (CLI).
+ * - Handle @JSONSchema type processing (Phase 5)
  */
 
 const { existsSync } = require("node:fs");
@@ -21,6 +18,66 @@ const { resolve, isAbsolute } = require("node:path");
 
 // Version must be updated manually to match package.json
 const VERSION = "0.3.2";
+
+// ============================================================================
+// Bundled Module Registration
+// ============================================================================
+
+/**
+ * Register bundled thinkwell packages to global.__bundled__.
+ *
+ * In the pkg binary, these packages are bundled into the /snapshot/ virtual
+ * filesystem. We require them here and register them globally so the loader
+ * can route user script imports to these bundled versions.
+ *
+ * Note: require(esm) is stable in Node.js 20.19.0+ and works in pkg binaries.
+ *
+ * IMPORTANT: Use literal strings in require() calls so pkg can statically
+ * analyze and bundle these modules. String variables don't work with pkg.
+ */
+function registerBundledModules() {
+  try {
+    // Require the bundled packages by name. pkg resolves these through
+    // node_modules symlinks which properly traces all ESM dependencies.
+    //
+    // NOTE: A self-referencing symlink (node_modules/thinkwell -> ../..)
+    // must exist for this to work. This is created manually or via pnpm
+    // configuration. Without it, pkg can't resolve the thinkwell package.
+    const thinkwell = require("thinkwell");
+    const acpModule = require("@thinkwell/acp");
+    const protocolModule = require("@thinkwell/protocol");
+
+    // Register to global.__bundled__ for the loader to access
+    global.__bundled__ = {
+      thinkwell: thinkwell,
+      "@thinkwell/acp": acpModule,
+      "@thinkwell/protocol": protocolModule,
+    };
+  } catch (error) {
+    // This error occurs when pkg bundling didn't include all required modules.
+    // For Phase 3, this is a known limitation that will be resolved in Phase 4.
+    console.error("Error: Script execution is not yet available in the pkg binary.");
+    console.error("");
+    console.error("The pkg binary currently supports:");
+    console.error("  - thinkwell init [project-name]");
+    console.error("  - thinkwell --help");
+    console.error("  - thinkwell --version");
+    console.error("");
+    console.error("To run scripts, use the npm distribution:");
+    console.error("  npx thinkwell <script.ts>");
+    console.error("");
+    if (process.env.DEBUG) {
+      console.error("Debug info:");
+      console.error(`  ${error.message}`);
+      console.error(error.stack);
+    }
+    process.exit(1);
+  }
+}
+
+// ============================================================================
+// CLI Commands
+// ============================================================================
 
 function showHelp() {
   console.log(`
@@ -34,12 +91,95 @@ Usage:
   thinkwell --help                    Show this help message
   thinkwell --version                 Show version
 
-Note: This is the pkg-compiled binary. Full functionality will be implemented
-in subsequent phases.
+Examples:
+  thinkwell hello.ts                 Run hello.ts
+  thinkwell run hello.ts --verbose   Run with arguments
+  thinkwell init my-agent            Create a new project
+  ./script.ts                        Via shebang: #!/usr/bin/env thinkwell
+  thinkwell types                    Generate declarations in current dir
+  thinkwell types src                Generate declarations in src/
+
+The thinkwell CLI automatically:
+  - Generates JSON Schema for types marked with @JSONSchema
+  - Resolves thinkwell:* imports to built-in modules
+  - Creates .thinkwell.d.ts files for IDE autocomplete (types command)
 
 For more information, visit: https://github.com/dherman/thinkwell
 `);
 }
+
+/**
+ * Run the init command to scaffold a new project.
+ */
+async function runInitCommand(args) {
+  // Import the init command from the bundled dist
+  // Path: src/cli/ -> ../../dist/cli/init-command.js
+  const { runInit } = require("../../dist/cli/init-command.js");
+  await runInit(args);
+}
+
+/**
+ * Run the types command to generate .d.ts files.
+ *
+ * Note: This is a placeholder for Phase 5. The full implementation
+ * requires @JSONSchema processing which will be added later.
+ */
+async function runTypesCommand(args) {
+  // For now, provide a helpful message
+  console.log("The 'types' command requires @JSONSchema processing.");
+  console.log("");
+  console.log("This feature will be available in a future release.");
+  console.log("For now, use the npm distribution with Bun for 'thinkwell types'.");
+  process.exit(0);
+}
+
+/**
+ * Run a user script using the custom loader.
+ */
+async function runUserScript(scriptPath, args) {
+  // Resolve the script path
+  const resolvedPath = isAbsolute(scriptPath)
+    ? scriptPath
+    : resolve(process.cwd(), scriptPath);
+
+  // Check if the script file exists
+  if (!existsSync(resolvedPath)) {
+    console.error(`Error: Script not found: ${scriptPath}`);
+    console.error("");
+    console.error("Make sure the file exists and the path is correct.");
+    process.exit(1);
+  }
+
+  // Import the loader from the bundled dist
+  // Path: src/cli/ -> ../../dist/cli/loader.js
+  const { runScript } = require("../../dist/cli/loader.js");
+
+  try {
+    await runScript(resolvedPath, args);
+  } catch (error) {
+    // Handle common error cases with helpful messages
+    if (error.message && error.message.includes("Cannot find module")) {
+      console.error(`Error: ${error.message}`);
+      console.error("");
+      console.error("Make sure the module is installed in your project's node_modules.");
+      process.exit(1);
+    }
+
+    if (error.message && error.message.includes("Cannot find package")) {
+      console.error(`Error: ${error.message}`);
+      console.error("");
+      console.error("Run 'npm install' or 'pnpm install' to install dependencies.");
+      process.exit(1);
+    }
+
+    // Re-throw other errors
+    throw error;
+  }
+}
+
+// ============================================================================
+// Main Entry Point
+// ============================================================================
 
 async function main() {
   const args = process.argv.slice(2);
@@ -56,41 +196,38 @@ async function main() {
     process.exit(0);
   }
 
-  // For Phase 1, just acknowledge commands but indicate they're not yet implemented
-  const command = args[0];
-
-  if (command === "init") {
-    console.log("init command: Will be implemented in Phase 3");
+  // Handle "init" subcommand - does NOT require bundled modules
+  if (args[0] === "init") {
+    await runInitCommand(args.slice(1));
     process.exit(0);
   }
 
-  if (command === "types") {
-    console.log("types command: Will be implemented in Phase 5");
+  // Handle "types" subcommand - placeholder for Phase 5
+  if (args[0] === "types") {
+    await runTypesCommand(args.slice(1));
     process.exit(0);
   }
 
-  // Handle script execution (Phase 2+)
-  const scriptPath = command === "run" ? args[1] : args[0];
+  // Handle "run" subcommand - just strip it
+  const runArgs = args[0] === "run" ? args.slice(1) : args;
 
-  if (!scriptPath) {
+  // If no script provided after "run", show help
+  if (runArgs.length === 0) {
     console.error("Error: No script provided.");
     console.error("");
     console.error("Usage: thinkwell <script.ts> [args...]");
     process.exit(1);
   }
 
-  const resolvedPath = isAbsolute(scriptPath)
-    ? scriptPath
-    : resolve(process.cwd(), scriptPath);
+  // Register bundled modules before loading user scripts
+  // This populates global.__bundled__ which the loader uses to resolve
+  // thinkwell:* imports in user scripts.
+  registerBundledModules();
 
-  if (!existsSync(resolvedPath)) {
-    console.error(`Error: Script not found: ${scriptPath}`);
-    process.exit(1);
-  }
-
-  console.log(`Script execution will be implemented in Phase 2.`);
-  console.log(`Script path: ${resolvedPath}`);
-  process.exit(0);
+  // Run the user script
+  const scriptPath = runArgs[0];
+  const scriptArgs = runArgs.slice(1);
+  await runUserScript(scriptPath, scriptArgs);
 }
 
 main().catch((error) => {

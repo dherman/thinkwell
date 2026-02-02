@@ -11,11 +11,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./connectors": {
       "types": "./dist/connectors/index.d.ts",
-      "import": "./dist/connectors/index.js"
+      "import": "./dist/connectors/index.js",
+      "default": "./dist/connectors/index.js"
     }
   },
   "engines": {
@@ -59,10 +61,16 @@
   },
   "pkg": {
     "assets": [
-      "dist/**/*.js"
+      "dist/**/*.js",
+      "../acp/dist/**/*.js",
+      "../protocol/dist/**/*.js",
+      "../conductor/dist/**/*.js"
     ],
     "scripts": [
-      "dist/**/*.js"
+      "dist/**/*.js",
+      "../acp/dist/**/*.js",
+      "../protocol/dist/**/*.js",
+      "../conductor/dist/**/*.js"
     ],
     "targets": [
       "node24-macos-arm64",
