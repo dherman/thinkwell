@@ -17,7 +17,7 @@
     "sentiment": "^5.0.2"
   },
   "devDependencies": {
-    "@thinkwell/cli": "workspace:*",
+    "thinkwell": "workspace:*",
     "@types/node": "^24.10.4",
     "@types/sentiment": "^5.0.4",
     "prettier": "^3.7.4"

@@ -37,10 +37,10 @@ function getNodeModulesPath() {
 
 // Get the path to the types command script
 function getTypesCommandPath() {
-  return resolve(__dirname, "../dist/types-command.js");
+  return resolve(__dirname, "../dist/cli/types-command.js");
 }
 
-// Validate that required files exist
+// Validate that required files exist for commands that require Bun
 function validateInstallation() {
   const pluginPath = getPluginPath();
   const typesCommandPath = getTypesCommandPath();
@@ -59,7 +59,18 @@ function validateInstallation() {
     for (const error of errors) {
       console.error(`  - ${error}`);
     }
-    console.error("\nTry reinstalling with: npm install -g @thinkwell/cli");
+    console.error("\nTry reinstalling with: npm install thinkwell");
+    process.exit(1);
+  }
+}
+
+// Validate init command is available
+function validateInitCommand() {
+  const initCommandPath = getInitCommandPath();
+  if (!existsSync(initCommandPath)) {
+    console.error("Error: thinkwell installation appears to be corrupted.");
+    console.error(`  - Init command not found: ${initCommandPath}`);
+    console.error("\nTry reinstalling with: npm install thinkwell");
     process.exit(1);
   }
 }
@@ -71,6 +82,11 @@ async function getVersion() {
   return pkg.version;
 }
 
+// Get the path to the init command script
+function getInitCommandPath() {
+  return resolve(__dirname, "../dist/cli/init-command.js");
+}
+
 // Show help message
 function showHelp() {
   console.log(`
@@ -79,6 +95,7 @@ thinkwell - Run TypeScript scripts with automatic schema generation
 Usage:
   thinkwell <script.ts> [args...]     Run a TypeScript script
   thinkwell run <script.ts> [args...] Explicit run command
+  thinkwell init [project-name]       Initialize a new project
   thinkwell types [dir]               Generate .d.ts files for IDE support
   thinkwell types --watch [dir]       Watch and regenerate .d.ts files
   thinkwell --help                    Show this help message
@@ -87,6 +104,7 @@ Usage:
 Examples:
   thinkwell hello.ts                 Run hello.ts
   thinkwell run hello.ts --verbose   Run with arguments
+  thinkwell init my-agent            Create a new project
   ./script.ts                        Via shebang: #!/usr/bin/env thinkwell
   thinkwell types                    Generate declarations in current dir
   thinkwell types src                Generate declarations in src/
@@ -97,15 +115,28 @@ The thinkwell CLI automatically:
   - Resolves thinkwell:* imports to built-in modules
   - Creates .thinkwell.d.ts files for IDE autocomplete (types command)
 
-For more information, visit: https://github.com/anthropics/thinkwell
+For more information, visit: https://github.com/dherman/thinkwell
 `);
 }
 
 async function main() {
   const args = process.argv.slice(2);
 
-  // Handle --help
-  if (args.includes("--help") || args.includes("-h")) {
+  // Handle "init" subcommand first - does NOT require Bun
+  // Must be before global --help so "init --help" shows init-specific help
+  if (args[0] === "init") {
+    validateInitCommand();
+    const initArgs = args.slice(1);
+    const initCommandPath = getInitCommandPath();
+
+    // Import and run the init command
+    const { runInit } = await import(initCommandPath);
+    await runInit(initArgs);
+    process.exit(0);
+  }
+
+  // Handle --help (global)
+  if (args.includes("--help") || args.includes("-h") || args.length === 0) {
     showHelp();
     process.exit(0);
   }
@@ -117,15 +148,21 @@ async function main() {
     process.exit(0);
   }
 
-  // Check for Bun
+  // All commands below require Bun
   const bunVersion = getBunVersion();
   if (!bunVersion) {
-    console.error("Error: Bun is required but not found in PATH.");
+    console.error("Error: Bun is required to run thinkwell scripts.");
+    console.error("");
+    console.error("The thinkwell runtime uses Bun for TypeScript execution and schema");
+    console.error("generation. This also enables features like compiled executables.");
     console.error("");
     console.error("To install Bun:");
     console.error("  curl -fsSL https://bun.sh/install | bash");
     console.error("");
-    console.error("Or visit: https://bun.sh");
+    console.error("Or via Homebrew:");
+    console.error("  brew install oven-sh/bun/bun");
+    console.error("");
+    console.error("For more information: https://bun.sh");
     process.exit(1);
   }
 
@@ -164,10 +201,12 @@ async function main() {
   // Handle "run" subcommand - just strip it
   const runArgs = args[0] === "run" ? args.slice(1) : args;
 
-  // If no script provided, show help
+  // If no script provided after "run", show help
   if (runArgs.length === 0) {
-    showHelp();
-    process.exit(0);
+    console.error("Error: No script provided.");
+    console.error("");
+    console.error("Usage: thinkwell run <script.ts> [args...]");
+    process.exit(1);
   }
 
   // Check if the script file exists

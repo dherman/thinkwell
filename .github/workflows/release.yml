@@ -1,0 +1,148 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-darwin:
+    name: Build darwin (arm64 + x64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build TypeScript
+        run: pnpm build
+
+      - name: Build darwin-arm64 binary
+        run: pnpm --filter thinkwell build:binary darwin-arm64
+
+      - name: Build darwin-x64 binary
+        run: pnpm --filter thinkwell build:binary darwin-x64
+
+      - name: Create tarballs
+        run: |
+          cd packages/thinkwell/dist-bin
+          tar -czf thinkwell-darwin-arm64.tar.gz thinkwell-darwin-arm64
+          tar -czf thinkwell-darwin-x64.tar.gz thinkwell-darwin-x64
+
+      - name: Upload darwin-arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: thinkwell-darwin-arm64
+          path: packages/thinkwell/dist-bin/thinkwell-darwin-arm64.tar.gz
+
+      - name: Upload darwin-x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: thinkwell-darwin-x64
+          path: packages/thinkwell/dist-bin/thinkwell-darwin-x64.tar.gz
+
+  build-linux:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build TypeScript
+        run: pnpm build
+
+      - name: Build binary
+        run: pnpm --filter thinkwell build:binary ${{ matrix.target }}
+
+      - name: Create tarball
+        run: |
+          cd packages/thinkwell/dist-bin
+          tar -czf thinkwell-${{ matrix.target }}.tar.gz thinkwell-${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: thinkwell-${{ matrix.target }}
+          path: packages/thinkwell/dist-bin/thinkwell-${{ matrix.target }}.tar.gz
+
+  release:
+    name: Create Release
+    needs: [build-darwin, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          for dir in artifacts/*/; do
+            cp "$dir"*.tar.gz release/
+          done
+          ls -la release/
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum *.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.tar.gz
+            release/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}

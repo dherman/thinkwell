@@ -4,6 +4,25 @@
 
 A TypeScript library for easy scripting of AI agents. Thinkwell provides a fluent API for blending deterministic code with LLM-powered reasoning.
 
+## Installation
+
+**Homebrew** (macOS/Linux — self-contained, no dependencies):
+```bash
+brew install dherman/thinkwell/thinkwell
+```
+
+**npm** (requires [Bun](https://bun.sh) runtime):
+```bash
+npm install -D thinkwell
+```
+
+**Try without installing:**
+```bash
+npx thinkwell init my-project
+```
+
+See the [Installation Guide](doc/installation.md) for more options including CI/CD setup.
+
 ## Packages
 
 This monorepo contains the following packages:
