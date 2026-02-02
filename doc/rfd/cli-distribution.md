@@ -15,16 +15,19 @@ Modern CLI tools set high standards for installation UX:
 3. **Multiple channels** — Different users prefer npm, Homebrew, or direct downloads
 4. **Fast startup** — CLI invocations should feel instant, not blocked by large downloads
 
-### Thinkwell's Constraints
+### Thinkwell's Architecture
 
-Thinkwell has a unique architecture:
+Thinkwell uses a two-tier distribution strategy:
 
-1. **The CLI is Node-compatible** — The `thinkwell` command itself runs fine under Node.js or Bun
-2. **The runtime requires Bun** — Script execution (`thinkwell run`) depends on Bun for TypeScript-native execution and the schema generation plugin
-3. **IO-bound workloads** — Agent invocations dominate performance; raw runtime speed is secondary
-4. **Bun provides user value** — The Bun requirement enables features like `thinkwell build --compile` for standalone executables
+1. **npm distribution (lightweight)** — A Node.js CLI that spawns Bun for script execution. Requires external Bun installation.
+2. **Binary distribution (self-contained)** — A compiled binary with the Bun runtime embedded. No external dependencies.
 
-This separation means we can provide a lightweight npm package while being transparent about the Bun requirement for actual script execution.
+Both tiers provide identical functionality:
+- TypeScript-native execution (no transpilation step for users)
+- Automatic schema generation from `@JSONSchema` types
+- `thinkwell:*` import resolution
+
+The binary distribution is made possible by Bun's `--compile` flag, which embeds the complete Bun runtime (~65MB) into a standalone executable. Critically, this embedded runtime retains full dynamic import capability—user scripts are loaded and executed at runtime, not bundled at build time. This means the compiled `thinkwell` binary can run arbitrary `.ts` files without any external Bun installation.
 
 ## Proposal
 
@@ -83,9 +86,9 @@ npx thinkwell run hello.ts
 
 The package size is small (a few MB), so `npx thinkwell` downloads quickly and starts immediately.
 
-### Runtime Detection
+### Runtime Detection (npm distribution only)
 
-When a command requires the Bun runtime (like `run`), the CLI:
+The npm package uses a Node.js launcher that delegates to Bun. When a command requires the Bun runtime (like `run`), the CLI:
 
 1. Checks if Bun is installed (`which bun` or equivalent)
 2. If not installed, displays a helpful error with installation instructions
@@ -95,16 +98,29 @@ When a command requires the Bun runtime (like `run`), the CLI:
 ┌─────────────────────────────────────────────────────────────────┐
 │  npx thinkwell run myscript.ts                                  │
 │  ───────────────────────────────────────────────────────────────│
-│  1. Node executes the thinkwell CLI                             │
+│  1. Node executes the thinkwell CLI launcher                    │
 │  2. CLI parses args, identifies "run" command                   │
 │  3. CLI checks: is Bun installed?                               │
 │     ├─ No  → Error with installation instructions               │
-│     └─ Yes → Spawn Bun with thinkwell runtime                   │
+│     └─ Yes → Spawn Bun with thinkwell plugin preloaded          │
 │  4. Bun executes the user's script                              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Error message when Bun is not installed:**
+**Note:** This detection only applies to npm distribution. The compiled binary has Bun embedded and executes scripts directly:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  thinkwell run myscript.ts  (compiled binary)                   │
+│  ───────────────────────────────────────────────────────────────│
+│  1. Embedded Bun runtime starts                                 │
+│  2. CLI parses args, identifies "run" command                   │
+│  3. bun-plugin registers @JSONSchema transformer                │
+│  4. dynamic import() loads and executes user script             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Error message when Bun is not installed (npm distribution only):**
 ```
 error: Bun is required to run thinkwell scripts
 
@@ -122,20 +138,22 @@ Or via Homebrew:
 For more information: https://bun.sh
 ```
 
-### Commands That Don't Require Bun
+### Bun Requirements by Distribution
 
-Some CLI commands work without Bun:
+The Bun requirement depends on how thinkwell is installed:
 
-| Command | Requires Bun | Notes |
-|---------|--------------|-------|
-| `thinkwell --help` | No | Pure CLI |
-| `thinkwell --version` | No | Pure CLI |
-| `thinkwell init` | No | Project scaffolding |
-| `thinkwell run <script>` | Yes | Script execution |
-| `thinkwell build` | Yes | Production bundling |
-| `thinkwell check` | Yes | Type/schema validation |
+| Command | npm distribution | Binary distribution |
+|---------|------------------|---------------------|
+| `thinkwell --help` | No Bun needed | No Bun needed |
+| `thinkwell --version` | No Bun needed | No Bun needed |
+| `thinkwell init` | No Bun needed | No Bun needed |
+| `thinkwell run <script>` | **Requires Bun** | No Bun needed |
+| `thinkwell types` | **Requires Bun** | No Bun needed |
+| `thinkwell build` | **Requires Bun** | No Bun needed |
 
-This means users can explore thinkwell, initialize projects, and read documentation without installing Bun. They only need Bun when they're ready to run code.
+For npm users, this means they can explore thinkwell, initialize projects, and read documentation without installing Bun. They only need Bun when they're ready to run code.
+
+For Homebrew/binary users, **no external Bun installation is ever required**—the binary is fully self-contained.
 
 ### Homebrew Distribution
 
@@ -186,11 +204,11 @@ brew tap dherman/thinkwell
 brew install thinkwell
 ```
 
-The formula installs from npm and displays a caveat about the Bun requirement.
+The formula installs from npm and displays a caveat about the Bun requirement. This is suitable for initial testing but not the recommended long-term approach.
 
-### Alternative: Compiled Binary via Homebrew
+### Recommended: Compiled Binary via Homebrew
 
-For slightly faster CLI startup, Homebrew could distribute a Bun-compiled binary instead:
+The preferred Homebrew distribution uses self-contained binaries with the Bun runtime embedded:
 
 ```ruby
 class Thinkwell < Formula
@@ -210,18 +228,34 @@ class Thinkwell < Formula
     end
   end
 
+  on_linux do
+    on_arm do
+      url "https://github.com/dherman/thinkwell/releases/download/v1.0.0/thinkwell-linux-arm64.tar.gz"
+      sha256 "..."
+    end
+    on_intel do
+      url "https://github.com/dherman/thinkwell/releases/download/v1.0.0/thinkwell-linux-x64.tar.gz"
+      sha256 "..."
+    end
+  end
+
   def install
     bin.install "thinkwell"
+  end
+
+  test do
+    assert_match "thinkwell", shell_output("#{bin}/thinkwell --version")
   end
 end
 ```
 
 This approach:
-- Provides faster CLI startup (embedded Bun runtime)
-- Eliminates the Node.js dependency for Homebrew users
-- Requires a more complex release process (cross-compilation, binary uploads)
+- **Fully self-contained** — No Node.js or Bun dependencies required
+- **Faster CLI startup** — Embedded Bun runtime, no subprocess spawning
+- **Simpler user experience** — `brew install` just works, no caveats about additional dependencies
+- Requires release automation for binary uploads (see Phase 4)
 
-**Recommendation:** Start with the npm-based formula. Add compiled binaries later if CLI startup latency becomes a user pain point.
+The embedded Bun runtime (~65MB per platform) retains full dynamic import capability, so user TypeScript scripts are loaded and executed at runtime—not bundled at build time. This means the compiled binary provides the complete thinkwell experience without any external dependencies.
 
 ### Local Project Installation
 
@@ -288,9 +322,9 @@ brew install dherman/thinkwell/thinkwell
 \`\`\`
 ```
 
-### Messaging the Bun Requirement
+### Messaging the Bun Dependency
 
-The Bun requirement should be framed as a feature, not a limitation:
+For **npm users**, the Bun requirement should be framed as a feature, not a limitation:
 
 > Thinkwell uses Bun as its runtime, giving you:
 > - Native TypeScript execution (no transpilation step)
@@ -298,6 +332,14 @@ The Bun requirement should be framed as a feature, not a limitation:
 > - The ability to compile agents into standalone executables
 >
 > Install Bun: `curl -fsSL https://bun.sh/install | bash`
+
+For **Homebrew/binary users**, emphasize the zero-dependency experience:
+
+> Install thinkwell with a single command—no additional dependencies required:
+> ```bash
+> brew install dherman/thinkwell/thinkwell
+> ```
+> The thinkwell binary includes everything needed to run your TypeScript agents.
 
 ## Alternatives Considered
 
@@ -406,14 +448,25 @@ These would be community-contributed plugins rather than first-party maintained.
 
 ### CI/CD Considerations
 
-For CI/CD environments, document recommended installation patterns:
+For CI/CD environments, two approaches are available:
 
+**Option 1: npm + Bun (smaller download, requires Bun setup)**
 ```yaml
 # GitHub Actions example
 - uses: oven-sh/setup-bun@v1
 - run: npm install -g thinkwell
 - run: thinkwell build src/agent.ts -o dist/agent
 ```
+
+**Option 2: Direct binary download (self-contained, no setup)**
+```yaml
+# GitHub Actions example
+- run: |
+    curl -fsSL https://github.com/dherman/thinkwell/releases/download/v1.0.0/thinkwell-linux-x64.tar.gz | tar xz
+    ./thinkwell build src/agent.ts -o dist/agent
+```
+
+The binary approach is simpler (no Bun setup step) but has a larger download (~65MB vs ~5MB for the npm package).
 
 ## References
 

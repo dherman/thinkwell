@@ -24,14 +24,17 @@ Based on [RFD: CLI Distribution](rfd/cli-distribution.md)
 - [x] Create build script using `bun build --compile` for self-contained executables
 - [x] Build binaries for darwin-arm64 and darwin-x64
 - [x] Test binaries work without Node.js installed
-- [x] Verify Bun runtime detection still works in compiled binary
+- [x] Verify dynamic import of external TypeScript files works in compiled binary
+- [x] Verify @JSONSchema transformation works without external Bun installation
+- [x] Verify thinkwell:* import resolution works in compiled binary
 
-## Phase 4: Homebrew Bottles
+## Phase 4: Homebrew Bottles (Self-Contained)
 
 - [ ] Set up GitHub Releases as bottle distribution host
-- [ ] Create release automation to build and upload binaries
-- [ ] Update Homebrew formula with bottle block pointing to GitHub Releases
-- [ ] Test `brew install` downloads bottle instead of building from source
+- [ ] Create release automation to build and upload binaries for all platforms
+- [ ] Update Homebrew formula to use binary distribution (no npm/Node.js dependency)
+- [ ] Remove Bun caveat from formula (binary is fully self-contained)
+- [ ] Test `brew install` downloads bottle and runs without external Bun
 
 ## Phase 5: Set up Homebrew Account
 
@@ -54,6 +57,8 @@ Based on [RFD: CLI Distribution](rfd/cli-distribution.md)
 ## Phase 8: Documentation
 
 - [ ] Write installation guide with tabbed package manager examples
-- [ ] Frame Bun requirement as feature (TypeScript-native, schema generation, compiled executables)
+- [ ] Document two-tier distribution: npm (requires Bun) vs binary (self-contained)
+- [ ] For npm users: frame Bun requirement as feature (TypeScript-native, schema generation)
+- [ ] For Homebrew users: emphasize zero-dependency installation experience
 - [ ] Add troubleshooting section for common issues
-- [ ] Document CI/CD installation patterns (GitHub Actions example)
+- [ ] Document CI/CD installation patterns (both npm+Bun and direct binary approaches)
