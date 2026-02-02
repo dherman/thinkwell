@@ -31,14 +31,11 @@ jobs:
       - name: Build TypeScript
         run: pnpm build
 
-      - name: Bundle for pkg
-        run: pnpm --filter thinkwell bundle:pkg
-
       - name: Build darwin-arm64 binary
-        run: pnpm --filter thinkwell build:binary:pkg darwin-arm64
+        run: pnpm --filter thinkwell build:binary:darwin-arm64
 
       - name: Build darwin-x64 binary
-        run: pnpm --filter thinkwell build:binary:pkg darwin-x64
+        run: pnpm --filter thinkwell build:binary:darwin-x64
 
       - name: Run CLI tests (darwin-arm64)
         run: pnpm --filter thinkwell test
@@ -94,11 +91,8 @@ jobs:
       - name: Build TypeScript
         run: pnpm build
 
-      - name: Bundle for pkg
-        run: pnpm --filter thinkwell bundle:pkg
-
       - name: Build binary
-        run: pnpm --filter thinkwell build:binary:pkg ${{ matrix.target }}
+        run: pnpm --filter thinkwell build:binary:${{ matrix.target }}
 
       - name: Run CLI tests
         run: pnpm --filter thinkwell test
