@@ -292,6 +292,37 @@ function needsTransformation(source: string): boolean {
 }
 
 /**
+ * Generate a preamble that patches import.meta properties to point to the original script.
+ *
+ * When we transform a script and write it to a temp file, import.meta.url, dirname,
+ * and filename would point to the temp file instead of the original. This breaks
+ * scripts that use these properties to locate sibling files.
+ *
+ * We patch import.meta by redefining these properties to return values based on
+ * the original script's location.
+ *
+ * @param originalPath - Absolute path to the original script
+ * @returns JavaScript code to prepend to the transformed script
+ */
+function generateImportMetaPatch(originalPath: string): string {
+  // Convert to file:// URL format
+  const fileUrl = `file://${originalPath}`;
+  // Get dirname and filename from the path
+  const originalDir = dirname(originalPath);
+  const originalFilename = originalPath;
+
+  // Escape backslashes and quotes for string literals
+  const escape = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+  return [
+    `Object.defineProperty(import.meta, 'url', { value: '${escape(fileUrl)}', writable: false, configurable: true });`,
+    `Object.defineProperty(import.meta, 'dirname', { value: '${escape(originalDir)}', writable: false, configurable: true });`,
+    `Object.defineProperty(import.meta, 'filename', { value: '${escape(originalFilename)}', writable: false, configurable: true });`,
+    "",
+  ].join("\n");
+}
+
+/**
  * Load and execute a user script with custom module resolution.
  *
  * This function handles two loading strategies:
@@ -337,6 +368,9 @@ export function loadScript(scriptPath: string): unknown {
 
   // Transform imports to use bundled modules (global.__bundled__)
   source = transformVirtualImports(source);
+
+  // Prepend import.meta.url patch so scripts can locate sibling files
+  source = generateImportMetaPatch(absolutePath) + source;
 
   // Write transformed source to a temp file
   // Use the same extension to ensure Node applies the right loader

@@ -11,12 +11,35 @@
  * which is compiled directly into the binary.
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { dirname, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// ============================================================================
+// Re-exec with Proper Node Flags
+// ============================================================================
+
+// Check if we need to re-exec with proper flags
+// We use an env var to prevent infinite re-exec loops
+const REEXEC_FLAG = "__THINKWELL_REEXEC__";
+
+if (!process.env[REEXEC_FLAG]) {
+  // Re-exec with experimental transform types and warning suppression
+  const result = spawnSync(process.execPath, [
+    "--experimental-transform-types",
+    "--disable-warning=ExperimentalWarning",
+    fileURLToPath(import.meta.url),
+    ...process.argv.slice(2),
+  ], {
+    stdio: "inherit",
+    env: { ...process.env, [REEXEC_FLAG]: "1" },
+  });
+
+  process.exit(result.status ?? 1);
+}
 
 // Minimum Node.js version for native TypeScript support
 const MIN_NODE_VERSION = 24;
@@ -265,6 +288,7 @@ async function runTypesCommand(args) {
   // Spawn Node.js with the types command
   const child = spawn(process.execPath, [
     "--experimental-transform-types",
+    "--disable-warning=ExperimentalWarning",
     typesCommandPath,
     ...args,
   ], {

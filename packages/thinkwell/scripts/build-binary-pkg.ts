@@ -66,13 +66,14 @@ function buildTarget(target: Target, version: string, verbose: boolean): void {
   // Build command using pkg
   // --options experimental-transform-types enables full TypeScript support including
   // namespace declarations (required for @JSONSchema-generated code)
+  // --options disable-warning=ExperimentalWarning suppresses the noisy warning
   // --public includes source files instead of bytecode (required for ESM modules)
   const cmd = [
     "npx",
     "pkg",
     CLI_ENTRY,
     `--targets=${pkgTarget}`,
-    "--options=experimental-transform-types",
+    "--options=experimental-transform-types,disable-warning=ExperimentalWarning",
     "--public",
     `--output=${outputPath}`,
   ];
