@@ -56,6 +56,7 @@ async function main() {
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             time: now.toLocaleTimeString(),
             date: now.toLocaleDateString(),
+            dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
           };
         }
       )
