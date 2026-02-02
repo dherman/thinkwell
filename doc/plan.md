@@ -33,13 +33,25 @@ Based on [RFD: CLI Distribution](rfd/cli-distribution.md)
 - [ ] Update Homebrew formula with bottle block pointing to GitHub Releases
 - [ ] Test `brew install` downloads bottle instead of building from source
 
-## Phase 5: Stable Release
+## Phase 5: Set up Homebrew Account
+
+- [ ] Create Homebrew account for publishing releases
+- [ ] Configure authentication for bottle uploads
+- [ ] Verify account permissions and tap ownership
+
+## Phase 6: Publish Bottle to Homebrew
+
+- [ ] Publish initial thinkwell bottle to Homebrew
+- [ ] Verify bottle installation works for end users
+- [ ] Document bottle update process for future releases
+
+## Phase 7: Stable Release
 
 - [ ] Iterate with additional pre-release versions as needed
 - [ ] Publish stable `0.3.0` to npm under `latest` tag
 - [ ] Update Homebrew formula to point to stable release
 
-## Phase 6: Documentation
+## Phase 8: Documentation
 
 - [ ] Write installation guide with tabbed package manager examples
 - [ ] Frame Bun requirement as feature (TypeScript-native, schema generation, compiled executables)
