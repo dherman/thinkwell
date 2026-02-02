@@ -23,6 +23,22 @@ brew install dherman/thinkwell/thinkwell
 
 This installs a self-contained binary with everything included—no additional dependencies required.
 
+### Manual Installation (Linux)
+
+Download and install the binary directly:
+
+**x64 Linux:**
+```bash
+mkdir -p ~/.local/bin && curl -L https://github.com/dherman/thinkwell/releases/latest/download/thinkwell-linux-x64.tar.gz | tar -xz -C ~/.local/bin && mv ~/.local/bin/thinkwell* ~/.local/bin/thinkwell
+```
+
+**ARM Linux:**
+```bash
+mkdir -p ~/.local/bin && curl -L https://github.com/dherman/thinkwell/releases/latest/download/thinkwell-linux-arm64.tar.gz | tar -xz -C ~/.local/bin && mv ~/.local/bin/thinkwell* ~/.local/bin/thinkwell
+```
+
+Then add `~/.local/bin` to your PATH.
+
 ### Project Installation
 
 For development, install thinkwell as a dev dependency in your project:
