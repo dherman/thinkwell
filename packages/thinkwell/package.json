@@ -28,6 +28,11 @@
   "scripts": {
     "build": "tsc",
     "build:binary": "bun scripts/build-binary.ts",
+    "build:binary:pkg": "tsx scripts/build-binary-pkg.ts",
+    "build:binary:pkg:darwin-arm64": "tsx scripts/build-binary-pkg.ts darwin-arm64",
+    "build:binary:pkg:darwin-x64": "tsx scripts/build-binary-pkg.ts darwin-x64",
+    "build:binary:pkg:linux-x64": "tsx scripts/build-binary-pkg.ts linux-x64",
+    "build:binary:pkg:linux-arm64": "tsx scripts/build-binary-pkg.ts linux-arm64",
     "clean": "rm -rf dist dist-bin",
     "test": "node --test --import tsx src/**/*.test.ts"
   },
@@ -48,7 +53,23 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.4",
+    "@yao-pkg/pkg": "^6.12.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
+  },
+  "pkg": {
+    "assets": [
+      "dist/**/*.js"
+    ],
+    "scripts": [
+      "dist/**/*.js"
+    ],
+    "targets": [
+      "node24-macos-arm64",
+      "node24-macos-x64",
+      "node24-linux-x64",
+      "node24-linux-arm64"
+    ],
+    "outputPath": "dist-bin"
   }
 }

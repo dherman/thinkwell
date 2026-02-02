@@ -4,11 +4,11 @@ This plan implements the design in [doc/rfd/pkg-migration.md](rfd/pkg-migration.
 
 ## Phase 1: Build Infrastructure
 
-- [ ] Add `@yao-pkg/pkg` as a dev dependency to `packages/thinkwell`
-- [ ] Create `packages/thinkwell/scripts/build-binary-pkg.ts` build script
-- [ ] Add pkg build scripts to package.json (darwin-arm64, darwin-x64, linux-x64, linux-arm64)
-- [ ] Configure pkg in package.json (assets, scripts, targets)
-- [ ] Test that pkg can bundle the existing CLI entry point
+- [x] Add `@yao-pkg/pkg` as a dev dependency to `packages/thinkwell`
+- [x] Create `packages/thinkwell/scripts/build-binary-pkg.ts` build script
+- [x] Add pkg build scripts to package.json (darwin-arm64, darwin-x64, linux-x64, linux-arm64)
+- [x] Configure pkg in package.json (assets, scripts, targets)
+- [x] Test that pkg can bundle the existing CLI entry point
 
 ## Phase 2: Loader Implementation
 
@@ -21,7 +21,7 @@ This plan implements the design in [doc/rfd/pkg-migration.md](rfd/pkg-migration.
 
 ## Phase 3: CLI Entry Point
 
-- [ ] Create `packages/thinkwell/src/cli/main-pkg.ts` as the new pkg entry point
+- [ ] Expand `packages/thinkwell/src/cli/main-pkg.cjs` with full CLI functionality
 - [ ] Register bundled thinkwell packages to `global.__bundled__`
 - [ ] Integrate loader for user script execution
 - [ ] Support all existing commands: `init`, `types`, `run` (default)
