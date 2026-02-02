@@ -48,11 +48,9 @@ Based on [RFD: CLI Distribution](rfd/cli-distribution.md)
 - [ ] Verify bottle installation works for end users
 - [ ] Document bottle update process for future releases
 
-## Phase 7: Stable Release
+## Phase 7: Stable Release Runbook
 
-- [ ] Iterate with additional pre-release versions as needed
-- [ ] Publish stable `0.3.0` to npm under `latest` tag
-- [ ] Update Homebrew formula to point to stable release
+- [x] Write runbook for stable release process (see [runbook/stable-release.md](runbook/stable-release.md))
 
 ## Phase 8: Documentation
 
