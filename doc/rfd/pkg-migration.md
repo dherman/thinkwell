@@ -254,50 +254,6 @@ For thinkwell's use case, the performance trade-offs are acceptable:
 2. **Startup is one-time** — Scripts typically run for extended periods
 3. **Correctness over speed** — External module resolution working correctly is more important than faster startup
 
-## Implementation Plan
-
-### Phase 1: Build Infrastructure
-
-1. Add `@yao-pkg/pkg` as a dev dependency
-2. Create `scripts/build-binary.js` using pkg
-3. Update CI to build binaries with pkg instead of Bun
-4. Test on all target platforms (darwin-arm64, darwin-x64, linux-x64, linux-arm64)
-
-### Phase 2: Loader Implementation
-
-1. Port `transformVirtualImports()` to work with Node's module system
-2. Implement custom require function with bundled module resolution
-3. Create vm-based loader for custom require injection
-4. Handle shebang stripping for executable scripts
-
-### Phase 3: TypeScript Support
-
-1. Verify Node 24's `--experimental-strip-types` works for all user script patterns
-2. Test with complex TypeScript (generics, type-only imports, decorators)
-3. Document any TypeScript limitations (enums, namespaces)
-4. Consider `--experimental-transform-types` for full TypeScript support if needed
-
-### Phase 4: npm Distribution Update
-
-**Decision:** Remove Bun from npm distribution entirely.
-
-The original plan was to maintain Bun subprocess spawn for the npm distribution. However, Bun has the same fundamental limitation in its subprocess mode: it cannot resolve packages from the user's `node_modules` when running scripts through `bun --preload`.
-
-Both distributions now use the same Node.js-based execution:
-1. Pre-bundled thinkwell packages from `dist-pkg/*.cjs`
-2. CLI loader (`dist-pkg/cli-loader.cjs`) for script execution
-3. Node 24's `--experimental-transform-types` for TypeScript support
-4. Same import transformation and @JSONSchema processing pipeline
-
-The npm distribution's `bin/thinkwell` launcher now validates Node.js 24+ and directly uses the pkg-style loader infrastructure instead of spawning Bun.
-
-### Phase 5: Testing and Documentation
-
-1. Port existing binary tests to use pkg-built binaries
-2. Add integration tests for external module resolution
-3. Update installation documentation
-4. Update cli-distribution.md RFD with new architecture
-
 ## Open Questions
 
 ### ESM Support — RESOLVED
@@ -391,5 +347,5 @@ The schema module is pre-bundled into `dist-pkg/cli-loader.cjs` along with ts-js
 - [Bun Issue #13405: resolveSync bug](https://github.com/oven-sh/bun/issues/13405)
 - [pkg Issue #16: ESM support](https://github.com/yao-pkg/pkg/issues/16)
 - [Proof-of-concept: experiments/pkg-poc/](../experiments/pkg-poc/)
-- [RFD: Binary Distribution Module Resolution](./binary-module-resolution.md)
+- [RFD: Binary Distribution Module Resolution](./archive/binary-module-resolution.md)
 - [RFD: CLI Distribution](./cli-distribution.md)
