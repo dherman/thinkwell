@@ -12,6 +12,16 @@
 /** Registry of module name → exports */
 const moduleRegistry = new Map<string, Record<string, unknown>>();
 
+// Extend globalThis type
+declare global {
+  var __thinkwell__: Record<string, Record<string, unknown>>;
+}
+
+// Initialize global registry
+if (!globalThis.__thinkwell__) {
+  globalThis.__thinkwell__ = {};
+}
+
 /**
  * Register module exports for virtual resolution.
  * Called by the CLI before running user scripts.
@@ -21,6 +31,8 @@ const moduleRegistry = new Map<string, Record<string, unknown>>();
  */
 export function registerModule(name: string, exports: Record<string, unknown>): void {
   moduleRegistry.set(name, exports);
+  // Also register on globalThis for transformed imports
+  globalThis.__thinkwell__[name] = exports;
 }
 
 /**

@@ -42,15 +42,12 @@ import {
   TranspilationError,
   UnknownModuleError,
 } from "./errors.js";
-import {
-  getRegisteredModule,
-  isVirtualModeEnabled,
-} from "./registry.js";
+import { isVirtualModeEnabled } from "./registry.js";
 
 const JSONSCHEMA_TAG = "@JSONSchema";
 
 /**
- * Rewrite thinkwell:* imports to their actual npm package names.
+ * Rewrite thinkwell:* imports to resolvable package names.
  *
  * This is necessary because Bun's runtime plugins have a bug where
  * URL-like imports (containing ':') are validated as URLs before
@@ -73,6 +70,32 @@ function rewriteThinkwellImports(source: string): string {
       return `${prefix}thinkwell:${moduleName}${suffix}`;
     }
   );
+}
+
+/**
+ * Transform imports to use the virtual module registry when in virtual mode.
+ *
+ * In virtual mode (compiled binary), Bun's onResolve doesn't intercept package
+ * imports. So we transform the source to use globalThis.__thinkwell__ directly.
+ *
+ * Transforms:
+ *   import { Agent } from "thinkwell";
+ * To:
+ *   const { Agent } = globalThis.__thinkwell__["thinkwell"];
+ */
+function transformVirtualImports(source: string): string {
+  if (!isVirtualModeEnabled()) {
+    return source;
+  }
+
+  // Match imports from thinkwell packages
+  // Pattern: import { x, y } from "thinkwell" or import { x } from "@thinkwell/acp"
+  const importPattern = /import\s+\{([^}]+)\}\s+from\s+['"](@thinkwell\/(?:acp|protocol)|thinkwell)['"]/g;
+
+  return source.replace(importPattern, (_, imports, packageName) => {
+    const cleanImports = imports.trim();
+    return `const {${cleanImports}} = globalThis.__thinkwell__["${packageName}"]`;
+  });
 }
 
 const schemaCache = new SchemaCache();
@@ -134,49 +157,15 @@ export const thinkwellPlugin: BunPlugin = {
         });
       }
 
-      // Check if we have this module registered (binary distribution)
-      if (isVirtualModeEnabled() && getRegisteredModule(npmPackage)) {
-        return {
-          path: npmPackage,
-          namespace: "thinkwell-virtual",
-        };
-      }
-
-      // Fall back to external resolution (npm distribution)
+      // Resolve to the npm package - Bun will handle the actual resolution
+      // Note: In compiled binary mode, the onLoad handler transforms imports
+      // to use globalThis.__thinkwell__ directly, so this path isn't used.
       return {
         path: npmPackage,
         external: true,
       };
     });
 
-    // Handle plain thinkwell package imports (after rewriting from thinkwell:*)
-    // This is needed because rewriteThinkwellImports converts thinkwell:agent -> thinkwell
-    // in the source, which then needs to be resolved to the virtual module.
-    build.onResolve({ filter: /^(thinkwell|@thinkwell\/(acp|protocol))$/ }, (args) => {
-      if (isVirtualModeEnabled() && getRegisteredModule(args.path)) {
-        return {
-          path: args.path,
-          namespace: "thinkwell-virtual",
-        };
-      }
-      // Fall back to normal resolution (npm distribution)
-      return undefined;
-    });
-
-    // Handle virtual module loads (for compiled binary distribution)
-    build.onLoad(
-      { filter: /.*/, namespace: "thinkwell-virtual" },
-      ({ path }) => {
-        const exports = getRegisteredModule(path);
-        if (!exports) {
-          throw new Error(`Virtual module not registered: ${path}`);
-        }
-        return {
-          exports,
-          loader: "object",
-        };
-      }
-    );
 
     build.onLoad({ filter: /\.tsx?$/ }, async ({ path }) => {
       // Read file with error handling
@@ -194,6 +183,9 @@ export const thinkwellPlugin: BunPlugin = {
 
       // Rewrite thinkwell:* imports to npm packages (must happen before transpilation)
       source = rewriteThinkwellImports(source);
+
+      // In virtual mode, transform imports to use globalThis.__thinkwell__
+      source = transformVirtualImports(source);
 
       // Fast path: skip files without @JSONSchema
       if (!source.includes(JSONSCHEMA_TAG)) {
