@@ -69,10 +69,31 @@ Users needing these features can pre-compile their scripts.
 
 ## Phase 5: @JSONSchema Processing
 
-- [ ] Port schema generation from bun-plugin to work standalone
-- [ ] Read TypeScript source, process with ts-json-schema-generator, inject namespace
-- [ ] Integrate schema processing into the loader pipeline
-- [ ] Test with existing @JSONSchema examples
+- [x] Port schema generation from bun-plugin to work standalone
+- [x] Read TypeScript source, process with ts-json-schema-generator, inject namespace
+- [x] Integrate schema processing into the loader pipeline
+- [x] Test with existing @JSONSchema examples
+
+### Implementation Notes (Phase 5)
+
+**Schema module location**: Created `packages/thinkwell/src/cli/schema.ts` as a
+standalone port of the schema generation from bun-plugin. The module includes:
+- `findMarkedTypes()` - TypeScript AST traversal to find @JSONSchema-marked types
+- `generateSchemas()` - Uses ts-json-schema-generator to create JSON schemas
+- `generateInsertions()` - Creates namespace declarations with SchemaProvider
+- `transformJsonSchemas()` - Main entry point that orchestrates the pipeline
+
+**Bundling approach**: The CLI loader (including schema module) is pre-bundled
+into `dist-pkg/cli-loader.cjs` using esbuild. This bundles ts-json-schema-generator
+and typescript into a single CJS file (~11MB) that pkg can resolve correctly.
+
+**TypeScript mode change**: Switched from `--experimental-strip-types` to
+`--experimental-transform-types` because @JSONSchema generates TypeScript
+namespace declarations, which require transformation (not just stripping).
+This enables full TypeScript support including namespaces, enums, and decorators.
+
+**Dependencies added**: Added `ts-json-schema-generator` and `typescript` as
+direct dependencies of the thinkwell package (previously only in bun-plugin).
 
 ## Phase 6: npm Distribution Update
 
@@ -101,6 +122,6 @@ Users needing these features can pre-compile their scripts.
 ## Notes
 
 - Keep existing npm distribution working throughout migration
-- pkg binary will use Node 24 with `--experimental-strip-types`
+- pkg binary uses Node 24 with `--experimental-transform-types` (for namespace support)
 - ESM support via `require(esm)` - no top-level await in user scripts
 - Binary size expected: ~63 MB (vs ~45 MB for Bun)

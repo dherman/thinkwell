@@ -12,6 +12,7 @@
  *   dist-pkg/thinkwell.cjs      - bundled thinkwell package
  *   dist-pkg/acp.cjs            - bundled @thinkwell/acp package
  *   dist-pkg/protocol.cjs       - bundled @thinkwell/protocol package
+ *   dist-pkg/cli-loader.cjs     - bundled CLI loader (includes schema processing)
  */
 
 import { build } from "esbuild";
@@ -39,6 +40,11 @@ const PACKAGES = [
     name: "@thinkwell/protocol",
     entryPoint: resolve(ROOT_DIR, "../protocol/dist/index.js"),
     output: "protocol.cjs",
+  },
+  {
+    name: "cli-loader",
+    entryPoint: resolve(ROOT_DIR, "dist/cli/loader.js"),
+    output: "cli-loader.cjs",
   },
 ];
 

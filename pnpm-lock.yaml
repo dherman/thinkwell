@@ -68,25 +68,6 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
-  packages/build-schema-providers:
-    dependencies:
-      '@thinkwell/acp':
-        specifier: workspace:*
-        version: link:../acp
-      glob:
-        specifier: ^11.0.0
-        version: 11.1.0
-      ts-json-schema-generator:
-        specifier: ^2.4.0
-        version: 2.4.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-    devDependencies:
-      '@types/node':
-        specifier: ^24.10.4
-        version: 24.10.4
-
   packages/bun-plugin:
     dependencies:
       '@thinkwell/acp':
@@ -151,6 +132,12 @@ importers:
       '@thinkwell/protocol':
         specifier: workspace:*
         version: link:../protocol
+      ts-json-schema-generator:
+        specifier: ^2.4.0
+        version: 2.4.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -164,9 +151,6 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
 
 packages:
 

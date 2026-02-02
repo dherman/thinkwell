@@ -3,8 +3,9 @@
  * Build script for creating self-contained thinkwell CLI executables using pkg.
  *
  * Uses `@yao-pkg/pkg` to create native binaries for different platforms.
- * The resulting binaries include Node.js 24 with --experimental-strip-types
- * enabled, allowing direct execution of TypeScript user scripts.
+ * The resulting binaries include Node.js 24 with --experimental-transform-types
+ * enabled, allowing execution of TypeScript user scripts including namespace
+ * declarations (required for @JSONSchema support).
  *
  * Unlike the Bun-based build, pkg binaries can properly resolve external
  * npm packages from the user's node_modules at runtime.
@@ -63,14 +64,15 @@ function buildTarget(target: Target, version: string, verbose: boolean): void {
   console.log(`Building ${outputName}...`);
 
   // Build command using pkg
-  // --options experimental-strip-types enables native TypeScript support in Node 24
+  // --options experimental-transform-types enables full TypeScript support including
+  // namespace declarations (required for @JSONSchema-generated code)
   // --public includes source files instead of bytecode (required for ESM modules)
   const cmd = [
     "npx",
     "pkg",
     CLI_ENTRY,
     `--targets=${pkgTarget}`,
-    "--options=experimental-strip-types",
+    "--options=experimental-transform-types",
     "--public",
     `--output=${outputPath}`,
   ];
@@ -127,7 +129,7 @@ Examples:
   tsx scripts/build-binary-pkg.ts --verbose          Build with detailed output
 
 Note: This script requires the TypeScript build to be run first (pnpm build).
-      The pkg binary uses Node 24 with --experimental-strip-types for native TS.
+      The pkg binary uses Node 24 with --experimental-transform-types for native TS.
 `);
     process.exit(0);
   }

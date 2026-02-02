@@ -143,9 +143,9 @@ async function runUserScript(scriptPath, args) {
     process.exit(1);
   }
 
-  // Import the loader from the bundled dist
-  // Path: src/cli/ -> ../../dist/cli/loader.js
-  const { runScript } = require("../../dist/cli/loader.js");
+  // Import the loader from the pre-bundled CJS
+  // Path: src/cli/ -> ../../dist-pkg/cli-loader.cjs
+  const { runScript } = require("../../dist-pkg/cli-loader.cjs");
 
   try {
     await runScript(resolvedPath, args);

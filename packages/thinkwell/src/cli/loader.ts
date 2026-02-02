@@ -13,7 +13,10 @@
  *    - `import { Agent } from "thinkwell:agent"` → bundled thinkwell
  *    - `import { Agent } from "thinkwell"` → bundled thinkwell
  *
- * 3. **Script Loading**: Uses Node's Module._compile for proper require() injection
+ * 3. **@JSONSchema Processing**: Generates JSON schemas for marked types and
+ *    injects namespace declarations with SchemaProvider implementations.
+ *
+ * 4. **Script Loading**: Uses Node's require() with temp files for transformed scripts
  *
  * Unlike the Bun plugin which runs at bundle time, this loader operates at
  * runtime when the user script is executed.
@@ -23,6 +26,7 @@ import { readFileSync, mkdirSync, writeFileSync, unlinkSync } from "node:fs";
 import { dirname, join, isAbsolute, resolve } from "node:path";
 import { createRequire } from "node:module";
 import Module from "node:module";
+import { hasJsonSchemaMarkers, transformJsonSchemas } from "./schema.js";
 
 /**
  * Extended Module interface with internal Node.js methods.
@@ -266,10 +270,10 @@ export function createCustomRequire(
 }
 
 /**
- * Check if source code needs thinkwell import transformation.
+ * Check if source code needs transformation.
  *
  * @param source - The script source code
- * @returns true if the source contains thinkwell:* or bundled package imports
+ * @returns true if the source contains thinkwell imports or @JSONSchema markers
  */
 function needsTransformation(source: string): boolean {
   // Check for thinkwell:* URI scheme imports
@@ -278,6 +282,10 @@ function needsTransformation(source: string): boolean {
   }
   // Check for bundled package imports
   if (/from\s+['"](?:thinkwell|@thinkwell\/(?:acp|protocol))['"]/.test(source)) {
+    return true;
+  }
+  // Check for @JSONSchema markers
+  if (hasJsonSchemaMarkers(source)) {
     return true;
   }
   return false;
@@ -322,6 +330,10 @@ export function loadScript(scriptPath: string): unknown {
   // Source needs transformation - apply transforms and use a temp file
   // Rewrite thinkwell:* imports to npm package names
   let source = rewriteThinkwellImports(sourceWithoutShebang);
+
+  // Process @JSONSchema types (must happen before import transformation
+  // because it adds an import statement that also needs transformation)
+  source = transformJsonSchemas(absolutePath, source);
 
   // Transform imports to use bundled modules (global.__bundled__)
   source = transformVirtualImports(source);
