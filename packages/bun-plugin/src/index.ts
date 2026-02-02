@@ -42,6 +42,10 @@ import {
   TranspilationError,
   UnknownModuleError,
 } from "./errors.js";
+import {
+  getRegisteredModule,
+  isVirtualModeEnabled,
+} from "./registry.js";
 
 const JSONSCHEMA_TAG = "@JSONSchema";
 
@@ -130,12 +134,35 @@ export const thinkwellPlugin: BunPlugin = {
         });
       }
 
-      // Resolve to the npm package - Bun will handle the actual resolution
+      // Check if we have this module registered (binary distribution)
+      if (isVirtualModeEnabled() && getRegisteredModule(npmPackage)) {
+        return {
+          path: npmPackage,
+          namespace: "thinkwell-virtual",
+        };
+      }
+
+      // Fall back to external resolution (npm distribution)
       return {
         path: npmPackage,
         external: true,
       };
     });
+
+    // Handle virtual module loads (for compiled binary distribution)
+    build.onLoad(
+      { filter: /.*/, namespace: "thinkwell-virtual" },
+      ({ path }) => {
+        const exports = getRegisteredModule(path);
+        if (!exports) {
+          throw new Error(`Virtual module not registered: ${path}`);
+        }
+        return {
+          exports,
+          loader: "object",
+        };
+      }
+    );
 
     build.onLoad({ filter: /\.tsx?$/ }, async ({ path }) => {
       // Read file with error handling
@@ -260,3 +287,11 @@ export {
   UnknownModuleError,
   DeclarationGenerationError,
 } from "./errors.js";
+
+// Virtual module registry for compiled binary distribution
+export {
+  registerModule,
+  getRegisteredModule,
+  isVirtualModeEnabled,
+  clearRegistry,
+} from "./registry.js";
