@@ -21,10 +21,10 @@ Based on [RFD: CLI Distribution](rfd/cli-distribution.md)
 
 ## Phase 3: Binary Build of Thinkwell CLI
 
-- [ ] Create build script using `bun build --compile` for self-contained executables
-- [ ] Build binaries for darwin-arm64 and darwin-x64
-- [ ] Test binaries work without Node.js installed
-- [ ] Verify Bun runtime detection still works in compiled binary
+- [x] Create build script using `bun build --compile` for self-contained executables
+- [x] Build binaries for darwin-arm64 and darwin-x64
+- [x] Test binaries work without Node.js installed
+- [x] Verify Bun runtime detection still works in compiled binary
 
 ## Phase 4: Homebrew Bottles
 

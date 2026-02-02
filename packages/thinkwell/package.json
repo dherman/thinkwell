@@ -27,7 +27,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist",
+    "build:binary": "bun scripts/build-binary.ts",
+    "clean": "rm -rf dist dist-bin",
     "test": "node --test --import tsx src/**/*.test.ts"
   },
   "keywords": [
