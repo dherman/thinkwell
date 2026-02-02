@@ -97,10 +97,34 @@ direct dependencies of the thinkwell package (previously only in bun-plugin).
 
 ## Phase 6: npm Distribution Update
 
-- [ ] Update `packages/thinkwell/bin/thinkwell` launcher to detect pkg vs npm mode
-- [ ] Maintain Bun subprocess spawn for npm distribution (existing behavior)
-- [ ] Add detection for running as pkg binary (`process.pkg` check)
-- [ ] Ensure identical behavior between npm and binary distributions
+- [x] Rewrite `packages/thinkwell/bin/thinkwell` launcher to use Node.js directly
+- [x] Remove Bun subprocess spawn (Bun cannot resolve user's node_modules)
+- [x] Use the same pkg-style loader infrastructure for npm distribution
+- [x] Update package.json files array to include dist-pkg
+- [x] Ensure identical behavior between npm and binary distributions
+
+### Implementation Notes (Phase 6)
+
+**Strategy change**: Originally planned to detect pkg vs npm mode and maintain Bun
+for npm distribution. This was revised because Bun's compiled binary has a fundamental
+limitation: it cannot resolve packages from the user's `node_modules` directory.
+Both distributions now use the same Node.js-based execution path with the pkg-style
+loader, ensuring consistent behavior.
+
+**Unified execution path**: Both the npm distribution (`bin/thinkwell`) and the pkg
+binary (`main-pkg.cjs`) now use:
+- Pre-bundled thinkwell packages from `dist-pkg/*.cjs`
+- The CLI loader (`dist-pkg/cli-loader.cjs`) for script execution
+- Node 24's `--experimental-transform-types` for TypeScript support
+- The same import transformation and @JSONSchema processing pipeline
+
+**Package distribution**: Added `dist-pkg` to the `files` array in package.json so
+the pre-bundled CJS packages are included in the npm distribution. This allows the
+npm-installed version to use the same loader as the pkg binary.
+
+**Runtime requirements**: The npm distribution now requires Node.js 24+ (previously
+required Bun). This is validated at startup with a clear error message directing
+users to upgrade Node.js.
 
 ## Phase 7: Testing
 

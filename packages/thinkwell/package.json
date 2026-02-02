@@ -25,7 +25,8 @@
   },
   "files": [
     "bin",
-    "dist"
+    "dist",
+    "dist-pkg"
   ],
   "scripts": {
     "build": "tsc",

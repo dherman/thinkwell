@@ -3,36 +3,31 @@
 /**
  * Thinkwell CLI launcher
  *
- * This Node.js script detects if Bun is available and delegates to it
- * with the @thinkwell/bun-plugin preloaded.
+ * This Node.js script serves as the entry point for the npm distribution.
+ * It uses Node.js with the pkg-style loader for script execution, requiring
+ * Node 24+ for native TypeScript support via --experimental-transform-types.
+ *
+ * The pkg binary distribution uses a separate entry point (main-pkg.cjs)
+ * which is compiled directly into the binary.
  */
 
-import { execSync, spawn } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { spawn } from "node:child_process";
+import { dirname, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Check if Bun is available and return version or null
-function getBunVersion() {
-  try {
-    const version = execSync("bun --version", { encoding: "utf-8" }).trim();
-    return version;
-  } catch {
-    return null;
-  }
-}
+// Minimum Node.js version for native TypeScript support
+const MIN_NODE_VERSION = 24;
 
-// Get the path to the plugin
-function getPluginPath() {
-  // When installed via npm, the plugin is in our node_modules
-  return resolve(__dirname, "../node_modules/@thinkwell/bun-plugin/dist/index.js");
-}
+// ============================================================================
+// Path Helpers
+// ============================================================================
 
-// Get the path to our node_modules (where thinkwell packages are installed)
-function getNodeModulesPath() {
-  return resolve(__dirname, "../node_modules");
+// Get the path to the init command script
+function getInitCommandPath() {
+  return resolve(__dirname, "../dist/cli/init-command.js");
 }
 
 // Get the path to the types command script
@@ -40,18 +35,61 @@ function getTypesCommandPath() {
   return resolve(__dirname, "../dist/cli/types-command.js");
 }
 
-// Validate that required files exist for commands that require Bun
+// Get the path to the bundled CLI loader
+function getLoaderPath() {
+  return resolve(__dirname, "../dist-pkg/cli-loader.cjs");
+}
+
+// Get paths to the bundled thinkwell packages
+function getBundledPackagesPath() {
+  return {
+    thinkwell: resolve(__dirname, "../dist-pkg/thinkwell.cjs"),
+    acp: resolve(__dirname, "../dist-pkg/acp.cjs"),
+    protocol: resolve(__dirname, "../dist-pkg/protocol.cjs"),
+  };
+}
+
+// ============================================================================
+// Runtime Detection
+// ============================================================================
+
+// Get Node.js major version
+function getNodeMajorVersion() {
+  const match = process.version.match(/^v(\d+)/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+// ============================================================================
+// Validation
+// ============================================================================
+
+// Validate Node.js version
+function validateNodeVersion() {
+  const nodeMajor = getNodeMajorVersion();
+  if (nodeMajor < MIN_NODE_VERSION) {
+    console.error(`Error: thinkwell requires Node.js ${MIN_NODE_VERSION} or later.`);
+    console.error(`Current version: ${process.version}`);
+    console.error("");
+    console.error("Node.js 24+ is required for native TypeScript support.");
+    console.error("Please upgrade Node.js: https://nodejs.org/");
+    process.exit(1);
+  }
+}
+
+// Validate that required files exist for script execution
 function validateInstallation() {
-  const pluginPath = getPluginPath();
-  const typesCommandPath = getTypesCommandPath();
+  const loaderPath = getLoaderPath();
+  const bundledPaths = getBundledPackagesPath();
   const errors = [];
 
-  if (!existsSync(pluginPath)) {
-    errors.push(`Plugin not found: ${pluginPath}`);
+  if (!existsSync(loaderPath)) {
+    errors.push(`Loader not found: ${loaderPath}`);
   }
 
-  if (!existsSync(typesCommandPath)) {
-    errors.push(`Types command not found: ${typesCommandPath}`);
+  for (const [name, path] of Object.entries(bundledPaths)) {
+    if (!existsSync(path)) {
+      errors.push(`Bundled ${name} not found: ${path}`);
+    }
   }
 
   if (errors.length > 0) {
@@ -75,6 +113,17 @@ function validateInitCommand() {
   }
 }
 
+// Validate types command is available
+function validateTypesCommand() {
+  const typesCommandPath = getTypesCommandPath();
+  if (!existsSync(typesCommandPath)) {
+    console.error("Error: thinkwell installation appears to be corrupted.");
+    console.error(`  - Types command not found: ${typesCommandPath}`);
+    console.error("\nTry reinstalling with: npm install thinkwell");
+    process.exit(1);
+  }
+}
+
 // Parse version from package.json
 async function getVersion() {
   const packagePath = resolve(__dirname, "../package.json");
@@ -82,12 +131,10 @@ async function getVersion() {
   return pkg.version;
 }
 
-// Get the path to the init command script
-function getInitCommandPath() {
-  return resolve(__dirname, "../dist/cli/init-command.js");
-}
+// ============================================================================
+// Help
+// ============================================================================
 
-// Show help message
 function showHelp() {
   console.log(`
 thinkwell - Run TypeScript scripts with automatic schema generation
@@ -119,10 +166,131 @@ For more information, visit: https://github.com/dherman/thinkwell
 `);
 }
 
+// ============================================================================
+// Bundled Module Registration
+// ============================================================================
+
+/**
+ * Register bundled thinkwell packages to global.__bundled__.
+ *
+ * For the npm distribution, we load the pre-bundled CJS packages from dist-pkg/.
+ * This mirrors what main-pkg.cjs does for the pkg binary distribution.
+ */
+async function registerBundledModules() {
+  const bundledPaths = getBundledPackagesPath();
+
+  try {
+    // Dynamic import the bundled CJS packages
+    const thinkwell = await import(bundledPaths.thinkwell);
+    const acpModule = await import(bundledPaths.acp);
+    const protocolModule = await import(bundledPaths.protocol);
+
+    // Register to global.__bundled__ for the loader to access
+    global.__bundled__ = {
+      thinkwell: thinkwell.default || thinkwell,
+      "@thinkwell/acp": acpModule.default || acpModule,
+      "@thinkwell/protocol": protocolModule.default || protocolModule,
+    };
+  } catch (error) {
+    console.error("Error: Failed to load bundled modules.");
+    console.error("");
+    if (process.env.DEBUG) {
+      console.error("Debug info:");
+      console.error(`  ${error.message}`);
+      console.error(error.stack);
+    }
+    console.error("Try reinstalling with: npm install thinkwell");
+    process.exit(1);
+  }
+}
+
+// ============================================================================
+// Script Execution
+// ============================================================================
+
+/**
+ * Run a user script using the CLI loader.
+ */
+async function runUserScript(scriptPath, args) {
+  // Resolve the script path
+  const resolvedPath = isAbsolute(scriptPath)
+    ? scriptPath
+    : resolve(process.cwd(), scriptPath);
+
+  // Check if the script file exists
+  if (!existsSync(resolvedPath)) {
+    console.error(`Error: Script not found: ${scriptPath}`);
+    console.error("");
+    console.error("Make sure the file exists and the path is correct.");
+    process.exit(1);
+  }
+
+  // Import the loader
+  const loaderPath = getLoaderPath();
+  const { runScript } = await import(loaderPath);
+
+  try {
+    await runScript(resolvedPath, args);
+  } catch (error) {
+    // Handle common error cases with helpful messages
+    if (error.message && error.message.includes("Cannot find module")) {
+      console.error(`Error: ${error.message}`);
+      console.error("");
+      console.error("Make sure the module is installed in your project's node_modules.");
+      process.exit(1);
+    }
+
+    if (error.message && error.message.includes("Cannot find package")) {
+      console.error(`Error: ${error.message}`);
+      console.error("");
+      console.error("Run 'npm install' or 'pnpm install' to install dependencies.");
+      process.exit(1);
+    }
+
+    // Re-throw other errors
+    throw error;
+  }
+}
+
+/**
+ * Run the types command.
+ *
+ * The types command uses the same loader infrastructure to process
+ * TypeScript files and generate .d.ts declarations.
+ */
+async function runTypesCommand(args) {
+  validateTypesCommand();
+  const typesCommandPath = getTypesCommandPath();
+
+  // Spawn Node.js with the types command
+  const child = spawn(process.execPath, [
+    "--experimental-transform-types",
+    typesCommandPath,
+    ...args,
+  ], {
+    stdio: "inherit",
+    env: process.env,
+  });
+
+  child.on("error", (err) => {
+    console.error(`Error: Failed to run types command.`);
+    console.error(`  ${err.message}`);
+    process.exit(1);
+  });
+
+  child.on("exit", (code) => {
+    process.exit(code ?? 0);
+  });
+}
+
+// ============================================================================
+// Main Entry Point
+// ============================================================================
+
 async function main() {
   const args = process.argv.slice(2);
 
-  // Handle "init" subcommand first - does NOT require Bun
+  // Handle "init" subcommand first - does NOT require bundled modules
   // Must be before global --help so "init --help" shows init-specific help
   if (args[0] === "init") {
     validateInitCommand();
@@ -148,55 +316,15 @@ async function main() {
     process.exit(0);
   }
 
-  // All commands below require Bun
-  const bunVersion = getBunVersion();
-  if (!bunVersion) {
-    console.error("Error: Bun is required to run thinkwell scripts.");
-    console.error("");
-    console.error("The thinkwell runtime uses Bun for TypeScript execution and schema");
-    console.error("generation. This also enables features like compiled executables.");
-    console.error("");
-    console.error("To install Bun:");
-    console.error("  curl -fsSL https://bun.sh/install | bash");
-    console.error("");
-    console.error("Or via Homebrew:");
-    console.error("  brew install oven-sh/bun/bun");
-    console.error("");
-    console.error("For more information: https://bun.sh");
-    process.exit(1);
-  }
-
-  // Validate installation
-  validateInstallation();
-
   // Handle "types" subcommand
   if (args[0] === "types") {
-    const typesArgs = args.slice(1);
-    const typesCommandPath = getTypesCommandPath();
-    const bunArgs = [typesCommandPath, ...typesArgs];
-
-    const child = spawn("bun", bunArgs, {
-      stdio: "inherit",
-      env: process.env,
-    });
-
-    child.on("error", (err) => {
-      console.error(`Error: Failed to execute 'bun' command.`);
-      console.error(`  ${err.message}`);
-      if (err.code === "ENOENT") {
-        console.error("");
-        console.error("Bun was detected but cannot be executed.");
-        console.error("Ensure 'bun' is in your PATH and has execute permissions.");
-      }
-      process.exit(1);
-    });
-
-    child.on("exit", (code) => {
-      process.exit(code ?? 0);
-    });
-
+    await runTypesCommand(args.slice(1));
     return;
   }
+
+  // All script execution requires Node 24+ and proper installation
+  validateNodeVersion();
+  validateInstallation();
 
   // Handle "run" subcommand - just strip it
   const runArgs = args[0] === "run" ? args.slice(1) : args;
@@ -205,53 +333,24 @@ async function main() {
   if (runArgs.length === 0) {
     console.error("Error: No script provided.");
     console.error("");
-    console.error("Usage: thinkwell run <script.ts> [args...]");
+    console.error("Usage: thinkwell <script.ts> [args...]");
     process.exit(1);
   }
 
-  // Check if the script file exists
+  // Register bundled modules before loading user scripts
+  await registerBundledModules();
+
+  // Run the user script
   const scriptPath = runArgs[0];
-  if (!scriptPath.startsWith("-") && !existsSync(scriptPath)) {
-    // Try resolving relative to cwd
-    const resolvedPath = resolve(process.cwd(), scriptPath);
-    if (!existsSync(resolvedPath)) {
-      console.error(`Error: Script not found: ${scriptPath}`);
-      console.error("");
-      console.error("Make sure the file exists and the path is correct.");
-      process.exit(1);
-    }
-  }
-
-  // Delegate to bun with plugin preloaded
-  const pluginPath = getPluginPath();
-  const nodeModulesPath = getNodeModulesPath();
-  const bunArgs = ["--preload", pluginPath, ...runArgs];
-
-  // Add our node_modules to NODE_PATH so Bun can find thinkwell packages
-  // regardless of where the script is located
-  const nodePath = process.env.NODE_PATH
-    ? `${nodeModulesPath}:${process.env.NODE_PATH}`
-    : nodeModulesPath;
-
-  const child = spawn("bun", bunArgs, {
-    stdio: "inherit",
-    env: { ...process.env, NODE_PATH: nodePath },
-  });
-
-  child.on("error", (err) => {
-    console.error(`Error: Failed to execute 'bun' command.`);
-    console.error(`  ${err.message}`);
-    if (err.code === "ENOENT") {
-      console.error("");
-      console.error("Bun was detected but cannot be executed.");
-      console.error("Ensure 'bun' is in your PATH and has execute permissions.");
-    }
-    process.exit(1);
-  });
-
-  child.on("exit", (code) => {
-    process.exit(code ?? 0);
-  });
+  const scriptArgs = runArgs.slice(1);
+  await runUserScript(scriptPath, scriptArgs);
 }
 
-main();
+main().catch((error) => {
+  console.error("Unexpected error:");
+  console.error(`  ${error.message || error}`);
+  if (process.env.DEBUG) {
+    console.error(error.stack);
+  }
+  process.exit(1);
+});
