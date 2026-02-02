@@ -12,12 +12,12 @@ This plan implements the design in [doc/rfd/pkg-migration.md](rfd/pkg-migration.
 
 ## Phase 2: Loader Implementation
 
-- [ ] Create `packages/thinkwell/src/cli/loader.ts` with custom require function
-- [ ] Implement `createCustomRequire(scriptDir)` for bundled vs external resolution
-- [ ] Create `global.__bundled__` registry initialization
-- [ ] Port `transformVirtualImports()` from bun-plugin to work with string replacement
-- [ ] Implement script loading via `vm.runInThisContext()` with custom require injection
-- [ ] Handle shebang stripping for executable user scripts
+- [x] Create `packages/thinkwell/src/cli/loader.ts` with custom require function
+- [x] Implement `createCustomRequire(scriptDir)` for bundled vs external resolution
+- [x] Create `global.__bundled__` registry initialization
+- [x] Port `transformVirtualImports()` from bun-plugin to work with string replacement
+- [x] Implement script loading via `vm.runInThisContext()` with custom require injection
+- [x] Handle shebang stripping for executable user scripts
 
 ## Phase 3: CLI Entry Point
 
