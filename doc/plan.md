@@ -36,17 +36,18 @@ Based on [RFD: CLI Distribution](rfd/cli-distribution.md)
 - [x] Remove Bun caveat from formula (binary is fully self-contained)
 - [x] Test `brew install` downloads bottle and runs without external Bun
 
-## Phase 5: Set up Homebrew Account
+## Phase 5: Set up Homebrew Tap
 
-- [ ] Create Homebrew account for publishing releases
-- [ ] Configure authentication for bottle uploads
-- [ ] Verify account permissions and tap ownership
+- [x] Create `homebrew-thinkwell` repository on GitHub
+- [x] Move formula to dedicated tap repository
+- [x] Update formula with release SHA256 checksums
+- [x] Test `brew install dherman/thinkwell/thinkwell`
 
-## Phase 6: Publish Bottle to Homebrew
+## Phase 6: Release Automation Fixes
 
-- [ ] Publish initial thinkwell bottle to Homebrew
-- [ ] Verify bottle installation works for end users
-- [ ] Document bottle update process for future releases
+- [x] Fix pnpm version conflict in CI workflow
+- [x] Update to macos-15 runners (macos-13 retired)
+- [x] Use cross-compilation for darwin-x64 (avoid paid macos-large runners)
 
 ## Phase 7: Stable Release Runbook
 
