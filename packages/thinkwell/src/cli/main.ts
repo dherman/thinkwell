@@ -17,12 +17,24 @@ import { pathToFileURL } from "node:url";
 
 // Import the bun-plugin - this registers it with Bun's plugin system.
 // The plugin will intercept all .ts/.tsx file loads and process @JSONSchema types.
-import "@thinkwell/bun-plugin";
+import { registerModule } from "@thinkwell/bun-plugin";
+
+// Import thinkwell packages so they get bundled into the compiled binary.
+// These are registered as virtual modules so user scripts can import from them.
+import * as thinkwell from "thinkwell";
+import * as thinkwellAcp from "@thinkwell/acp";
+import * as thinkwellProtocol from "@thinkwell/protocol";
+
+// Register modules for virtual resolution in compiled binary.
+// This enables user scripts to import from "thinkwell:agent" etc.
+registerModule("thinkwell", thinkwell as Record<string, unknown>);
+registerModule("@thinkwell/acp", thinkwellAcp as Record<string, unknown>);
+registerModule("@thinkwell/protocol", thinkwellProtocol as Record<string, unknown>);
 
 import { runInit } from "./init-command.js";
 
 // Get version from package.json at build time
-const VERSION = "0.3.0-alpha.1"; // Will be replaced by build script
+const VERSION = "0.3.0-alpha.4"; // Will be replaced by build script
 
 function showHelp(): void {
   console.log(`
