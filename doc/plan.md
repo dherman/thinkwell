@@ -66,9 +66,9 @@ See [RFD: Chosen Solution](rfd/user-build-command.md#chosen-solution-download-po
 - [x] Proxy support via HTTPS_PROXY/HTTP_PROXY (via standard Node.js fetch)
 
 **Testing:**
-- [ ] Unit tests for download/extraction with mocks
-- [ ] Integration test for cache invalidation logic
-- [ ] E2E test: full build from compiled binary (CI only)
+- [x] Unit tests for download/extraction with mocks
+- [x] Integration test for cache invalidation logic
+- [x] E2E test: full build from compiled binary (CI only)
 
 ## Phase 4: Advanced Features
 
