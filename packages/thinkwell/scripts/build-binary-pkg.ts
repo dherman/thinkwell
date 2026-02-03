@@ -68,6 +68,7 @@ function buildTarget(target: Target, version: string, verbose: boolean): void {
   // namespace declarations (required for @JSONSchema-generated code)
   // --options disable-warning=ExperimentalWarning suppresses the noisy warning
   // --public includes source files instead of bytecode (required for ESM modules)
+  // --config points to package.json for asset configuration
   const cmd = [
     "npx",
     "pkg",
@@ -76,6 +77,7 @@ function buildTarget(target: Target, version: string, verbose: boolean): void {
     "--options=experimental-transform-types,disable-warning=ExperimentalWarning",
     "--public",
     `--output=${outputPath}`,
+    `--config=${resolve(ROOT_DIR, "package.json")}`,
   ];
 
   if (verbose) {

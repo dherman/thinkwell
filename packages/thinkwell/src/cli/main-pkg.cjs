@@ -114,18 +114,98 @@ async function runInitCommand(args) {
 }
 
 /**
+ * Set up esbuild for compiled binary environment.
+ *
+ * When running from a pkg-compiled binary, esbuild's native binary can't be
+ * spawned directly from the snapshot filesystem. We extract it to a cache
+ * directory and set ESBUILD_BINARY_PATH before loading esbuild.
+ *
+ * This MUST be called before requiring cli-build.cjs since esbuild is bundled
+ * into that module and initializes when the module loads.
+ */
+function setupEsbuildForBuild(verbose) {
+  // Only needed when running from compiled binary
+  if (typeof process.pkg === "undefined") {
+    return;
+  }
+
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const os = require("node:os");
+
+  // Get thinkwell version for cache invalidation
+  let version = "unknown";
+  try {
+    const pkgPath = path.resolve(__dirname, "../../package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    version = pkg.version || "unknown";
+  } catch {}
+
+  // Cache directory: ~/.cache/thinkwell/esbuild/<version>/
+  const cacheDir = path.join(
+    process.env.THINKWELL_CACHE_DIR || path.join(os.homedir(), ".cache", "thinkwell"),
+    "esbuild",
+    version
+  );
+  const esbuildDest = path.join(cacheDir, "esbuild");
+
+  // Check if already extracted
+  if (fs.existsSync(esbuildDest)) {
+    if (verbose) {
+      console.log(`  Using cached esbuild: ${esbuildDest}`);
+    }
+    process.env.ESBUILD_BINARY_PATH = esbuildDest;
+    return;
+  }
+
+  // Find esbuild binary in snapshot
+  const platform = process.platform;
+  const arch = process.arch;
+  const platformDir = `${platform === "darwin" ? "darwin" : "linux"}-${arch}`;
+  const esbuildSrc = `/snapshot/thinkwell/packages/thinkwell/dist-pkg/esbuild-bin/${platformDir}/esbuild`;
+
+  if (!fs.existsSync(esbuildSrc)) {
+    console.error(`Error: Could not find esbuild binary for ${platformDir}`);
+    console.error(`  Expected at: ${esbuildSrc}`);
+    console.error("  The build command is not available in this binary.");
+    process.exit(1);
+  }
+
+  // Extract to cache
+  if (verbose) {
+    console.log(`  Extracting esbuild to: ${esbuildDest}`);
+  }
+  fs.mkdirSync(cacheDir, { recursive: true });
+  fs.copyFileSync(esbuildSrc, esbuildDest);
+  fs.chmodSync(esbuildDest, 0o755);
+
+  process.env.ESBUILD_BINARY_PATH = esbuildDest;
+}
+
+/**
  * Run the build command to compile scripts into standalone executables.
+ *
+ * Uses the pre-bundled cli-build.cjs which handles esbuild setup for
+ * compiled binary environments (extracting esbuild binary from pkg snapshot).
  */
 async function runBuildCommand(args) {
+  const verbose = args.includes("--verbose") || args.includes("-v");
+
+  // Set up esbuild binary BEFORE loading cli-build.cjs
+  // This is critical because esbuild is bundled into cli-build.cjs and
+  // initializes when the module is loaded.
+  setupEsbuildForBuild(verbose);
+
   // Check for help flag
   if (args.includes("--help") || args.includes("-h")) {
-    const { showBuildHelp } = require("../../dist/cli/build.js");
+    const { showBuildHelp } = require("../../dist-pkg/cli-build.cjs");
     showBuildHelp();
     return;
   }
 
-  // Import and run the build command
-  const { parseBuildArgs, runBuild } = require("../../dist/cli/build.js");
+  // Import and run the build command from pre-bundled CJS
+  // Path: src/cli/ -> ../../dist-pkg/cli-build.cjs
+  const { parseBuildArgs, runBuild } = require("../../dist-pkg/cli-build.cjs");
 
   try {
     const options = parseBuildArgs(args);
@@ -202,7 +282,28 @@ async function runUserScript(scriptPath, args) {
 async function main() {
   const args = process.argv.slice(2);
 
-  // Handle --help (global)
+  // Handle "init" subcommand - does NOT require bundled modules
+  // Must come before global --help check so "init --help" works
+  if (args[0] === "init") {
+    await runInitCommand(args.slice(1));
+    process.exit(0);
+  }
+
+  // Handle "build" subcommand
+  // Must come before global --help check so "build --help" works
+  if (args[0] === "build") {
+    await runBuildCommand(args.slice(1));
+    process.exit(0);
+  }
+
+  // Handle "types" subcommand - placeholder for Phase 5
+  // Must come before global --help check so "types --help" works
+  if (args[0] === "types") {
+    await runTypesCommand(args.slice(1));
+    process.exit(0);
+  }
+
+  // Handle --help (global) - after subcommand checks
   if (args.includes("--help") || args.includes("-h") || args.length === 0) {
     showHelp();
     process.exit(0);
@@ -211,24 +312,6 @@ async function main() {
   // Handle --version
   if (args.includes("--version") || args.includes("-v")) {
     console.log(`thinkwell ${VERSION} (pkg binary)`);
-    process.exit(0);
-  }
-
-  // Handle "init" subcommand - does NOT require bundled modules
-  if (args[0] === "init") {
-    await runInitCommand(args.slice(1));
-    process.exit(0);
-  }
-
-  // Handle "build" subcommand
-  if (args[0] === "build") {
-    await runBuildCommand(args.slice(1));
-    process.exit(0);
-  }
-
-  // Handle "types" subcommand - placeholder for Phase 5
-  if (args[0] === "types") {
-    await runTypesCommand(args.slice(1));
     process.exit(0);
   }
 

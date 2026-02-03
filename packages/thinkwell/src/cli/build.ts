@@ -9,14 +9,30 @@
  * 2. **Compile with pkg** - Create self-contained binary with Node.js runtime
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  copyFileSync,
+  chmodSync,
+  createWriteStream,
+} from "node:fs";
 import { dirname, resolve, basename, join, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { styleText } from "node:util";
-import { build as esbuild } from "esbuild";
+import { homedir } from "node:os";
+import { createHash } from "node:crypto";
+import { spawn, execSync } from "node:child_process";
 import ora, { type Ora } from "ora";
+import * as esbuild from "esbuild";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// Handle both ESM and CJS contexts for __dirname
+// When bundled to CJS, import.meta.url won't work, but global __dirname will
+const __dirname = typeof import.meta?.url === "string"
+  ? dirname(fileURLToPath(import.meta.url))
+  : (globalThis as any).__dirname || dirname(process.argv[1]);
 
 // Supported build targets
 export type Target = "darwin-arm64" | "darwin-x64" | "linux-x64" | "linux-arm64" | "host";
@@ -273,8 +289,10 @@ async function bundleUserScript(ctx: BuildContext): Promise<string> {
     console.log(`  Bundling ${ctx.entryPath}...`);
   }
 
+  // Note: When running from a compiled binary, ESBUILD_BINARY_PATH is set
+  // by main-pkg.cjs before this module loads.
   try {
-    await esbuild({
+    await esbuild.build({
       entryPoints: [ctx.entryPath],
       bundle: true,
       platform: "node",
@@ -394,17 +412,447 @@ function copyThinkwellBundles(ctx: BuildContext): void {
 }
 
 /**
+ * Check if running from a pkg-compiled binary.
+ */
+function isRunningFromCompiledBinary(): boolean {
+  // @ts-expect-error process.pkg is set by pkg at runtime
+  return typeof process.pkg !== "undefined";
+}
+
+// ============================================================================
+// Portable Node.js Download (for compiled binary builds)
+// ============================================================================
+
+/** Pinned Node.js version for portable runtime */
+const PORTABLE_NODE_VERSION = "24.1.0";
+
+/** Get the thinkwell cache directory */
+function getCacheDir(): string {
+  return process.env.THINKWELL_CACHE_DIR || join(homedir(), ".cache", "thinkwell");
+}
+
+/** Get the thinkwell version from package.json */
+function getThinkwellVersion(): string {
+  try {
+    const pkgPath = resolve(__dirname, "../../package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
+ * Map process.platform/arch to Node.js download format.
+ */
+function getNodePlatformArch(): { platform: string; arch: string } {
+  const platform = process.platform === "darwin" ? "darwin" : "linux";
+  const arch = process.arch; // x64 or arm64
+  return { platform, arch };
+}
+
+/**
+ * Download a file from a URL with progress reporting.
+ */
+async function downloadFile(
+  url: string,
+  destPath: string,
+  spinner?: Ora
+): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`);
+  }
+
+  const contentLength = response.headers.get("content-length");
+  const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+
+  // Ensure directory exists
+  mkdirSync(dirname(destPath), { recursive: true });
+
+  const fileStream = createWriteStream(destPath);
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response body");
+  }
+
+  let downloadedBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      fileStream.write(Buffer.from(value));
+      downloadedBytes += value.length;
+
+      if (spinner && totalBytes > 0) {
+        const percent = Math.round((downloadedBytes / totalBytes) * 100);
+        const downloadedMB = (downloadedBytes / 1024 / 1024).toFixed(1);
+        const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
+        spinner.text = `Downloading Node.js runtime... ${downloadedMB} MB / ${totalMB} MB (${percent}%)`;
+      }
+    }
+  } finally {
+    fileStream.end();
+  }
+
+  // Wait for file to be fully written
+  await new Promise<void>((resolve, reject) => {
+    fileStream.on("finish", resolve);
+    fileStream.on("error", reject);
+  });
+}
+
+/**
+ * Compute SHA-256 hash of a file.
+ */
+function hashFile(filePath: string): string {
+  const content = readFileSync(filePath);
+  return createHash("sha256").update(content).digest("hex");
+}
+
+/**
+ * Fetch the expected SHA-256 checksum for a Node.js download.
+ */
+async function fetchExpectedChecksum(version: string, filename: string): Promise<string> {
+  const url = `https://nodejs.org/dist/v${version}/SHASUMS256.txt`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch checksums: ${response.status}`);
+  }
+
+  const text = await response.text();
+  for (const line of text.split("\n")) {
+    // Format: "hash  filename"
+    const parts = line.trim().split(/\s+/);
+    if (parts.length === 2 && parts[1] === filename) {
+      return parts[0];
+    }
+  }
+
+  throw new Error(`Checksum not found for ${filename}`);
+}
+
+/**
+ * Extract a .tar.gz archive using the system tar command.
+ */
+function extractTarGz(archivePath: string, destDir: string): void {
+  execSync(`tar -xzf "${archivePath}" -C "${destDir}"`, {
+    stdio: "pipe",
+  });
+}
+
+/**
+ * Ensure portable Node.js is available in the cache.
+ *
+ * Downloads from nodejs.org if not cached, verifies checksum, and extracts.
+ * Returns the path to the node binary.
+ */
+async function ensurePortableNode(spinner?: Ora): Promise<string> {
+  const version = PORTABLE_NODE_VERSION;
+  const { platform, arch } = getNodePlatformArch();
+  const cacheDir = join(getCacheDir(), "node", `v${version}`);
+  const nodeBinary = process.platform === "win32" ? "node.exe" : "node";
+  const nodePath = join(cacheDir, nodeBinary);
+
+  // Check if already cached
+  if (existsSync(nodePath)) {
+    return nodePath;
+  }
+
+  const filename = `node-v${version}-${platform}-${arch}.tar.gz`;
+  const url = `https://nodejs.org/dist/v${version}/${filename}`;
+  const archivePath = join(cacheDir, filename);
+
+  spinner?.start("Downloading Node.js runtime (first time only)...");
+
+  try {
+    // Ensure cache directory exists
+    mkdirSync(cacheDir, { recursive: true });
+
+    // Download
+    await downloadFile(url, archivePath, spinner);
+
+    // Verify checksum
+    spinner?.start("Verifying download integrity...");
+    const expectedHash = await fetchExpectedChecksum(version, filename);
+    const actualHash = hashFile(archivePath);
+
+    if (actualHash !== expectedHash) {
+      // Clean up the corrupted download
+      rmSync(archivePath, { force: true });
+      throw new Error(
+        `Node.js download verification failed.\n\n` +
+        `  Expected: ${expectedHash}\n` +
+        `  Actual:   ${actualHash}\n\n` +
+        `This may indicate a corrupted download or network interference.\n` +
+        `Please retry or report this issue.`
+      );
+    }
+
+    // Extract
+    spinner?.start("Extracting Node.js...");
+    extractTarGz(archivePath, cacheDir);
+
+    // Move node binary to cache root
+    // The tarball extracts to node-v{version}-{platform}-{arch}/bin/node
+    const extractedDir = join(cacheDir, `node-v${version}-${platform}-${arch}`);
+    const extractedBin = join(extractedDir, "bin", nodeBinary);
+    copyFileSync(extractedBin, nodePath);
+    chmodSync(nodePath, 0o755);
+
+    // Cleanup: remove extracted directory and archive
+    rmSync(extractedDir, { recursive: true, force: true });
+    rmSync(archivePath, { force: true });
+
+    spinner?.succeed(`Node.js v${version} cached to ${cacheDir}`);
+    return nodePath;
+  } catch (error) {
+    // Cleanup on error
+    rmSync(cacheDir, { recursive: true, force: true });
+
+    const message = error instanceof Error ? error.message : String(error);
+
+    // Provide helpful error messages
+    if (message.includes("ETIMEDOUT") || message.includes("ENOTFOUND")) {
+      throw new Error(
+        `Failed to download Node.js runtime.\n\n` +
+        `  URL: ${url}\n` +
+        `  Error: ${message}\n\n` +
+        `Check your network connection and try again.\n` +
+        `If behind a proxy, set HTTPS_PROXY environment variable.`
+      );
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Ensure the pkg CLI bundle and its auxiliary files are extracted from the
+ * compiled binary's assets.
+ *
+ * pkg requires several auxiliary files at runtime:
+ * - pkg-cli.cjs - The main bundled CLI
+ * - package.json - pkg's version info (read as ../package.json from cacheDir)
+ * - pkg-prelude/ - JavaScript files injected into compiled binaries
+ * - pkg-dictionary/ - Compression dictionaries for bytecode
+ * - pkg-common.cjs - Common utilities
+ *
+ * Returns the path to the extracted pkg-cli.cjs file.
+ */
+function ensurePkgCli(): string {
+  const version = getThinkwellVersion();
+  const pkgCliBaseDir = join(getCacheDir(), "pkg-cli");
+  const cacheDir = join(pkgCliBaseDir, version);
+  const pkgCliPath = join(cacheDir, "pkg-cli.cjs");
+
+  // Check if already cached (check for main file and a prelude file)
+  const preludeCheck = join(cacheDir, "pkg-prelude", "bootstrap.js");
+  if (existsSync(pkgCliPath) && existsSync(preludeCheck)) {
+    return pkgCliPath;
+  }
+
+  // Base path for pkg assets in the compiled binary's snapshot
+  const distPkgPath = resolve(__dirname, "../../dist-pkg");
+
+  // Extract main CLI bundle
+  const cliSrc = join(distPkgPath, "pkg-cli.cjs");
+  if (!existsSync(cliSrc)) {
+    throw new Error(
+      `pkg CLI not found in compiled binary assets.\n` +
+      `  Expected at: ${cliSrc}\n\n` +
+      `This may indicate a build issue. Please report this.`
+    );
+  }
+
+  mkdirSync(cacheDir, { recursive: true });
+  copyFileSync(cliSrc, pkgCliPath);
+
+  // Extract pkg's package.json (for version info)
+  // pkg reads ../package.json relative to __dirname (which is cacheDir)
+  // So we place it in the parent directory (pkgCliBaseDir)
+  const pkgJsonSrc = join(distPkgPath, "package.json");
+  if (existsSync(pkgJsonSrc)) {
+    copyFileSync(pkgJsonSrc, join(pkgCliBaseDir, "package.json"));
+  }
+
+  // Extract prelude files
+  const preludeDir = join(cacheDir, "pkg-prelude");
+  mkdirSync(preludeDir, { recursive: true });
+  for (const file of ["bootstrap.js", "diagnostic.js"]) {
+    const src = join(distPkgPath, "pkg-prelude", file);
+    if (existsSync(src)) {
+      copyFileSync(src, join(preludeDir, file));
+    }
+  }
+
+  // Extract common.js
+  const commonSrc = join(distPkgPath, "pkg-common.cjs");
+  if (existsSync(commonSrc)) {
+    copyFileSync(commonSrc, join(cacheDir, "pkg-common.cjs"));
+  }
+
+  // Extract dictionary files
+  // pkg reads ../dictionary relative to __dirname (which is cacheDir)
+  // So we place it in the parent directory (pkgCliBaseDir/dictionary/)
+  const dictionaryDir = join(pkgCliBaseDir, "dictionary");
+  mkdirSync(dictionaryDir, { recursive: true });
+  for (const file of ["v8-7.8.js", "v8-8.4.js", "v8-12.4.js"]) {
+    const src = join(distPkgPath, "pkg-dictionary", file);
+    if (existsSync(src)) {
+      copyFileSync(src, join(dictionaryDir, file));
+    }
+  }
+
+  return pkgCliPath;
+}
+
+/**
+ * Spawn a subprocess and wait for completion.
+ */
+function spawnAsync(
+  command: string,
+  args: string[],
+  options: {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+    verbose?: boolean;
+  } = {}
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const proc = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env || process.env,
+      stdio: options.verbose ? "inherit" : "pipe",
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    if (!options.verbose) {
+      proc.stdout?.on("data", (data) => {
+        stdout += data.toString();
+      });
+      proc.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+    }
+
+    proc.on("close", (code) => {
+      resolve({
+        exitCode: code ?? 1,
+        stdout,
+        stderr,
+      });
+    });
+
+    proc.on("error", (error) => {
+      resolve({
+        exitCode: 1,
+        stdout,
+        stderr: error.message,
+      });
+    });
+  });
+}
+
+/**
+ * Compile using pkg via subprocess (for compiled binary environment).
+ *
+ * This function is called when running from a compiled thinkwell binary.
+ * It downloads a portable Node.js runtime and uses the bundled pkg CLI
+ * to perform the compilation as a subprocess.
+ */
+async function compileWithPkgSubprocess(
+  ctx: BuildContext,
+  wrapperPath: string,
+  target: Exclude<Target, "host">,
+  outputPath: string,
+  spinner?: Ora
+): Promise<void> {
+  // Ensure portable Node.js is available
+  const nodePath = await ensurePortableNode(spinner);
+
+  // Extract pkg CLI from snapshot
+  const pkgCliPath = ensurePkgCli();
+
+  const pkgTarget = TARGET_MAP[target];
+
+  // Ensure output directory exists
+  const outputDir = dirname(outputPath);
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Build pkg CLI arguments
+  const args = [
+    pkgCliPath,
+    wrapperPath,
+    "--targets",
+    pkgTarget,
+    "--output",
+    outputPath,
+    "--options",
+    "experimental-transform-types,disable-warning=ExperimentalWarning",
+    "--public",
+  ];
+
+  // Add assets if specified
+  if (ctx.options.include && ctx.options.include.length > 0) {
+    for (const pattern of ctx.options.include) {
+      args.push("--assets", pattern);
+    }
+  }
+
+  spinner?.start(`Compiling for ${target}...`);
+
+  const result = await spawnAsync(nodePath, args, {
+    cwd: ctx.buildDir,
+    env: {
+      ...process.env,
+      // Set pkg cache path for pkg-fetch downloads
+      PKG_CACHE_PATH: join(getCacheDir(), "pkg-cache"),
+    },
+    verbose: ctx.options.verbose,
+  });
+
+  if (result.exitCode !== 0) {
+    const errorOutput = result.stderr || result.stdout;
+    throw new Error(
+      `pkg compilation failed for ${target}.\n\n` +
+      `Exit code: ${result.exitCode}\n` +
+      (errorOutput ? `Output:\n${errorOutput}` : "")
+    );
+  }
+}
+
+/**
  * Stage 2: Compile with pkg.
  *
  * Uses @yao-pkg/pkg to create a self-contained binary.
+ *
+ * When running from a compiled thinkwell binary, this function uses a
+ * subprocess approach: downloading a portable Node.js runtime and executing
+ * the bundled pkg CLI as a child process. This works around pkg's dynamic
+ * import limitations in the virtual filesystem.
+ *
+ * When running from npm/source, this function uses @yao-pkg/pkg programmatically.
  */
 async function compileWithPkg(
   ctx: BuildContext,
   wrapperPath: string,
   target: Exclude<Target, "host">,
-  outputPath: string
+  outputPath: string,
+  spinner?: Ora
 ): Promise<void> {
-  // Dynamic import of pkg
+  // When running from a compiled binary, use subprocess approach
+  if (isRunningFromCompiledBinary()) {
+    await compileWithPkgSubprocess(ctx, wrapperPath, target, outputPath, spinner);
+    return;
+  }
+
+  // Normal path: use pkg programmatically
   const { exec } = await import("@yao-pkg/pkg");
 
   const pkgTarget = TARGET_MAP[target];
@@ -639,7 +1087,7 @@ export async function runBuild(options: BuildOptions): Promise<void> {
       spinner = createSpinner(ctx, `Compiling for ${target}...`);
       spinner.start();
 
-      await compileWithPkg(ctx, wrapperPath, target, outputPath);
+      await compileWithPkg(ctx, wrapperPath, target, outputPath, spinner);
       outputs.push(outputPath);
 
       spinner.succeed(`Built ${basename(outputPath)}`);

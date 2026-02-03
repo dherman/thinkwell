@@ -13,19 +13,33 @@
  *   dist-pkg/acp.cjs            - bundled @thinkwell/acp package
  *   dist-pkg/protocol.cjs       - bundled @thinkwell/protocol package
  *   dist-pkg/cli-loader.cjs     - bundled CLI loader (includes schema processing)
+ *   dist-pkg/cli-build.cjs      - bundled build command
+ *   dist-pkg/pkg-cli.cjs        - bundled @yao-pkg/pkg CLI for subprocess execution
+ *   dist-pkg/esbuild-bin/       - esbuild binaries for each platform
  */
 
 import { build } from "esbuild";
-import { mkdirSync, existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdirSync, existsSync, copyFileSync, chmodSync } from "node:fs";
+import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { bundlePkgCli } from "./bundle-pkg-cli.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = resolve(__dirname, "..");
 const OUTPUT_DIR = resolve(ROOT_DIR, "dist-pkg");
 
+// Package configuration type
+interface PackageConfig {
+  name: string;
+  entryPoint: string;
+  output: string;
+  /** Mark these packages as external (don't bundle them) */
+  external?: string[];
+}
+
 // Packages to bundle
-const PACKAGES = [
+const PACKAGES: PackageConfig[] = [
   {
     name: "thinkwell",
     entryPoint: resolve(ROOT_DIR, "dist/index.js"),
@@ -46,10 +60,22 @@ const PACKAGES = [
     entryPoint: resolve(ROOT_DIR, "dist/cli/loader.js"),
     output: "cli-loader.cjs",
   },
+  {
+    name: "cli-build",
+    entryPoint: resolve(ROOT_DIR, "dist/cli/build.js"),
+    output: "cli-build.cjs",
+    // NOTE: esbuild is NOT marked as external - we bundle its JS code, but its native binary
+    // is extracted separately via extractEsbuildBinary() and ESBUILD_BINARY_PATH
+    // @yao-pkg/pkg is external because it's only used at build time (not inside the compiled binary)
+    external: ["@yao-pkg/pkg"],
+  },
 ];
 
-async function bundlePackage(pkg: (typeof PACKAGES)[number]): Promise<void> {
+async function bundlePackage(pkg: PackageConfig): Promise<void> {
   console.log(`Bundling ${pkg.name}...`);
+
+  // Combine default externals with package-specific externals
+  const externals = ["node:*", ...(pkg.external || [])];
 
   await build({
     entryPoints: [pkg.entryPoint],
@@ -57,11 +83,8 @@ async function bundlePackage(pkg: (typeof PACKAGES)[number]): Promise<void> {
     platform: "node",
     format: "cjs",
     outfile: resolve(OUTPUT_DIR, pkg.output),
-    // Don't bundle Node.js built-ins
-    external: ["node:*"],
-    // Mark @agentclientprotocol/sdk as external - it will be bundled by pkg separately
-    // Actually, let's bundle it to avoid resolution issues
-    // external: ["@agentclientprotocol/sdk"],
+    // Don't bundle Node.js built-ins and package-specific externals
+    external: externals,
     sourcemap: false,
     minify: false,
     // Preserve names for debugging
@@ -72,6 +95,54 @@ async function bundlePackage(pkg: (typeof PACKAGES)[number]): Promise<void> {
   });
 
   console.log(`  ✓ ${pkg.output}`);
+}
+
+/**
+ * Copy esbuild platform binaries to dist-pkg for embedding in the pkg binary.
+ *
+ * This is necessary because pnpm's node_modules structure doesn't work well
+ * with pkg's asset resolution. We copy the binaries to a known location
+ * (dist-pkg/esbuild-bin/<platform>/esbuild) that the compiled binary can access.
+ */
+function copyEsbuildBinaries(): void {
+  console.log("Copying esbuild binaries...");
+
+  const require = createRequire(import.meta.url);
+
+  // Platforms we support
+  const platforms = [
+    "darwin-arm64",
+    "darwin-x64",
+    "linux-x64",
+    "linux-arm64",
+  ];
+
+  const esbuildBinDir = join(OUTPUT_DIR, "esbuild-bin");
+  mkdirSync(esbuildBinDir, { recursive: true });
+
+  for (const platform of platforms) {
+    const pkgName = `@esbuild/${platform}`;
+    try {
+      // Use require.resolve to find the package through pnpm's symlinks
+      const pkgPath = require.resolve(`${pkgName}/package.json`);
+      const pkgDir = dirname(pkgPath);
+      const binaryPath = join(pkgDir, "bin", "esbuild");
+
+      if (existsSync(binaryPath)) {
+        const destDir = join(esbuildBinDir, platform);
+        mkdirSync(destDir, { recursive: true });
+        const destPath = join(destDir, "esbuild");
+        copyFileSync(binaryPath, destPath);
+        chmodSync(destPath, 0o755);
+        console.log(`  ✓ ${platform}`);
+      } else {
+        console.log(`  - ${platform} (not installed on this system)`);
+      }
+    } catch {
+      // Package not installed (expected for non-current platforms)
+      console.log(`  - ${platform} (not installed)`);
+    }
+  }
 }
 
 async function main(): Promise<void> {
@@ -95,6 +166,12 @@ async function main(): Promise<void> {
   for (const pkg of PACKAGES) {
     await bundlePackage(pkg);
   }
+
+  // Copy esbuild binaries
+  copyEsbuildBinaries();
+
+  // Bundle pkg CLI for subprocess execution from compiled binary
+  await bundlePkgCli();
 
   console.log("\nPre-bundling completed successfully!");
   console.log(`CJS bundles are in: ${OUTPUT_DIR}`);
