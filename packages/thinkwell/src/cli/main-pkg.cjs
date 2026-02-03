@@ -17,7 +17,7 @@ const { existsSync } = require("node:fs");
 const { resolve, isAbsolute } = require("node:path");
 
 // Version must be updated manually to match package.json
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 
 // ============================================================================
 // Bundled Module Registration
