@@ -53,6 +53,7 @@
     "@thinkwell/bun-plugin": "workspace:*",
     "@thinkwell/conductor": "workspace:*",
     "@thinkwell/protocol": "workspace:*",
+    "ora": "^9.1.0",
     "ts-json-schema-generator": "^2.4.0",
     "typescript": "^5.7.2"
   },

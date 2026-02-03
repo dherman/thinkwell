@@ -13,11 +13,11 @@ This plan implements the `thinkwell build` command as described in [RFD: user-bu
 
 ## Phase 2: User Experience
 
-- [ ] Add progress indicators (spinner during bundling, step completion checkmarks)
-- [ ] Implement `--dry-run` flag to show what would be built
-- [ ] Add helpful error messages for common failures (missing dependencies, unsupported platform)
-- [ ] Detect and warn about top-level await usage (not supported)
-- [ ] Support `--quiet` flag for CI environments
+- [x] Add progress indicators (spinner during bundling, step completion checkmarks)
+- [x] Implement `--dry-run` flag to show what would be built
+- [x] Add helpful error messages for common failures (missing dependencies, unsupported platform)
+- [x] Detect and warn about top-level await usage (not supported)
+- [x] Support `--quiet` flag for CI environments
 
 ## Phase 3: Advanced Features
 

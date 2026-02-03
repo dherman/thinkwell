@@ -12,7 +12,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { dirname, resolve, basename, join, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
+import { styleText } from "node:util";
 import { build as esbuild } from "esbuild";
+import ora, { type Ora } from "ora";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -54,6 +56,10 @@ export interface BuildOptions {
   include?: string[];
   /** Show detailed build output */
   verbose?: boolean;
+  /** Suppress all non-error output (for CI environments) */
+  quiet?: boolean;
+  /** Show what would be built without actually building */
+  dryRun?: boolean;
 }
 
 interface BuildContext {
@@ -114,6 +120,10 @@ export function parseBuildArgs(args: string[]): BuildOptions {
       options.include!.push(args[i]);
     } else if (arg === "--verbose" || arg === "-v") {
       options.verbose = true;
+    } else if (arg === "--quiet" || arg === "-q") {
+      options.quiet = true;
+    } else if (arg === "--dry-run" || arg === "-n") {
+      options.dryRun = true;
     } else if (arg.startsWith("-")) {
       throw new Error(`Unknown option: ${arg}`);
     } else {
@@ -149,7 +159,13 @@ function initBuildContext(options: BuildOptions): BuildContext {
     : resolve(process.cwd(), options.entry);
 
   if (!existsSync(entryPath)) {
-    throw new Error(`Entry file not found: ${options.entry}`);
+    const suggestion = options.entry.endsWith(".ts") || options.entry.endsWith(".js")
+      ? ""
+      : "\n  Did you mean to add a .ts or .js extension?";
+    throw new Error(
+      `Entry file not found: ${options.entry}${suggestion}\n` +
+      `  Working directory: ${process.cwd()}`
+    );
   }
 
   const entryBasename = basename(entryPath).replace(/\.(ts|js|mts|mjs|cts|cjs)$/, "");
@@ -164,8 +180,9 @@ function initBuildContext(options: BuildOptions): BuildContext {
   const thinkwellDistPkg = resolve(__dirname, "../../dist-pkg");
   if (!existsSync(thinkwellDistPkg)) {
     throw new Error(
-      `Thinkwell dist-pkg not found at ${thinkwellDistPkg}. ` +
-      `This may indicate a corrupted installation.`
+      `Thinkwell dist-pkg not found at ${thinkwellDistPkg}.\n` +
+      `  This may indicate a corrupted installation.\n` +
+      `  Try reinstalling thinkwell: npm install thinkwell`
     );
   }
 
@@ -256,19 +273,20 @@ async function bundleUserScript(ctx: BuildContext): Promise<string> {
     console.log(`  Bundling ${ctx.entryPath}...`);
   }
 
-  await esbuild({
-    entryPoints: [ctx.entryPath],
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    outfile: outputFile,
-    // External: Node built-ins
-    external: ["node:*"],
-    // Mark thinkwell packages as external - they're provided via global.__bundled__
-    // But actually, we need to transform the imports, so let's bundle them
-    // and use a banner to set up the module aliases
-    banner: {
-      js: `
+  try {
+    await esbuild({
+      entryPoints: [ctx.entryPath],
+      bundle: true,
+      platform: "node",
+      format: "cjs",
+      outfile: outputFile,
+      // External: Node built-ins
+      external: ["node:*"],
+      // Mark thinkwell packages as external - they're provided via global.__bundled__
+      // But actually, we need to transform the imports, so let's bundle them
+      // and use a banner to set up the module aliases
+      banner: {
+        js: `
 // Alias thinkwell packages to global.__bundled__
 const __origRequire = require;
 require = function(id) {
@@ -288,42 +306,66 @@ require.cache = __origRequire.cache;
 require.extensions = __origRequire.extensions;
 require.main = __origRequire.main;
 `,
-    },
-    // Resolve thinkwell imports to bundled versions during bundle time
-    plugins: [
-      {
-        name: "thinkwell-resolver",
-        setup(build) {
-          // Resolve thinkwell:* imports to the npm package
-          build.onResolve({ filter: /^thinkwell:/ }, (args) => {
-            const moduleName = args.path.replace("thinkwell:", "");
-            const moduleMap: Record<string, string> = {
-              agent: "thinkwell",
-              acp: "@thinkwell/acp",
-              protocol: "@thinkwell/protocol",
-              connectors: "thinkwell",
-            };
-            const resolved = moduleMap[moduleName];
-            if (resolved) {
-              // Mark as external - will be provided by global.__bundled__ at runtime
-              return { path: resolved, external: true };
-            }
-            return null;
-          });
-
-          // Mark thinkwell packages as external
-          build.onResolve({ filter: /^(thinkwell|@thinkwell\/(acp|protocol))$/ }, (args) => {
-            return { path: args.path, external: true };
-          });
-        },
       },
-    ],
-    sourcemap: false,
-    minify: false,
-    keepNames: true,
-    target: "node24",
-    logLevel: ctx.options.verbose ? "info" : "silent",
-  });
+      // Resolve thinkwell imports to bundled versions during bundle time
+      plugins: [
+        {
+          name: "thinkwell-resolver",
+          setup(build) {
+            // Resolve thinkwell:* imports to the npm package
+            build.onResolve({ filter: /^thinkwell:/ }, (args) => {
+              const moduleName = args.path.replace("thinkwell:", "");
+              const moduleMap: Record<string, string> = {
+                agent: "thinkwell",
+                acp: "@thinkwell/acp",
+                protocol: "@thinkwell/protocol",
+                connectors: "thinkwell",
+              };
+              const resolved = moduleMap[moduleName];
+              if (resolved) {
+                // Mark as external - will be provided by global.__bundled__ at runtime
+                return { path: resolved, external: true };
+              }
+              return null;
+            });
+
+            // Mark thinkwell packages as external
+            build.onResolve({ filter: /^(thinkwell|@thinkwell\/(acp|protocol))$/ }, (args) => {
+              return { path: args.path, external: true };
+            });
+          },
+        },
+      ],
+      sourcemap: false,
+      minify: false,
+      keepNames: true,
+      target: "node24",
+      logLevel: ctx.options.verbose ? "info" : "silent",
+    });
+  } catch (error) {
+    // Provide helpful error messages for common failures
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes("Could not resolve")) {
+      const match = message.match(/Could not resolve "([^"]+)"/);
+      const moduleName = match ? match[1] : "unknown module";
+      throw new Error(
+        `Could not resolve dependency "${moduleName}".\n` +
+        `  Make sure all dependencies are installed: npm install\n` +
+        `  If this is a dev dependency, it may need to be a regular dependency.`
+      );
+    }
+
+    if (message.includes("No loader is configured")) {
+      throw new Error(
+        `Unsupported file type in import.\n` +
+        `  esbuild cannot bundle this file type by default.\n` +
+        `  Consider using --include to embed the file as an asset instead.`
+      );
+    }
+
+    throw error;
+  }
 
   return outputFile;
 }
@@ -367,10 +409,6 @@ async function compileWithPkg(
 
   const pkgTarget = TARGET_MAP[target];
 
-  if (ctx.options.verbose) {
-    console.log(`  Compiling for ${target}...`);
-  }
-
   // Ensure output directory exists
   const outputDir = dirname(outputPath);
   if (!existsSync(outputDir)) {
@@ -399,13 +437,168 @@ async function compileWithPkg(
   await exec(pkgConfig);
 }
 
+// ============================================================================
+// Top-Level Await Detection
+// ============================================================================
+
+/**
+ * Detect top-level await usage in the entry file.
+ * Returns an array of line numbers where top-level await is found.
+ */
+function detectTopLevelAwait(filePath: string): number[] {
+  const content = readFileSync(filePath, "utf-8");
+  const lines = content.split("\n");
+  const awaits: number[] = [];
+
+  // Track nesting depth of functions/classes
+  let depth = 0;
+  let inMultiLineComment = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    // Handle multi-line comments
+    if (inMultiLineComment) {
+      const endIdx = line.indexOf("*/");
+      if (endIdx !== -1) {
+        line = line.slice(endIdx + 2);
+        inMultiLineComment = false;
+      } else {
+        continue;
+      }
+    }
+
+    // Remove single-line comments
+    const singleLineCommentIdx = line.indexOf("//");
+    if (singleLineCommentIdx !== -1) {
+      line = line.slice(0, singleLineCommentIdx);
+    }
+
+    // Handle multi-line comment start
+    const multiLineStart = line.indexOf("/*");
+    if (multiLineStart !== -1) {
+      const multiLineEnd = line.indexOf("*/", multiLineStart);
+      if (multiLineEnd !== -1) {
+        line = line.slice(0, multiLineStart) + line.slice(multiLineEnd + 2);
+      } else {
+        line = line.slice(0, multiLineStart);
+        inMultiLineComment = true;
+      }
+    }
+
+    // Count function/class/arrow function depth changes
+    // This is a simplified heuristic - not a full parser
+    const openBraces = (line.match(/\{/g) || []).length;
+    const closeBraces = (line.match(/\}/g) || []).length;
+
+    // Check for function/class/arrow declarations that increase depth
+    if (/\b(function|class|async\s+function)\b/.test(line) && line.includes("{")) {
+      depth += 1;
+    } else if (/=>\s*\{/.test(line)) {
+      depth += 1;
+    }
+
+    // Adjust depth for brace changes (simplified)
+    depth += openBraces - closeBraces;
+    if (depth < 0) depth = 0;
+
+    // Check for await at top level (depth 0)
+    if (depth === 0 && /\bawait\b/.test(line)) {
+      // Make sure it's not inside a string
+      const withoutStrings = line.replace(/(["'`])(?:(?!\1)[^\\]|\\.)*\1/g, "");
+      if (/\bawait\b/.test(withoutStrings)) {
+        awaits.push(i + 1); // 1-indexed line numbers
+      }
+    }
+  }
+
+  return awaits;
+}
+
+// ============================================================================
+// Output Helpers
+// ============================================================================
+
+/** Log output respecting quiet mode */
+function log(ctx: BuildContext, message: string): void {
+  if (!ctx.options.quiet) {
+    console.log(message);
+  }
+}
+
+/** Create a spinner respecting quiet mode */
+function createSpinner(ctx: BuildContext, text: string): Ora {
+  return ora({
+    text,
+    isSilent: ctx.options.quiet,
+  });
+}
+
+/**
+ * Run a dry-run build that shows what would be built without actually building.
+ */
+function runDryRun(ctx: BuildContext): void {
+  console.log(styleText("bold", "Dry run mode - no files will be created\n"));
+
+  console.log(styleText("bold", "Entry point:"));
+  console.log(`  ${ctx.entryPath}\n`);
+
+  console.log(styleText("bold", "Targets:"));
+  for (const target of ctx.resolvedTargets) {
+    const outputPath = getOutputPath(ctx, target);
+    console.log(`  ${target} → ${outputPath}`);
+  }
+  console.log();
+
+  if (ctx.options.include && ctx.options.include.length > 0) {
+    console.log(styleText("bold", "Assets to include:"));
+    for (const pattern of ctx.options.include) {
+      console.log(`  ${pattern}`);
+    }
+    console.log();
+  }
+
+  console.log(styleText("bold", "Build steps:"));
+  console.log("  1. Bundle user script with esbuild");
+  console.log("  2. Copy thinkwell packages");
+  console.log("  3. Generate wrapper entry point");
+  console.log(`  4. Compile with pkg for ${ctx.resolvedTargets.length} target(s)`);
+  console.log();
+
+  // Check for potential issues
+  const topLevelAwaits = detectTopLevelAwait(ctx.entryPath);
+  if (topLevelAwaits.length > 0) {
+    console.log(styleText("yellow", "Warning: Top-level await detected"));
+    console.log("  Top-level await is not supported in compiled binaries.");
+    console.log(`  Found at line(s): ${topLevelAwaits.join(", ")}`);
+    console.log("  Wrap async code in an async main() function instead.\n");
+  }
+
+  console.log(styleText("dim", "Run without --dry-run to build."));
+}
+
 /**
  * Main build function.
  */
 export async function runBuild(options: BuildOptions): Promise<void> {
   const ctx = initBuildContext(options);
 
-  console.log(`Building ${ctx.entryBasename}...\n`);
+  // Check for top-level await and warn
+  const topLevelAwaits = detectTopLevelAwait(ctx.entryPath);
+  if (topLevelAwaits.length > 0) {
+    console.log(styleText("yellow", "Warning: Top-level await detected"));
+    console.log("  Top-level await is not supported in compiled binaries.");
+    console.log(`  Found at line(s): ${topLevelAwaits.join(", ")}`);
+    console.log("  Wrap async code in an async main() function instead.\n");
+  }
+
+  // Handle dry-run mode
+  if (options.dryRun) {
+    runDryRun(ctx);
+    return;
+  }
+
+  log(ctx, `Building ${styleText("bold", ctx.entryBasename)}...\n`);
 
   // Create build directory
   if (existsSync(ctx.buildDir)) {
@@ -415,14 +608,18 @@ export async function runBuild(options: BuildOptions): Promise<void> {
 
   try {
     // Stage 1: Bundle user script
-    console.log("Stage 1: Bundling with esbuild");
-    const userBundlePath = await bundleUserScript(ctx);
-    console.log("  ✓ User script bundled\n");
+    let spinner = createSpinner(ctx, "Bundling with esbuild...");
+    spinner.start();
 
-    // Copy thinkwell bundles
-    console.log("Stage 2: Preparing thinkwell packages");
+    const userBundlePath = await bundleUserScript(ctx);
+    spinner.succeed("User script bundled");
+
+    // Stage 2: Copy thinkwell bundles
+    spinner = createSpinner(ctx, "Preparing thinkwell packages...");
+    spinner.start();
+
     copyThinkwellBundles(ctx);
-    console.log("  ✓ Thinkwell packages ready\n");
+    spinner.succeed("Thinkwell packages ready");
 
     // Generate wrapper
     const wrapperPath = join(ctx.buildDir, "wrapper.cjs");
@@ -430,24 +627,30 @@ export async function runBuild(options: BuildOptions): Promise<void> {
     writeFileSync(wrapperPath, wrapperSource);
 
     if (ctx.options.verbose) {
-      console.log("  ✓ Generated wrapper entry point\n");
+      log(ctx, "  Generated wrapper entry point");
     }
 
-    // Stage 2: Compile with pkg for each target
-    console.log("Stage 3: Compiling with pkg");
+    // Stage 3: Compile with pkg for each target
     const outputs: string[] = [];
 
     for (const target of ctx.resolvedTargets) {
       const outputPath = getOutputPath(ctx, target);
+
+      spinner = createSpinner(ctx, `Compiling for ${target}...`);
+      spinner.start();
+
       await compileWithPkg(ctx, wrapperPath, target, outputPath);
       outputs.push(outputPath);
-      console.log(`  ✓ ${basename(outputPath)}`);
+
+      spinner.succeed(`Built ${basename(outputPath)}`);
     }
 
-    console.log("\nBuild complete!");
-    console.log("\nOutput:");
+    log(ctx, "");
+    log(ctx, styleText("green", "Build complete!"));
+    log(ctx, "");
+    log(ctx, styleText("bold", "Output:"));
     for (const output of outputs) {
-      console.log(`  ${output}`);
+      log(ctx, `  ${output}`);
     }
   } finally {
     // Clean up build directory
@@ -458,7 +661,7 @@ export async function runBuild(options: BuildOptions): Promise<void> {
         // Ignore cleanup errors
       }
     } else {
-      console.log(`\nBuild artifacts preserved in: ${ctx.buildDir}`);
+      log(ctx, `\nBuild artifacts preserved in: ${ctx.buildDir}`);
     }
   }
 }
@@ -480,7 +683,9 @@ Options:
   -o, --output <path>    Output file path (default: ./<name>-<target>)
   -t, --target <target>  Target platform (can be specified multiple times)
   --include <glob>       Additional files to embed as assets
-  --verbose              Show detailed build output
+  -n, --dry-run          Show what would be built without building
+  -q, --quiet            Suppress all output except errors (for CI)
+  -v, --verbose          Show detailed build output
   -h, --help             Show this help message
 
 Targets:
@@ -495,6 +700,7 @@ Examples:
   thinkwell build src/agent.ts -o dist/my-agent    Specify output path
   thinkwell build src/agent.ts --target linux-x64  Build for Linux
   thinkwell build src/agent.ts -t darwin-arm64 -t linux-x64  Multi-platform
+  thinkwell build src/agent.ts --dry-run           Preview build without executing
 
 The resulting binary is self-contained and includes:
   - Node.js 24 runtime with TypeScript support
