@@ -35,7 +35,7 @@ import { runInit } from "./init-command.js";
 import { parseBuildArgs, runBuild as executeBuild, showBuildHelp } from "./build.js";
 
 // Version must be updated manually to match package.json
-const VERSION = "0.4.2";
+const VERSION = "0.4.3";
 
 function showHelp(): void {
   console.log(`

@@ -1,6 +1,6 @@
 {
   "name": "@thinkwell/acp",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "TypeScript implementation of ACP (Agent Client Protocol) extensions for Thinkwell",
   "type": "module",
   "main": "./dist/index.js",
