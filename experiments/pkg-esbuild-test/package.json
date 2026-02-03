@@ -1,0 +1,13 @@
+{
+  "name": "pkg-esbuild-test",
+  "version": "1.0.0",
+  "description": "Test whether esbuild can be embedded in a pkg binary",
+  "type": "module",
+  "scripts": {
+    "build": "npx pkg main.js --targets node24-macos-arm64 --output dist/test-esbuild --public",
+    "test": "node main.js"
+  },
+  "dependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

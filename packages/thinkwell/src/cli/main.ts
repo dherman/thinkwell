@@ -32,6 +32,7 @@ registerModule("@thinkwell/acp", thinkwellAcp as Record<string, unknown>);
 registerModule("@thinkwell/protocol", thinkwellProtocol as Record<string, unknown>);
 
 import { runInit } from "./init-command.js";
+import { parseBuildArgs, runBuild as executeBuild, showBuildHelp } from "./build.js";
 
 // Version must be updated manually to match package.json
 const VERSION = "0.4.0";
@@ -43,6 +44,7 @@ thinkwell - Run TypeScript scripts with automatic schema generation
 Usage:
   thinkwell <script.ts> [args...]     Run a TypeScript script
   thinkwell run <script.ts> [args...] Explicit run command
+  thinkwell build <script.ts>         Compile to standalone executable
   thinkwell init [project-name]       Initialize a new project
   thinkwell types [dir]               Generate .d.ts files for IDE support
   thinkwell types --watch [dir]       Watch and regenerate .d.ts files
@@ -52,6 +54,7 @@ Usage:
 Examples:
   thinkwell hello.ts                 Run hello.ts
   thinkwell run hello.ts --verbose   Run with arguments
+  thinkwell build src/agent.ts       Compile to binary
   thinkwell init my-agent            Create a new project
   ./script.ts                        Via shebang: #!/usr/bin/env thinkwell
   thinkwell types                    Generate declarations in current dir
@@ -244,6 +247,27 @@ async function main(): Promise<void> {
   // Handle "types" subcommand
   if (args[0] === "types") {
     await runTypes(args.slice(1));
+    process.exit(0);
+  }
+
+  // Handle "build" subcommand
+  if (args[0] === "build") {
+    const buildArgs = args.slice(1);
+    if (buildArgs.includes("--help") || buildArgs.includes("-h")) {
+      showBuildHelp();
+      process.exit(0);
+    }
+    try {
+      const options = parseBuildArgs(buildArgs);
+      await executeBuild(options);
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error(`Error: ${error.message}`);
+      } else {
+        console.error(`Error: ${error}`);
+      }
+      process.exit(1);
+    }
     process.exit(0);
   }
 

@@ -1,0 +1,12 @@
+{
+  "name": "pkg-esbuild-test",
+  "pkg": {
+    "scripts": ["main.cjs"],
+    "assets": [
+      "node_modules/@esbuild/**/*",
+      "node_modules/esbuild/**/*"
+    ],
+    "targets": ["node22-macos-arm64"],
+    "outputPath": "dist"
+  }
+}

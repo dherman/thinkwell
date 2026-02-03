@@ -1,5 +1,22 @@
 This repository contains the TypeScript implementation of the Thinkwell library and the Agent Client Protocol (ACP) extensions.
 
+## Runtime and Build Tooling
+
+**This project uses Node.js 24+ and pkg for binary distribution. Do not use Bun.**
+
+We previously attempted to use Bun for compiled binaries but encountered fundamental limitations with module resolution from Bun's virtual filesystem (`/$bunfs/`). User scripts could not import packages from their own `node_modules`. See [doc/rfd/pkg-migration.md](doc/rfd/pkg-migration.md) for the full analysis.
+
+**Current toolchain:**
+- **Runtime:** Node.js 24+ with `--experimental-transform-types` for native TypeScript
+- **Package manager:** pnpm
+- **Binary packaging:** [@yao-pkg/pkg](https://github.com/yao-pkg/pkg) (not the archived vercel/pkg)
+- **Bundling:** esbuild for pre-bundling ESM to CJS before pkg compilation
+
+**Do not:**
+- Use `bun` commands or Bun APIs
+- Suggest migrating to Bun
+- Use `bun build --compile` for binary distribution
+
 ## Conventional Commits
 
 This repository uses **Conventional Commits** for clarity and, in the future, to support release automation. All commit messages should follow this format:

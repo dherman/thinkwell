@@ -58,6 +58,11 @@ function getTypesCommandPath() {
   return resolve(__dirname, "../dist/cli/types-command.js");
 }
 
+// Get the path to the build command script
+function getBuildCommandPath() {
+  return resolve(__dirname, "../dist/cli/build.js");
+}
+
 // Get the path to the bundled CLI loader
 function getLoaderPath() {
   return resolve(__dirname, "../dist-pkg/cli-loader.cjs");
@@ -165,6 +170,7 @@ thinkwell - Run TypeScript scripts with automatic schema generation
 Usage:
   thinkwell <script.ts> [args...]     Run a TypeScript script
   thinkwell run <script.ts> [args...] Explicit run command
+  thinkwell build <script.ts>         Compile to standalone executable
   thinkwell init [project-name]       Initialize a new project
   thinkwell types [dir]               Generate .d.ts files for IDE support
   thinkwell types --watch [dir]       Watch and regenerate .d.ts files
@@ -174,6 +180,7 @@ Usage:
 Examples:
   thinkwell hello.ts                 Run hello.ts
   thinkwell run hello.ts --verbose   Run with arguments
+  thinkwell build src/agent.ts       Compile to binary
   thinkwell init my-agent            Create a new project
   ./script.ts                        Via shebang: #!/usr/bin/env thinkwell
   thinkwell types                    Generate declarations in current dir
@@ -276,6 +283,37 @@ async function runUserScript(scriptPath, args) {
 }
 
 /**
+ * Run the build command to compile scripts into standalone executables.
+ */
+async function runBuildCommand(args) {
+  const buildCommandPath = getBuildCommandPath();
+  if (!existsSync(buildCommandPath)) {
+    console.error("Error: thinkwell installation appears to be corrupted.");
+    console.error(`  - Build command not found: ${buildCommandPath}`);
+    console.error("\nTry reinstalling with: npm install thinkwell");
+    process.exit(1);
+  }
+
+  // Import and run the build command
+  const { parseBuildArgs, runBuild, showBuildHelp } = await import(buildCommandPath);
+
+  // Check for help flag
+  if (args.includes("--help") || args.includes("-h")) {
+    showBuildHelp();
+    process.exit(0);
+  }
+
+  try {
+    const options = parseBuildArgs(args);
+    await runBuild(options);
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+/**
  * Run the types command.
  *
  * The types command uses the same loader infrastructure to process
@@ -327,8 +365,12 @@ async function main() {
     process.exit(0);
   }
 
-  // Handle --help (global)
-  if (args.includes("--help") || args.includes("-h") || args.length === 0) {
+  // Handle --help (global) - but not if it's a subcommand's help
+  // e.g., "thinkwell build --help" should show build help, not global help
+  const subcommands = ["init", "build", "types", "run"];
+  const firstArg = args[0];
+  const isSubcommandHelp = subcommands.includes(firstArg) && (args.includes("--help") || args.includes("-h"));
+  if (!isSubcommandHelp && (args.includes("--help") || args.includes("-h") || args.length === 0)) {
     showHelp();
     process.exit(0);
   }
@@ -343,6 +385,12 @@ async function main() {
   // Handle "types" subcommand
   if (args[0] === "types") {
     await runTypesCommand(args.slice(1));
+    return;
+  }
+
+  // Handle "build" subcommand
+  if (args[0] === "build") {
+    await runBuildCommand(args.slice(1));
     return;
   }
 
