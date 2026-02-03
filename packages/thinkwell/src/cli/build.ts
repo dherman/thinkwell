@@ -18,6 +18,7 @@ import {
   copyFileSync,
   chmodSync,
   createWriteStream,
+  watch as fsWatch,
 } from "node:fs";
 import { dirname, resolve, basename, join, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,12 +71,116 @@ export interface BuildOptions {
   targets?: Target[];
   /** Additional files to embed as assets */
   include?: string[];
+  /** Packages to exclude from bundling (kept as external imports) */
+  external?: string[];
   /** Show detailed build output */
   verbose?: boolean;
   /** Suppress all non-error output (for CI environments) */
   quiet?: boolean;
   /** Show what would be built without actually building */
   dryRun?: boolean;
+  /** Minify the bundled output for smaller binaries */
+  minify?: boolean;
+  /** Watch for changes and rebuild automatically */
+  watch?: boolean;
+}
+
+/**
+ * Configuration that can be specified in package.json under "thinkwell.build".
+ */
+export interface PackageJsonBuildConfig {
+  /** Default output path */
+  output?: string;
+  /** Default target platforms */
+  targets?: Target[];
+  /** Default assets to include */
+  include?: string[];
+  /** Default packages to exclude from bundling */
+  external?: string[];
+  /** Default minification setting */
+  minify?: boolean;
+}
+
+/**
+ * Read build configuration from package.json in the given directory.
+ * Returns undefined if no configuration is found.
+ */
+function readPackageJsonConfig(dir: string): PackageJsonBuildConfig | undefined {
+  const pkgPath = join(dir, "package.json");
+  if (!existsSync(pkgPath)) {
+    return undefined;
+  }
+
+  try {
+    const content = readFileSync(pkgPath, "utf-8");
+    const pkg = JSON.parse(content);
+
+    // Look for "thinkwell.build" configuration
+    const config = pkg?.thinkwell?.build;
+    if (!config || typeof config !== "object") {
+      return undefined;
+    }
+
+    // Validate and extract configuration
+    const result: PackageJsonBuildConfig = {};
+
+    if (typeof config.output === "string") {
+      result.output = config.output;
+    }
+
+    if (Array.isArray(config.targets)) {
+      const validTargets: Target[] = ["darwin-arm64", "darwin-x64", "linux-x64", "linux-arm64", "host"];
+      result.targets = config.targets.filter((t: unknown): t is Target =>
+        typeof t === "string" && validTargets.includes(t as Target)
+      );
+    }
+
+    if (Array.isArray(config.include)) {
+      result.include = config.include.filter((i: unknown): i is string => typeof i === "string");
+    }
+
+    if (Array.isArray(config.external)) {
+      result.external = config.external.filter((e: unknown): e is string => typeof e === "string");
+    }
+
+    if (typeof config.minify === "boolean") {
+      result.minify = config.minify;
+    }
+
+    return result;
+  } catch {
+    // Ignore JSON parse errors
+    return undefined;
+  }
+}
+
+/**
+ * Merge package.json configuration with CLI options.
+ * CLI options take precedence over package.json configuration.
+ */
+function mergeWithPackageConfig(options: BuildOptions, entryDir: string): BuildOptions {
+  const pkgConfig = readPackageJsonConfig(entryDir);
+  if (!pkgConfig) {
+    return options;
+  }
+
+  // CLI options take precedence - only use package.json defaults for unset values
+  return {
+    ...options,
+    output: options.output ?? pkgConfig.output,
+    targets: options.targets && options.targets.length > 0
+      ? options.targets
+      : pkgConfig.targets ?? options.targets,
+    include: [
+      ...(pkgConfig.include || []),
+      ...(options.include || []),
+    ],
+    external: [
+      ...(pkgConfig.external || []),
+      ...(options.external || []),
+    ],
+    minify: options.minify ?? pkgConfig.minify,
+  };
 }
 
 interface BuildContext {
@@ -103,6 +208,7 @@ export function parseBuildArgs(args: string[]): BuildOptions {
     entry: "",
     targets: [],
     include: [],
+    external: [],
   };
 
   let i = 0;
@@ -134,12 +240,22 @@ export function parseBuildArgs(args: string[]): BuildOptions {
         throw new Error("Missing value for --include");
       }
       options.include!.push(args[i]);
+    } else if (arg === "--external" || arg === "-e") {
+      i++;
+      if (i >= args.length) {
+        throw new Error("Missing value for --external");
+      }
+      options.external!.push(args[i]);
     } else if (arg === "--verbose" || arg === "-v") {
       options.verbose = true;
     } else if (arg === "--quiet" || arg === "-q") {
       options.quiet = true;
     } else if (arg === "--dry-run" || arg === "-n") {
       options.dryRun = true;
+    } else if (arg === "--minify" || arg === "-m") {
+      options.minify = true;
+    } else if (arg === "--watch" || arg === "-w") {
+      options.watch = true;
     } else if (arg.startsWith("-")) {
       throw new Error(`Unknown option: ${arg}`);
     } else {
@@ -187,6 +303,13 @@ function initBuildContext(options: BuildOptions): BuildContext {
   const entryBasename = basename(entryPath).replace(/\.(ts|js|mts|mjs|cts|cjs)$/, "");
   const entryDir = dirname(entryPath);
 
+  // Merge CLI options with package.json configuration
+  // Check both entry directory and current working directory for package.json
+  let mergedOptions = mergeWithPackageConfig(options, entryDir);
+  if (entryDir !== process.cwd()) {
+    mergedOptions = mergeWithPackageConfig(mergedOptions, process.cwd());
+  }
+
   // Create build directory in the entry file's directory
   const buildDir = join(entryDir, ".thinkwell-build");
 
@@ -203,7 +326,7 @@ function initBuildContext(options: BuildOptions): BuildContext {
   }
 
   // Resolve "host" targets to actual platform
-  const resolvedTargets = options.targets!.map((t) =>
+  const resolvedTargets = mergedOptions.targets!.map((t) =>
     t === "host" ? detectHostTarget() : t
   );
 
@@ -217,7 +340,7 @@ function initBuildContext(options: BuildOptions): BuildContext {
     buildDir,
     thinkwellDistPkg,
     resolvedTargets: uniqueTargets,
-    options,
+    options: mergedOptions,
   };
 }
 
@@ -292,14 +415,17 @@ async function bundleUserScript(ctx: BuildContext): Promise<string> {
   // Note: When running from a compiled binary, ESBUILD_BINARY_PATH is set
   // by main-pkg.cjs before this module loads.
   try {
+    // Combine Node built-ins with user-specified external packages
+    const externalPackages = ["node:*", ...(ctx.options.external || [])];
+
     await esbuild.build({
       entryPoints: [ctx.entryPath],
       bundle: true,
       platform: "node",
       format: "cjs",
       outfile: outputFile,
-      // External: Node built-ins
-      external: ["node:*"],
+      // External: Node built-ins and user-specified packages
+      external: externalPackages,
       // Mark thinkwell packages as external - they're provided via global.__bundled__
       // But actually, we need to transform the imports, so let's bundle them
       // and use a banner to set up the module aliases
@@ -355,8 +481,8 @@ require.main = __origRequire.main;
         },
       ],
       sourcemap: false,
-      minify: false,
-      keepNames: true,
+      minify: ctx.options.minify ?? false,
+      keepNames: !ctx.options.minify, // Keep names unless minifying
       target: "node24",
       logLevel: ctx.options.verbose ? "info" : "silent",
     });
@@ -1006,6 +1132,19 @@ function runDryRun(ctx: BuildContext): void {
     console.log();
   }
 
+  if (ctx.options.external && ctx.options.external.length > 0) {
+    console.log(styleText("bold", "External packages (not bundled):"));
+    for (const pkg of ctx.options.external) {
+      console.log(`  ${pkg}`);
+    }
+    console.log();
+  }
+
+  if (ctx.options.minify) {
+    console.log(styleText("bold", "Minification:"), "enabled");
+    console.log();
+  }
+
   console.log(styleText("bold", "Build steps:"));
   console.log("  1. Bundle user script with esbuild");
   console.log("  2. Copy thinkwell packages");
@@ -1029,6 +1168,12 @@ function runDryRun(ctx: BuildContext): void {
  * Main build function.
  */
 export async function runBuild(options: BuildOptions): Promise<void> {
+  // Handle watch mode separately
+  if (options.watch) {
+    await runWatchMode(options);
+    return;
+  }
+
   const ctx = initBuildContext(options);
 
   // Check for top-level await and warn
@@ -1115,6 +1260,150 @@ export async function runBuild(options: BuildOptions): Promise<void> {
 }
 
 /**
+ * Run the build in watch mode, rebuilding on file changes.
+ */
+async function runWatchMode(options: BuildOptions): Promise<void> {
+  const ctx = initBuildContext(options);
+
+  console.log(styleText("bold", `Watching ${ctx.entryBasename} for changes...`));
+  console.log(styleText("dim", "Press Ctrl+C to stop.\n"));
+
+  // Track if a build is currently in progress
+  let buildInProgress = false;
+  let rebuildQueued = false;
+
+  // Debounce timer
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const DEBOUNCE_MS = 100;
+
+  async function doBuild(): Promise<void> {
+    if (buildInProgress) {
+      rebuildQueued = true;
+      return;
+    }
+
+    buildInProgress = true;
+    rebuildQueued = false;
+
+    const startTime = Date.now();
+    console.log(styleText("dim", `[${new Date().toLocaleTimeString()}] Building...`));
+
+    try {
+      // Re-initialize context to pick up any config changes
+      const freshCtx = initBuildContext(options);
+
+      // Create build directory
+      if (existsSync(freshCtx.buildDir)) {
+        rmSync(freshCtx.buildDir, { recursive: true });
+      }
+      mkdirSync(freshCtx.buildDir, { recursive: true });
+
+      // Bundle user script
+      const userBundlePath = await bundleUserScript(freshCtx);
+
+      // Copy thinkwell bundles
+      copyThinkwellBundles(freshCtx);
+
+      // Generate wrapper
+      const wrapperPath = join(freshCtx.buildDir, "wrapper.cjs");
+      const wrapperSource = generateWrapperSource(userBundlePath);
+      writeFileSync(wrapperPath, wrapperSource);
+
+      // Compile with pkg for each target
+      const outputs: string[] = [];
+      for (const target of freshCtx.resolvedTargets) {
+        const outputPath = getOutputPath(freshCtx, target);
+        await compileWithPkg(freshCtx, wrapperPath, target, outputPath);
+        outputs.push(outputPath);
+      }
+
+      // Clean up build directory
+      if (!freshCtx.options.verbose) {
+        try {
+          rmSync(freshCtx.buildDir, { recursive: true });
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+
+      const elapsed = Date.now() - startTime;
+      console.log(styleText("green", `✓ Built in ${elapsed}ms`));
+      for (const output of outputs) {
+        console.log(styleText("dim", `  ${basename(output)}`));
+      }
+      console.log();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(styleText("red", `✗ Build failed: ${message}`));
+      console.log();
+    } finally {
+      buildInProgress = false;
+
+      // If a rebuild was queued while building, start another build
+      if (rebuildQueued) {
+        doBuild();
+      }
+    }
+  }
+
+  function scheduleRebuild(): void {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      doBuild();
+    }, DEBOUNCE_MS);
+  }
+
+  // Do initial build
+  await doBuild();
+
+  // Watch the entry file's directory for changes
+  const watchDir = ctx.entryDir;
+  const watcher = fsWatch(watchDir, { recursive: true }, (_eventType, filename) => {
+    if (!filename) return;
+
+    // Ignore build directory and common non-source files
+    if (
+      filename.includes(".thinkwell-build") ||
+      filename.includes("node_modules") ||
+      filename.startsWith(".") ||
+      filename.endsWith(".d.ts")
+    ) {
+      return;
+    }
+
+    // Only watch TypeScript and JavaScript files
+    if (!/\.(ts|tsx|js|jsx|mts|mjs|cts|cjs|json)$/.test(filename)) {
+      return;
+    }
+
+    if (ctx.options.verbose) {
+      console.log(styleText("dim", `  Changed: ${filename}`));
+    }
+
+    scheduleRebuild();
+  });
+
+  // Handle graceful shutdown
+  const cleanup = () => {
+    watcher.close();
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    console.log("\nStopped watching.");
+    process.exit(0);
+  };
+
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
+
+  // Keep process alive
+  await new Promise(() => {});
+}
+
+/**
  * Show help for the build command.
  */
 export function showBuildHelp(): void {
@@ -1131,6 +1420,9 @@ Options:
   -o, --output <path>    Output file path (default: ./<name>-<target>)
   -t, --target <target>  Target platform (can be specified multiple times)
   --include <glob>       Additional files to embed as assets
+  -e, --external <pkg>   Exclude package from bundling (can be repeated)
+  -m, --minify           Minify the bundled code for smaller output
+  -w, --watch            Watch for changes and rebuild automatically
   -n, --dry-run          Show what would be built without building
   -q, --quiet            Suppress all output except errors (for CI)
   -v, --verbose          Show detailed build output
@@ -1149,12 +1441,32 @@ Examples:
   thinkwell build src/agent.ts --target linux-x64  Build for Linux
   thinkwell build src/agent.ts -t darwin-arm64 -t linux-x64  Multi-platform
   thinkwell build src/agent.ts --dry-run           Preview build without executing
+  thinkwell build src/agent.ts -e sqlite3          Keep sqlite3 as external
+  thinkwell build src/agent.ts --minify            Minify for smaller binary
+  thinkwell build src/agent.ts --watch             Rebuild on file changes
 
 The resulting binary is self-contained and includes:
   - Node.js 24 runtime with TypeScript support
   - All thinkwell packages
   - Your bundled application code
 
+Configuration via package.json:
+  Add a "thinkwell" key to your package.json to set defaults:
+
+    {
+      "thinkwell": {
+        "build": {
+          "output": "dist/my-agent",
+          "targets": ["darwin-arm64", "linux-x64"],
+          "external": ["sqlite3"],
+          "minify": true
+        }
+      }
+    }
+
+  CLI options override package.json settings.
+
 Note: Binaries are ~70-90 MB due to the embedded Node.js runtime.
+      Use --minify to reduce bundle size (though Node.js runtime dominates).
 `);
 }

@@ -72,11 +72,7 @@ See [RFD: Chosen Solution](rfd/user-build-command.md#chosen-solution-download-po
 
 ## Phase 4: Advanced Features
 
-- [ ] Add `--external` flag to exclude specific packages from bundling
-- [ ] Support configuration in `package.json` under `"thinkwell"` key
-- [ ] Add `--minify` flag for smaller binaries
-- [ ] Implement `--watch` mode for development iteration
-
-## Deferred
-
-- [ ] Disk space detection and helpful message before Node.js download
+- [x] Add `--external` flag to exclude specific packages from bundling
+- [x] Support configuration in `package.json` under `"thinkwell"` key
+- [x] Add `--minify` flag for smaller binaries
+- [x] Implement `--watch` mode for development iteration

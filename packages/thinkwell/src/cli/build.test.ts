@@ -166,6 +166,35 @@ describe("build command argument parsing", { skip: SKIP_BUILD }, () => {
     assert.strictEqual(options.dryRun, true);
   });
 
+  it("should parse --external flag", () => {
+    const options = parseBuildArgs([
+      "src/agent.ts",
+      "--external", "sqlite3",
+      "-e", "pg",
+    ]);
+    assert.deepStrictEqual(options.external, ["sqlite3", "pg"]);
+  });
+
+  it("should parse --minify flag", () => {
+    const options = parseBuildArgs(["src/agent.ts", "--minify"]);
+    assert.strictEqual(options.minify, true);
+  });
+
+  it("should parse -m short flag for minify", () => {
+    const options = parseBuildArgs(["src/agent.ts", "-m"]);
+    assert.strictEqual(options.minify, true);
+  });
+
+  it("should parse --watch flag", () => {
+    const options = parseBuildArgs(["src/agent.ts", "--watch"]);
+    assert.strictEqual(options.watch, true);
+  });
+
+  it("should parse -w short flag for watch", () => {
+    const options = parseBuildArgs(["src/agent.ts", "-w"]);
+    assert.strictEqual(options.watch, true);
+  });
+
   it("should parse complex combination of flags", () => {
     const options = parseBuildArgs([
       "src/agent.ts",

@@ -245,13 +245,68 @@ The large binary size (~70-90 MB) is inherent to pkg's approach of embedding the
 **Pros:** Separation of concerns; optional dependency
 **Cons:** More packages to maintain; fragmented user experience; version coordination challenges
 
+## Advanced Features (Phase 4)
+
+### External Package Exclusion (`--external`)
+
+Users can exclude specific packages from bundling with `--external` (or `-e`). This is useful for:
+
+1. **Native modules** — Packages like `sqlite3`, `pg`, or `better-sqlite3` that include platform-specific `.node` binaries
+2. **Optional dependencies** — Packages that should only be loaded if available at runtime
+3. **Large dependencies** — Reducing bundle size by keeping rarely-used dependencies external
+
+```bash
+thinkwell build src/agent.ts --external sqlite3 --external pg
+```
+
+External packages remain as `require()` calls in the bundled output. Users must ensure these packages are available in the runtime environment.
+
+### Minification (`--minify`)
+
+The `--minify` flag enables esbuild minification for smaller bundle output:
+
+```bash
+thinkwell build src/agent.ts --minify
+```
+
+While the Node.js runtime dominates binary size (~70-90 MB), minification can still reduce the user code portion significantly for large applications.
+
+### Watch Mode (`--watch`)
+
+The `--watch` flag enables automatic rebuilding on file changes:
+
+```bash
+thinkwell build src/agent.ts --watch
+```
+
+Watch mode features:
+- Debounced rebuilds (100ms) to batch rapid changes
+- Build queueing when changes occur during a build
+- Recursive directory watching of the entry file's directory
+- Filtering of non-source files (node_modules, .d.ts, dotfiles)
+- Graceful shutdown on Ctrl+C
+
+### Configuration via package.json
+
+Build defaults can be specified in `package.json` under the `"thinkwell.build"` key:
+
+```json
+{
+  "thinkwell": {
+    "build": {
+      "output": "dist/my-agent",
+      "targets": ["darwin-arm64", "linux-x64"],
+      "include": ["assets/**/*"],
+      "external": ["sqlite3"],
+      "minify": true
+    }
+  }
+}
+```
+
+Configuration is loaded from both the entry file's directory and the current working directory. CLI options override package.json settings.
+
 ## Open Questions
-
-### Configuration File Support
-
-Should `thinkwell build` support a configuration file (e.g., `thinkwell.build.json` or a `"thinkwell"` key in `package.json`)? This would allow users to specify default targets, assets, and other options without command-line flags.
-
-**Proposed answer:** Defer to Phase 3. Start with CLI-only and add configuration file support based on user feedback.
 
 ### Native Module Handling
 
@@ -845,6 +900,12 @@ Free up space or set THINKWELL_CACHE_DIR to a location with more space.
 2. **Integration tests**: Build a test script using mocked Node.js download
 3. **E2E tests**: Full build from compiled binary with real downloads (CI only, behind flag)
 4. **Cache invalidation tests**: Verify version-keyed caching works correctly
+
+## Deferred
+
+The following features are considered valuable but deferred for future implementation:
+
+- **Disk space detection** — Check available disk space before downloading Node.js (~50-70 MB) and provide a helpful error message if insufficient. Currently, users will see a less informative error if the download fails due to disk space.
 
 ## References
 
