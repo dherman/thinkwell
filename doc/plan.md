@@ -19,7 +19,20 @@ This plan implements the `thinkwell build` command as described in [RFD: user-bu
 - [x] Detect and warn about top-level await usage (not supported)
 - [x] Support `--quiet` flag for CI environments
 
-## Phase 3: Advanced Features
+## Phase 3: Compiled Binary Support
+
+Enable the `build` command to work when thinkwell itself is running as a compiled pkg binary.
+See [RFD: user-build-command.md](rfd/user-build-command.md#embedding-esbuild-in-the-compiled-binary) for details.
+
+- [ ] Add esbuild platform binaries as pkg assets in build configuration
+- [ ] Implement `isRunningFromCompiledBinary()` detection (check for `process.pkg`)
+- [ ] Create esbuild binary extraction logic to `~/.cache/thinkwell/esbuild/`
+- [ ] Set `ESBUILD_BINARY_PATH` environment variable before loading esbuild
+- [ ] Convert static esbuild import to dynamic import in `build.ts`
+- [ ] Add version-based cache invalidation (re-extract on thinkwell version change)
+- [ ] Test build command works from compiled binary end-to-end
+
+## Phase 4: Advanced Features
 
 - [ ] Add `--external` flag to exclude specific packages from bundling
 - [ ] Support configuration in `package.json` under `"thinkwell"` key

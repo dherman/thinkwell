@@ -259,6 +259,157 @@ How should `thinkwell build` handle native modules (`.node` files) that require 
 
 **Proposed answer:** Document that users must pre-compile native modules for each target platform. pkg extracts `.node` files to a cache directory at runtime, so they must match the target architecture.
 
+## Embedding esbuild in the Compiled Binary
+
+The `thinkwell build` command uses esbuild for the bundling stage. When the thinkwell CLI itself is compiled into a pkg binary, esbuild must also be available at runtime. This section documents the research, experimentation, and chosen approach for embedding esbuild.
+
+### The Problem
+
+esbuild uses platform-specific native executables distributed as optional dependencies:
+- `@esbuild/darwin-arm64` (macOS Apple Silicon)
+- `@esbuild/darwin-x64` (macOS Intel)
+- `@esbuild/linux-x64` (Linux x64)
+- `@esbuild/linux-arm64` (Linux ARM64)
+
+When the thinkwell CLI is compiled with pkg, importing esbuild fails with:
+```
+Cannot find package 'esbuild' imported from /snapshot/thinkwell/dist/cli/build.js
+```
+
+This occurs because:
+1. pkg's virtual filesystem (`/snapshot/`) cannot execute native binaries directly
+2. esbuild spawns its platform-specific binary as a child process
+3. The `spawn()` syscall fails for paths inside the pkg snapshot
+
+### Research Findings
+
+**pkg Native Addon Support:**
+- pkg can bundle `.node` files (Node.js native addons) and extracts them to `~/.cache/pkg/` at runtime
+- However, esbuild doesn't use `.node` files—it uses standalone native executables
+- These executables cannot be spawned directly from the pkg snapshot
+
+**esbuild Architecture:**
+- esbuild checks for a `ESBUILD_BINARY_PATH` environment variable
+- If set, esbuild uses the binary at that path instead of auto-detecting
+- This provides a hook for custom binary locations
+
+### Alternatives Considered
+
+#### Alternative A: Disable Build Command in Compiled Binary
+
+**Description:** Detect when running from a compiled binary and show an error directing users to use `npx thinkwell build` instead.
+
+**Pros:**
+- Simplest implementation
+- No binary size increase
+- No runtime extraction complexity
+
+**Cons:**
+- Poor user experience—the compiled binary advertises a command it can't run
+- Confusing that some commands work and others don't
+- Defeats the goal of a self-contained CLI
+
+#### Alternative B: Use esbuild-wasm
+
+**Description:** Use the WebAssembly version of esbuild (`esbuild-wasm`) which has no native dependencies.
+
+**Pros:**
+- Pure JavaScript/WASM, no native code issues
+- Would work in any environment
+
+**Cons:**
+- **10x slower** than native esbuild (order of magnitude performance regression)
+- Async-only API (no synchronous operations)
+- Still requires bundling the ~8MB WASM binary
+- Poor fit for CLI tools where responsiveness matters
+
+**Conclusion:** Not recommended due to unacceptable performance impact.
+
+#### Alternative C: Runtime Binary Extraction (Chosen Approach)
+
+**Description:** Include the platform-specific esbuild binary as a pkg asset, extract it to a cache directory at runtime, and set `ESBUILD_BINARY_PATH`.
+
+**Pros:**
+- Full native esbuild performance
+- One-time extraction overhead (subsequent runs use cached binary)
+- Self-contained CLI with working build command
+
+**Cons:**
+- ~10MB increase in binary size per platform
+- First-run extraction adds ~100ms overhead
+- Requires write access to cache directory
+
+### Chosen Approach: Runtime Binary Extraction
+
+The implementation extracts the esbuild binary on first use:
+
+```javascript
+// Pseudocode for the extraction approach
+if (isRunningFromCompiledBinary()) {
+  const cacheDir = join(homedir(), '.cache', 'thinkwell', 'esbuild');
+  const esbuildDest = join(cacheDir, 'esbuild');
+
+  if (!existsSync(esbuildDest)) {
+    // Extract from pkg snapshot to real filesystem
+    const src = join(__dirname, 'node_modules/@esbuild/darwin-arm64/bin/esbuild');
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(esbuildDest, readFileSync(src));
+    chmodSync(esbuildDest, 0o755);
+  }
+
+  process.env.ESBUILD_BINARY_PATH = esbuildDest;
+}
+
+// Now esbuild can be loaded and will use the extracted binary
+const { build } = await import('esbuild');
+```
+
+**Build Configuration:**
+
+The pkg build must include esbuild's platform-specific binary as an asset:
+
+```json
+{
+  "pkg": {
+    "assets": [
+      "node_modules/@esbuild/darwin-arm64/**/*",
+      "node_modules/@esbuild/darwin-x64/**/*",
+      "node_modules/@esbuild/linux-x64/**/*",
+      "node_modules/@esbuild/linux-arm64/**/*"
+    ]
+  }
+}
+```
+
+Note: Each platform's binary is only included in the build for that platform. Cross-compilation requires building separate binaries for each target.
+
+**Cache Location:**
+
+The extracted esbuild binary is stored at:
+- macOS/Linux: `~/.cache/thinkwell/esbuild/esbuild`
+
+This follows XDG Base Directory conventions and can be overridden via `THINKWELL_CACHE_DIR` environment variable if needed.
+
+### Experimental Validation
+
+This approach was validated with a prototype in `experiments/pkg-esbuild-test/`. The test confirmed:
+
+1. ✅ esbuild binary can be read from pkg snapshot via `readFileSync()`
+2. ✅ Binary can be written to real filesystem and made executable
+3. ✅ `ESBUILD_BINARY_PATH` is respected by esbuild
+4. ✅ Subsequent bundling operations work correctly
+5. ✅ Binary size increase is ~10MB (78MB total vs ~68MB without)
+
+### Impact on Binary Size
+
+| Component | Size |
+|-----------|------|
+| Base thinkwell binary | ~68 MB |
+| esbuild darwin-arm64 | +9.3 MB |
+| **Total** | **~78 MB** |
+
+This is acceptable given that the alternative (esbuild-wasm) would add ~8MB anyway while being 10x slower.
+
 ### Windows Support
 
 Should we support `--target win-x64`?
