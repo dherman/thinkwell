@@ -28,9 +28,23 @@ const PACKAGE_ROOT = resolve(__dirname, "../..");
 const NPM_BIN = resolve(PACKAGE_ROOT, "bin/thinkwell");
 const DIST_BIN_DIR = resolve(PACKAGE_ROOT, "dist-bin");
 
-// Skip CLI tests if requested or if binaries aren't built
+// Skip CLI tests if requested or if binaries aren't built/stale
 const SKIP_CLI = process.env.SKIP_CLI_TESTS === "1";
-const SKIP_BINARY = !existsSync(join(DIST_BIN_DIR, `thinkwell-${getPlatformTarget()}`));
+const SKIP_BINARY = (() => {
+  const binaryPath = join(DIST_BIN_DIR, `thinkwell-${getPlatformTarget()}`);
+  if (!existsSync(binaryPath)) return "binary not found";
+  // Check if the binary's version matches package.json to detect stale builds
+  try {
+    const packageJson = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf-8"));
+    const result = execSync(`${binaryPath} --version`, { encoding: "utf-8", timeout: 10000 });
+    if (!result.includes(packageJson.version)) {
+      return `binary is stale (expected ${packageJson.version}, run pnpm build:binary to update)`;
+    }
+  } catch {
+    return "binary failed to execute";
+  }
+  return false;
+})();
 
 // Get the platform-specific binary name
 function getPlatformTarget(): string {
