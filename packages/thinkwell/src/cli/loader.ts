@@ -22,9 +22,9 @@
  * runtime when the user script is executed.
  */
 
-import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { dirname, join, isAbsolute, resolve, basename } from "node:path";
-import { tmpdir } from "node:os";
+import { randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
 import Module from "node:module";
 import { hasJsonSchemaMarkers, transformJsonSchemas } from "./schema.js";
@@ -292,6 +292,54 @@ function needsTransformation(source: string): boolean {
 }
 
 /**
+ * Generate a short random ID for temp file names.
+ */
+function randomId(): string {
+  return randomBytes(6).toString("base64url");
+}
+
+/**
+ * Rewrite .js extensions to .ts in relative import specifiers when the .ts file exists.
+ *
+ * TypeScript convention allows importing `./foo.js` even when the source file is
+ * `./foo.ts` (since tsc compiles .ts to .js). Node's --experimental-transform-types
+ * does not perform this remapping, so we do it here to support the common convention.
+ *
+ * @param originalPath - Absolute path to the original script (used to resolve relative paths)
+ * @param source - The script source code
+ * @returns The source with .js extensions rewritten to .ts where the .ts file exists
+ */
+export function rewriteJsToTsExtensions(originalPath: string, source: string): string {
+  const scriptDir = dirname(originalPath);
+
+  // Match static imports/re-exports: from "./foo.js" or from '../bar.js'
+  source = source.replace(
+    /(from\s+['"])(\.\.?\/[^'"]*?)\.js(['"])/g,
+    (match, prefix, specifierBase, suffix) => {
+      const tsPath = resolve(scriptDir, `${specifierBase}.ts`);
+      if (existsSync(tsPath)) {
+        return `${prefix}${specifierBase}.ts${suffix}`;
+      }
+      return match;
+    }
+  );
+
+  // Match dynamic imports: import("./foo.js") or import('../bar.js')
+  source = source.replace(
+    /(import\s*\(\s*['"])(\.\.?\/[^'"]*?)\.js(['"]\s*\))/g,
+    (match, prefix, specifierBase, suffix) => {
+      const tsPath = resolve(scriptDir, `${specifierBase}.ts`);
+      if (existsSync(tsPath)) {
+        return `${prefix}${specifierBase}.ts${suffix}`;
+      }
+      return match;
+    }
+  );
+
+  return source;
+}
+
+/**
  * Generate a preamble that patches import.meta properties to point to the original script.
  *
  * When we transform a script and write it to a temp file, import.meta.url, dirname,
@@ -369,15 +417,17 @@ export function loadScript(scriptPath: string): unknown {
   // Transform imports to use bundled modules (global.__bundled__)
   source = transformVirtualImports(source);
 
+  // Rewrite .js → .ts in relative imports for TypeScript convention compatibility
+  source = rewriteJsToTsExtensions(absolutePath, source);
+
   // Prepend import.meta.url patch so scripts can locate sibling files
   source = generateImportMetaPatch(absolutePath) + source;
 
-  // Write transformed source to a temp file in os.tmpdir()
-  // Use mkdtempSync for atomic directory creation to avoid race conditions
+  // Write transformed source as a sibling of the original script so that
+  // relative imports resolve correctly through Node's module loader.
   const ext = absolutePath.endsWith(".ts") ? ".ts" : ".js";
-  const scriptName = basename(absolutePath, ext);
-  const tempDir = mkdtempSync(join(tmpdir(), `thinkwell-${scriptName}-`));
-  const tempFile = join(tempDir, `script${ext}`);
+  const scriptDir = dirname(absolutePath);
+  const tempFile = join(scriptDir, `.thinkwell-${basename(absolutePath, ext)}-${randomId()}${ext}`);
 
   try {
     // Write transformed source
@@ -389,9 +439,9 @@ export function loadScript(scriptPath: string): unknown {
 
     return result;
   } finally {
-    // Clean up temp directory and file
+    // Clean up temp file
     try {
-      rmSync(tempDir, { recursive: true });
+      rmSync(tempFile);
     } catch {
       // Ignore cleanup errors
     }
