@@ -42,11 +42,11 @@ jobs:
       - name: Build TypeScript
         run: pnpm build
 
-      - name: Bundle for pkg
-        run: pnpm --filter thinkwell bundle:pkg
+      - name: Bundle for distribution
+        run: pnpm --filter thinkwell bundle
 
-      - name: Build pkg binary (${{ matrix.target }})
-        run: pnpm --filter thinkwell build:binary:pkg ${{ matrix.target }}
+      - name: Build binary (${{ matrix.target }})
+        run: pnpm --filter thinkwell build:binary:${{ matrix.target }}
 
       - name: Run unit tests
         run: pnpm test
