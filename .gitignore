@@ -7,5 +7,9 @@ dist-pkg/
 .DS_Store
 **/*.log
 
+# Per-worktree local settings
+.vscode/settings.json
+.claude/
+
 # Generated output from unminify demo
 examples/data/underscore.js
