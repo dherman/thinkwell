@@ -1,8 +1,7 @@
 /**
- * Standalone schema generation for the pkg binary.
+ * Standalone schema generation for the compiled binary.
  *
- * This module ports the essential schema generation functionality from
- * @thinkwell/bun-plugin for use in the pkg-compiled binary. It handles:
+ * This module provides schema generation functionality for the CLI. It handles:
  *
  * 1. **Type Discovery**: Finding types marked with @JSONSchema JSDoc tag
  * 2. **Schema Generation**: Using ts-json-schema-generator to create JSON schemas
@@ -304,11 +303,11 @@ export function generateInsertions(
 /**
  * Generate the import statement for injected code.
  *
- * For the pkg binary, we use the bundled module registry instead of
+ * For the compiled binary, we use the bundled module registry instead of
  * a real import, since the types are available at runtime via global.__bundled__.
  */
 export function generateSchemaImport(): string {
-  // In the pkg binary context, we transform this to use global.__bundled__
+  // In the compiled binary context, we transform this to use global.__bundled__
   // but we still need the type declaration for TypeScript
   return `import type * as ${ACP_NAMESPACE} from "@thinkwell/acp";`;
 }

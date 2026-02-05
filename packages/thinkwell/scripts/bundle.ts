@@ -1,12 +1,13 @@
 #!/usr/bin/env tsx
 /**
- * Pre-bundle thinkwell packages for pkg binary.
+ * Pre-bundle thinkwell packages for the compiled binary.
  *
- * pkg struggles with ESM modules because its module resolution doesn't
- * properly handle ESM import statements inside the /snapshot/ virtual filesystem.
+ * The compiled binary (built with pkg) struggles with ESM modules because its
+ * module resolution doesn't properly handle ESM import statements inside the
+ * /snapshot/ virtual filesystem.
  *
  * This script uses esbuild to bundle the thinkwell packages into CJS format,
- * which pkg can then include and resolve correctly.
+ * which the binary can then include and resolve correctly.
  *
  * Output:
  *   dist-pkg/thinkwell.cjs      - bundled thinkwell package
@@ -146,7 +147,7 @@ function copyEsbuildBinaries(): void {
 }
 
 async function main(): Promise<void> {
-  console.log("Pre-bundling thinkwell packages for pkg\n");
+  console.log("Pre-bundling thinkwell packages for compiled binary\n");
 
   // Ensure output directory exists
   if (!existsSync(OUTPUT_DIR)) {

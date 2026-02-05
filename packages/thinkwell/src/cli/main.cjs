@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * Thinkwell CLI - Node.js entry point for pkg-compiled binary (CommonJS).
+ * Thinkwell CLI - Entry point for compiled binary (CommonJS).
  *
- * This is the main entry point for the pkg-compiled binary. pkg works best
- * with CommonJS, so this file uses require() syntax. Unlike the Bun entry
- * point (main.ts), this runs in Node.js with --experimental-strip-types
- * for native TypeScript support in user scripts.
+ * This is the main entry point for the compiled binary. The binary is built
+ * with pkg, which works best with CommonJS, so this file uses require() syntax.
+ * It runs in Node.js with --experimental-strip-types for native TypeScript
+ * support in user scripts.
  *
- * The pkg binary uses a custom loader to:
+ * The compiled binary uses a custom loader to:
  * - Route thinkwell:* imports to bundled packages
  * - Resolve external packages from user's node_modules
- * - Handle @JSONSchema type processing (Phase 5)
+ * - Handle @JSONSchema type processing
  */
 
 const { existsSync } = require("node:fs");
@@ -26,9 +26,9 @@ const VERSION = "0.4.3";
 /**
  * Register bundled thinkwell packages to global.__bundled__.
  *
- * The thinkwell packages are pre-bundled into CJS format by scripts/bundle-for-pkg.ts.
- * This is necessary because pkg doesn't properly handle ESM imports inside the
- * /snapshot/ virtual filesystem.
+ * The thinkwell packages are pre-bundled into CJS format by scripts/bundle.ts.
+ * This is necessary because the compiled binary doesn't properly handle ESM
+ * imports inside the /snapshot/ virtual filesystem.
  *
  * Pre-bundled files (in dist-pkg/):
  *   - thinkwell.cjs      - bundled thinkwell package
@@ -56,7 +56,7 @@ function registerBundledModules() {
     // This error occurs when pkg bundling didn't include all required modules.
     console.error("Error: Failed to load bundled modules.");
     console.error("");
-    console.error("This may indicate a build issue with the pkg binary.");
+    console.error("This may indicate a build issue with the compiled binary.");
     console.error("Please report this at: https://github.com/dherman/thinkwell/issues");
     console.error("");
     if (process.env.DEBUG) {
@@ -103,7 +103,7 @@ async function runInitCommand(args) {
 /**
  * Set up esbuild for compiled binary environment.
  *
- * When running from a pkg-compiled binary, esbuild's native binary can't be
+ * When running from the compiled binary, esbuild's native binary can't be
  * spawned directly from the snapshot filesystem. We extract it to a cache
  * directory and set ESBUILD_BINARY_PATH before loading esbuild.
  *
@@ -295,7 +295,7 @@ async function main() {
 
   // Handle --version
   if (args.includes("--version") || args.includes("-v")) {
-    console.log(`thinkwell ${VERSION} (pkg binary)`);
+    console.log(`thinkwell ${VERSION}`);
     process.exit(0);
   }
 

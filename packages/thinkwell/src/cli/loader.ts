@@ -1,8 +1,8 @@
 /**
- * Custom script loader for the pkg-compiled binary.
+ * Custom script loader for the compiled binary.
  *
  * This module provides the runtime infrastructure for loading and executing
- * user scripts in the pkg binary. It handles:
+ * user scripts in the compiled binary. It handles:
  *
  * 1. **Module Resolution**: Routes imports to the appropriate source:
  *    - `thinkwell:*` imports → bundled packages via `global.__bundled__`
@@ -44,7 +44,6 @@ interface ModuleConstructorInternal {
 
 /**
  * Maps thinkwell:* URI scheme to npm package names.
- * Duplicated from bun-plugin for pkg binary independence.
  */
 const THINKWELL_MODULES: Record<string, string> = {
   agent: "thinkwell",
@@ -60,7 +59,7 @@ const BUNDLED_PACKAGES = ["thinkwell", "@thinkwell/acp", "@thinkwell/protocol"];
 
 /**
  * Global registry for bundled modules.
- * This is populated by main-pkg.cjs before loading user scripts.
+ * This is populated by main.cjs before loading user scripts.
  */
 declare global {
   // eslint-disable-next-line no-var
@@ -70,7 +69,7 @@ declare global {
 /**
  * Initialize the bundled module registry.
  *
- * This should be called from main-pkg.cjs with the bundled package exports.
+ * This should be called from main.cjs with the bundled package exports.
  * The registry is used by createCustomRequire to route thinkwell imports.
  *
  * @param modules - Map of package names to their exports
@@ -147,7 +146,7 @@ export function rewriteThinkwellImports(source: string): string {
 /**
  * Transform imports to use the bundled module registry.
  *
- * In the pkg binary, we can't rely on Node's normal module resolution
+ * In the compiled binary, we can't rely on Node's normal module resolution
  * for bundled packages (they're in the /snapshot/ virtual filesystem).
  * This transform rewrites imports to use global.__bundled__ directly.
  *

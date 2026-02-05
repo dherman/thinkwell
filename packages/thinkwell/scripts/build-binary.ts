@@ -1,14 +1,11 @@
 #!/usr/bin/env tsx
 /**
- * Build script for creating self-contained thinkwell CLI executables using pkg.
+ * Build script for creating self-contained thinkwell CLI executables.
  *
  * Uses `@yao-pkg/pkg` to create native binaries for different platforms.
  * The resulting binaries include Node.js 24 with --experimental-transform-types
  * enabled, allowing execution of TypeScript user scripts including namespace
  * declarations (required for @JSONSchema support).
- *
- * Unlike the Bun-based build, pkg binaries can properly resolve external
- * npm packages from the user's node_modules at runtime.
  */
 
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -21,7 +18,7 @@ const ROOT_DIR = resolve(__dirname, "..");
 const DIST_DIR = resolve(ROOT_DIR, "dist-bin");
 // Use the CommonJS entry point directly (not compiled from TypeScript)
 // pkg works best with CommonJS, so we use a .cjs file
-const CLI_ENTRY = resolve(ROOT_DIR, "src/cli/main-pkg.cjs");
+const CLI_ENTRY = resolve(ROOT_DIR, "src/cli/main.cjs");
 
 // Supported build targets (pkg uses different naming than Bun)
 type Target = "darwin-arm64" | "darwin-x64" | "linux-x64" | "linux-arm64";
@@ -111,10 +108,10 @@ async function main(): Promise<void> {
 
   if (helpRequested) {
     console.log(`
-build-binary-pkg.ts - Build self-contained thinkwell CLI executables using pkg
+build-binary.ts - Build self-contained thinkwell CLI executables
 
 Usage:
-  tsx scripts/build-binary-pkg.ts [options] [targets...]
+  tsx scripts/build-binary.ts [options] [targets...]
 
 Options:
   --verbose, -v    Show detailed build output
@@ -127,12 +124,12 @@ Targets:
   linux-arm64      Linux on ARM64
 
 Examples:
-  tsx scripts/build-binary-pkg.ts                    Build for darwin-arm64 and darwin-x64
-  tsx scripts/build-binary-pkg.ts darwin-arm64       Build only for Apple Silicon
-  tsx scripts/build-binary-pkg.ts --verbose          Build with detailed output
+  tsx scripts/build-binary.ts                    Build for darwin-arm64 and darwin-x64
+  tsx scripts/build-binary.ts darwin-arm64       Build only for Apple Silicon
+  tsx scripts/build-binary.ts --verbose          Build with detailed output
 
 Note: This script requires the TypeScript build to be run first (pnpm build).
-      The pkg binary uses Node 24 with --experimental-transform-types for native TS.
+      The binary uses Node 24 with --experimental-transform-types for native TS.
 `);
     process.exit(0);
   }

@@ -3,7 +3,7 @@
  *
  * These tests verify the CLI functionality for both:
  * - npm distribution (bin/thinkwell)
- * - pkg binary distribution (dist-bin/thinkwell-{platform})
+ * - compiled binary distribution (dist-bin/thinkwell-{platform})
  *
  * Tests cover:
  * - Basic script execution
@@ -141,7 +141,7 @@ describe("CLI integration tests", { skip: SKIP_CLI }, () => {
     });
   });
 
-  describe("pkg binary distribution", { skip: SKIP_BINARY }, () => {
+  describe("compiled binary distribution", { skip: SKIP_BINARY }, () => {
     const binaryPath = getBinaryPath();
 
     it("should show help with --help flag", () => {
@@ -651,7 +651,7 @@ console.log(something);
   });
 });
 
-describe("pkg binary tests", { skip: SKIP_CLI || SKIP_BINARY }, () => {
+describe("compiled binary tests", { skip: SKIP_CLI || SKIP_BINARY }, () => {
   const binaryPath = getBinaryPath();
   let testDir: string;
 
@@ -665,7 +665,7 @@ describe("pkg binary tests", { skip: SKIP_CLI || SKIP_BINARY }, () => {
 
   it("should execute TypeScript scripts", () => {
     const script = `
-const greeting: string = "Hello from pkg binary!";
+const greeting: string = "Hello from compiled binary!";
 console.log(greeting);
 `;
     const scriptPath = join(testDir, "basic.ts");
@@ -673,7 +673,7 @@ console.log(greeting);
 
     const result = run(binaryPath, [scriptPath]);
     assert.strictEqual(result.code, 0, `Exit code should be 0: ${result.stderr}`);
-    assert.ok(result.stdout.includes("Hello from pkg binary!"), "Should execute TypeScript");
+    assert.ok(result.stdout.includes("Hello from compiled binary!"), "Should execute TypeScript");
   });
 
   it("should resolve thinkwell imports", () => {
