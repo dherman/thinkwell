@@ -10,20 +10,8 @@
 
 import { Agent } from "thinkwell:agent";
 import { CLAUDE_CODE } from "thinkwell:connectors";
-
-function startSpinner(message: string): () => void {
-  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  let i = 0;
-  const interval = setInterval(() => {
-    // ANSI escape codes for gray text
-    process.stdout.write(`\r\x1b[90m${frames[i++ % frames.length]} ${message}\x1b[0m`);
-  }, 80);
-
-  return () => {
-    clearInterval(interval);
-    process.stdout.write('\r\x1b[K');
-  };
-}
+import { styleText } from 'node:util';
+import { startSpinner } from "./util/spinner.js";
 
 /**
  * A friendly greeting.
@@ -64,8 +52,7 @@ async function main() {
       .run();
 
     stopSpinner();
-    // ANSI bold white
-    console.log(`\x1b[1;97m✨ ${greeting.message}\x1b[0m`);
+    console.log(styleText(["bold", "white"], `✨ ${greeting.message}`));
   } finally {
     agent.close();
   }
