@@ -1,6 +1,6 @@
 {
   "name": "@thinkwell/protocol",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Shared protocol types for Thinkwell packages (JSON-RPC, MCP-over-ACP, Dispatch)",
   "type": "module",
   "main": "./dist/index.js",
