@@ -15,6 +15,7 @@
 
 const { existsSync } = require("node:fs");
 const { resolve, isAbsolute } = require("node:path");
+const { styleText } = require('node:util');
 
 // Version must be updated manually to match package.json
 const VERSION = "0.4.4";
@@ -72,22 +73,31 @@ function registerBundledModules() {
 // CLI Commands
 // ============================================================================
 
+function fmt(s) {
+  return (t) => styleText(s, t);
+}
+
+const cyan = fmt("cyan");
+const cyanBold = fmt(["cyan", "bold"]);
+const greenBold = fmt(["green", "bold"]);
+const whiteBold = fmt(["white", "bold"]);
+
 function showHelp() {
   console.log(`
-thinkwell - agent scripting made easy
+${cyanBold("thinkwell")} - ${whiteBold("agent scripting made easy 🖋️")}
 
-Usage:
-  thinkwell <script.ts> [args...]     Run a TypeScript script
-  thinkwell run <script.ts> [args...] Explicit run command
-  thinkwell build <script.ts>         Compile to standalone executable
-  thinkwell --help                    Show this help message
-  thinkwell --version                 Show version
+${greenBold("Usage:")}
+  ${cyanBold("thinkwell")} ${cyan("<script.ts> [args...]")}     Run a TypeScript script
+  ${cyanBold("thinkwell run")} ${cyan("<script.ts> [args...]")} Explicit run command
+  ${cyanBold("thinkwell build")} ${cyan("<script.ts>")}         Compile to standalone executable
+  ${cyanBold("thinkwell")} ${cyan("--help")}                    Show this help message
+  ${cyanBold("thinkwell")} ${cyan("--version")}                 Show version
 
-Example:
-  thinkwell my-agent.ts
+${greenBold("Example:")}
+  ${cyanBold("thinkwell")} ${cyan("my-agent.ts")}
 
-For more information, visit: https://thinkwell.sh
-`);
+For more information, visit: ${cyanBold("https://thinkwell.sh")}
+`.trim() + "\n");
 }
 
 /**
