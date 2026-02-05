@@ -13,8 +13,8 @@ RFD: [doc/rfd/bun-removal.md](rfd/bun-removal.md)
 
 ## Phase 3: Update Dependencies
 
-- [ ] Remove `@thinkwell/bun-plugin` from `packages/thinkwell/package.json` dependencies
-- [ ] Run `pnpm install` to update lockfile
+- [x] Remove `@thinkwell/bun-plugin` from `packages/thinkwell/package.json` dependencies
+- [x] Run `pnpm install` to update lockfile
 
 ## Phase 4: Update Documentation
 
