@@ -3,4 +3,74 @@ title: "Connectors"
 description: "Common agent connectors."
 ---
 
-_Under construction. Please check back again soon._
+# Connectors
+
+A **connector** is a command string used to spawn an ACP-compatible agent process. Thinkwell provides built-in connectors for popular AI coding agents, and you can also define custom connectors for any agent that supports the Agent Client Protocol.
+
+## Built-in Connectors
+
+Thinkwell includes the following built-in connectors:
+
+| Connector | Command | Description |
+|-----------|---------|-------------|
+| `CLAUDE_CODE` | `npx -y @zed-industries/claude-code-acp` | Anthropic's Claude Code CLI agent |
+| `CODEX` | `npx -y @zed-industries/codex-acp` | OpenAI's Codex CLI agent |
+| `GEMINI` | `npx -y @google/gemini-cli --experimental-acp` | Google's Gemini CLI agent |
+| `OPENCODE` | `opencode acp` | OpenCode agent |
+| `AUGMENT` | `auggie --acp` | Augment Code agent |
+| `KIRO` | `kiro-cli chat acp` | Kiro CLI agent |
+
+## Usage
+
+Import a connector from `thinkwell:connectors` and pass it to `Agent.connect()`:
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+const agent = await Agent.connect(CLAUDE_CODE);
+```
+
+## Custom Connectors
+
+A connector is simply a command string. To use a custom agent, pass any command that spawns an ACP-compatible process:
+
+```typescript
+import { Agent } from "thinkwell:agent";
+
+const agent = await Agent.connect("my-custom-agent --acp");
+```
+
+## Environment Variables
+
+You can pass environment variables to the spawned agent process via `ConnectOptions.env`:
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+const agent = await Agent.connect(CLAUDE_CODE, {
+  env: {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    CUSTOM_VAR: "value"
+  }
+});
+```
+
+## Testing with `THINKWELL_AGENT_CMD`
+
+A common pattern for testing is to use an environment variable to override the connector. This allows you to swap agents without modifying code:
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+// Use THINKWELL_AGENT_CMD if set, otherwise default to CLAUDE_CODE
+const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
+```
+
+This pattern is useful for:
+
+- Running tests against different agents
+- Using mock agents in CI/CD pipelines
+- Switching between production and development agents

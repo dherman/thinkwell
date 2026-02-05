@@ -3,4 +3,167 @@ title: "Sessions"
 description: "Creating multiple sessions with an agent."
 ---
 
-_Under construction. Please check back again soon._
+Sessions enable multi-turn conversations with an agent, maintaining context across multiple `think()` calls. This is useful when you need the agent to remember previous interactions within a conversation.
+
+## Creating a Session
+
+Create a session using `agent.createSession()`:
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+const agent = await Agent.connect(CLAUDE_CODE);
+const session = await agent.createSession({ cwd: "/my/project" });
+```
+
+## Multi-Turn Conversations
+
+Unlike standalone `agent.think()` calls, prompts sent through a session maintain conversation context. The agent remembers what was discussed in previous turns:
+
+```typescript
+/** @JSONSchema */
+interface Analysis {
+  issues: string[];
+  severity: "low" | "medium" | "high";
+}
+
+/** @JSONSchema */
+interface Fixes {
+  suggestions: string[];
+}
+
+// First turn - analyze the codebase
+const analysis = await session
+  .think(Analysis.Schema)
+  .text("Analyze this codebase for potential issues")
+  .run();
+
+console.log(`Found ${analysis.issues.length} issues`);
+
+// Second turn - the agent remembers the analysis
+const fixes = await session
+  .think(Fixes.Schema)
+  .text("Suggest fixes for the top issues you identified")
+  .run();
+
+for (const suggestion of fixes.suggestions) {
+  console.log(`- ${suggestion}`);
+}
+```
+
+## Session Options
+
+When creating a session, you can configure it with `SessionOptions`:
+
+```typescript
+const session = await agent.createSession({
+  cwd: "/path/to/working/directory",
+  systemPrompt: "You are a helpful code reviewer."
+});
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `cwd` | `string` | Working directory for the session. Defaults to `process.cwd()`. |
+| `systemPrompt` | `string` | System prompt that applies to all turns in this session. |
+
+## Session API
+
+### `sessionId`
+
+The unique identifier for this session:
+
+```typescript
+console.log(`Session ID: ${session.sessionId}`);
+```
+
+### `think(schema)`
+
+Create a `ThinkBuilder` for constructing a prompt. Works the same as `agent.think()`, but maintains conversation context within the session:
+
+```typescript
+const result = await session
+  .think(OutputSchema)
+  .text("Your prompt here")
+  .run();
+```
+
+### `close()`
+
+Close the session when you're done. After closing, no more prompts can be sent through this session:
+
+```typescript
+session.close();
+```
+
+The agent connection remains open and can be used for other sessions or standalone calls.
+
+## Complete Example
+
+Here's a complete example showing a multi-turn code review session:
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+/** @JSONSchema */
+interface ReviewResult {
+  summary: string;
+  issues: Array<{
+    file: string;
+    line: number;
+    description: string;
+  }>;
+}
+
+/** @JSONSchema */
+interface FixPlan {
+  steps: string[];
+  estimatedEffort: "trivial" | "small" | "medium" | "large";
+}
+
+async function reviewCode(projectPath: string) {
+  const agent = await Agent.connect(CLAUDE_CODE);
+  const session = await agent.createSession({ cwd: projectPath });
+
+  try {
+    // First turn: review the code
+    const review = await session
+      .think(ReviewResult.Schema)
+      .text("Review the code in this project for bugs and improvements")
+      .run();
+
+    console.log(`Review: ${review.summary}`);
+    console.log(`Found ${review.issues.length} issues\n`);
+
+    // Second turn: create a fix plan based on the review
+    const plan = await session
+      .think(FixPlan.Schema)
+      .text("Create a plan to fix the most critical issues you found")
+      .run();
+
+    console.log(`Estimated effort: ${plan.estimatedEffort}`);
+    console.log("Steps:");
+    plan.steps.forEach((step, i) => console.log(`${i + 1}. ${step}`));
+
+  } finally {
+    session.close();
+    agent.close();
+  }
+}
+
+reviewCode("/path/to/project");
+```
+
+## Sessions vs Standalone Calls
+
+Use **sessions** when:
+- You need multi-turn conversations
+- Context from previous interactions matters
+- You're building a conversational workflow
+
+Use **standalone `agent.think()` calls** when:
+- Each request is independent
+- You don't need conversation history
+- You want simpler, stateless interactions

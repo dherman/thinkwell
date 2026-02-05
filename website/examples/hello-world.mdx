@@ -3,4 +3,158 @@ title: "Hello, World"
 description: "A minimal example."
 ---
 
-_Under construction. Please check back again soon._
+This is the simplest example of using Thinkwell. It demonstrates the core concepts: connecting to an agent, defining a structured output with `@JSONSchema`, providing a custom tool, and running a thinking session.
+
+## The Full Example
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+/**
+ * A friendly greeting.
+ * @JSONSchema
+ */
+export interface Greeting {
+  /** The greeting message */
+  message: string;
+}
+
+async function main() {
+  const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
+
+  try {
+    const greeting = await agent
+      .think(Greeting.Schema)
+      .text(`
+        Use the current_time tool to get the current time, and create a
+        friendly greeting message appropriate for that time of day.
+      `)
+
+      .tool(
+        "current_time",
+        "Produces the current date, time, and time zone.",
+        async () => {
+          const now = new Date();
+          return {
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            time: now.toLocaleTimeString(),
+            date: now.toLocaleDateString(),
+            dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
+          };
+        }
+      )
+
+      .run();
+
+    console.log(`✨ ${greeting.message}`);
+  } finally {
+    agent.close();
+  }
+}
+
+main();
+```
+
+## Understanding the Code
+
+### Connecting to an Agent
+
+```typescript
+const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
+```
+
+Thinkwell works by connecting to an external AI agent. The `Agent.connect()` method establishes a connection using the Agent Client Protocol (ACP). Here we default to Claude Code, but you can override this by setting the `THINKWELL_AGENT_CMD` environment variable to use a different agent.
+
+### Defining Structured Output with @JSONSchema
+
+```typescript
+/**
+ * A friendly greeting.
+ * @JSONSchema
+ */
+export interface Greeting {
+  /** The greeting message */
+  message: string;
+}
+```
+
+The `@JSONSchema` JSDoc tag is the key to type-safe AI outputs. When you annotate an interface with `@JSONSchema`, Thinkwell automatically generates a JSON Schema at build time and attaches it to the interface as a static `.Schema` property.
+
+This means:
+- **At build time**: Thinkwell transforms your TypeScript interface into a JSON Schema
+- **At runtime**: The schema is passed to the AI agent, which constrains its output to match
+- **In your code**: You get full TypeScript type checking on the result
+
+The JSDoc comments on the interface and its properties become `description` fields in the schema, helping the AI understand what each field should contain.
+
+### Building a Thinking Session
+
+```typescript
+const greeting = await agent
+  .think(Greeting.Schema)
+  .text(`...prompt...`)
+  .tool("current_time", "...", async () => { ... })
+  .run();
+```
+
+Thinkwell uses a fluent builder pattern to construct thinking sessions:
+
+1. **`.think(schema)`** - Starts a new session and specifies the expected output schema
+2. **`.text(prompt)`** - Provides the prompt or instructions for the AI
+3. **`.tool(name, description, handler)`** - Registers a tool the AI can call
+4. **`.run()`** - Executes the session and returns the typed result
+
+### Providing Tools
+
+```typescript
+.tool(
+  "current_time",
+  "Produces the current date, time, and time zone.",
+  async () => {
+    const now = new Date();
+    return {
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      time: now.toLocaleTimeString(),
+      date: now.toLocaleDateString(),
+      dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
+    };
+  }
+)
+```
+
+Tools extend what the AI can do by giving it access to real-world data and capabilities. Each tool has:
+
+- **A name** - How the AI refers to and invokes the tool
+- **A description** - Helps the AI understand when and how to use the tool
+- **A handler function** - The actual implementation that runs when called
+
+In this example, the `current_time` tool lets the AI ask "what time is it?" so it can generate an appropriate greeting like "Good morning!" or "Good evening!"
+
+### Cleanup
+
+```typescript
+try {
+  // ... use the agent ...
+} finally {
+  agent.close();
+}
+```
+
+Always close the agent connection when you're done. The `try/finally` pattern ensures cleanup happens even if an error occurs.
+
+## Running the Example
+
+Save the code to a file (e.g., `greeting.ts`) and run it with the Thinkwell CLI:
+
+```bash
+thinkwell greeting.ts
+```
+
+You should see output like:
+
+```
+✨ Good afternoon! Hope you're having a wonderful Wednesday!
+```
+
+The exact message will vary based on the current time and day.

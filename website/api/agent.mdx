@@ -3,4 +3,290 @@ title: "Agent"
 description: "Connect to agents with the Agent API."
 ---
 
-_Under construction. Please check back again soon._
+The `Agent` class is the main entry point for Thinkwell. It represents a connection to an AI agent (like Claude Code) and provides a fluent API for blending deterministic code with LLM-powered reasoning.
+
+## Connecting to an Agent
+
+Use `Agent.connect()` to establish a connection to an AI agent. The method accepts a command string that spawns the agent process.
+
+### Using Built-in Connectors
+
+Thinkwell provides pre-configured connector strings for popular AI agents:
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE, CODEX, GEMINI } from "thinkwell:connectors";
+
+// Connect to Claude Code
+const agent = await Agent.connect(CLAUDE_CODE);
+
+// Or connect to other supported agents
+const codexAgent = await Agent.connect(CODEX);
+const geminiAgent = await Agent.connect(GEMINI);
+```
+
+See the [Connectors](/api/connectors) page for the full list of available connectors and their underlying commands.
+
+### Using Custom Commands
+
+You can also connect using any custom command that implements the Agent Client Protocol:
+
+```typescript
+const agent = await Agent.connect("my-custom-agent --acp");
+```
+
+### Connection Options
+
+The `connect()` method accepts optional configuration:
+
+```typescript
+const agent = await Agent.connect(CLAUDE_CODE, {
+  // Environment variables for the agent process
+  env: {
+    ANTHROPIC_API_KEY: process.env.MY_API_KEY,
+  },
+  // Connection timeout in milliseconds
+  timeout: 30000,
+});
+```
+
+## Ephemeral vs Persistent Sessions
+
+Thinkwell supports two patterns for interacting with agents:
+
+### Ephemeral Sessions (Single-Turn)
+
+Use `agent.think()` for one-off prompts that don't need conversation history. Each call creates an ephemeral session that is automatically closed when the prompt completes.
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+/**
+ * A summary of content.
+ * @JSONSchema
+ */
+interface Summary {
+  title: string;
+  points: string[];
+}
+
+const agent = await Agent.connect(CLAUDE_CODE);
+
+const summary = await agent
+  .think(Summary.Schema)
+  .text("Summarize this document:")
+  .quote(documentContent)
+  .run();
+
+console.log(summary.title);
+console.log(summary.points);
+
+agent.close();
+```
+
+Ephemeral sessions are ideal for:
+- Independent, self-contained tasks
+- Stateless operations that don't need context
+- Parallel processing of multiple prompts
+
+### Persistent Sessions (Multi-Turn)
+
+Use `agent.createSession()` for multi-turn conversations where the agent needs to remember previous interactions.
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+const agent = await Agent.connect(CLAUDE_CODE);
+const session = await agent.createSession({ cwd: "/my/project" });
+
+// First turn: analyze the codebase
+const analysis = await session
+  .think(AnalysisSchema)
+  .text("Analyze this codebase for potential issues")
+  .run();
+
+// Second turn: the agent remembers the analysis
+const fixes = await session
+  .think(FixesSchema)
+  .text("Suggest fixes for the top 3 issues you found")
+  .run();
+
+session.close();
+agent.close();
+```
+
+Persistent sessions are ideal for:
+- Multi-step workflows where context matters
+- Iterative refinement of results
+- Conversations that build on previous responses
+
+## Code Examples
+
+### Basic Prompt with Structured Output
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+/**
+ * Sentiment analysis result.
+ * @JSONSchema
+ */
+interface Sentiment {
+  /** Overall sentiment: positive, negative, or neutral */
+  sentiment: "positive" | "negative" | "neutral";
+  /** Confidence score from 0 to 1 */
+  confidence: number;
+  /** Brief explanation */
+  explanation: string;
+}
+
+async function analyzeSentiment(text: string) {
+  const agent = await Agent.connect(CLAUDE_CODE);
+
+  try {
+    return await agent
+      .think(Sentiment.Schema)
+      .text("Analyze the sentiment of this text:")
+      .quote(text)
+      .run();
+  } finally {
+    agent.close();
+  }
+}
+```
+
+### Using Custom Tools
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+/**
+ * A greeting message.
+ * @JSONSchema
+ */
+interface Greeting {
+  message: string;
+}
+
+const agent = await Agent.connect(CLAUDE_CODE);
+
+const greeting = await agent
+  .think(Greeting.Schema)
+  .text("Create a greeting appropriate for the current time of day.")
+  .tool(
+    "current_time",
+    "Returns the current date and time.",
+    async () => ({
+      time: new Date().toLocaleTimeString(),
+      date: new Date().toLocaleDateString(),
+    })
+  )
+  .run();
+
+agent.close();
+```
+
+### Multi-Turn Session with Working Directory
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+const agent = await Agent.connect(CLAUDE_CODE);
+
+// Create a session scoped to a specific project directory
+const session = await agent.createSession({
+  cwd: "/path/to/project",
+  systemPrompt: "You are a helpful code review assistant.",
+});
+
+// The agent can access files relative to the working directory
+const review = await session
+  .think(CodeReviewSchema)
+  .text("Review the main entry point of this project")
+  .run();
+
+// Follow-up questions maintain context
+const details = await session
+  .think(DetailSchema)
+  .text("Explain more about the third issue you mentioned")
+  .run();
+
+session.close();
+agent.close();
+```
+
+## API Reference
+
+### `Agent.connect(command, options?)`
+
+Connects to an agent by spawning a subprocess.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `command` | `string` | The command to spawn the agent process |
+| `options` | `ConnectOptions` | Optional connection configuration |
+
+**Returns:** `Promise<Agent>`
+
+**ConnectOptions:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `env` | `Record<string, string>` | Environment variables for the agent process |
+| `timeout` | `number` | Connection timeout in milliseconds |
+
+---
+
+### `agent.think(schema)`
+
+Creates a `ThinkBuilder` for constructing a single-turn prompt. Each call creates an ephemeral session that is automatically closed when the prompt completes.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `schema` | `SchemaProvider<Output>` | Defines the expected output structure |
+
+**Returns:** `ThinkBuilder<Output>`
+
+---
+
+### `agent.createSession(options?)`
+
+Creates a persistent session for multi-turn conversations.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `options` | `SessionOptions` | Optional session configuration |
+
+**Returns:** `Promise<Session>`
+
+**SessionOptions:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `cwd` | `string` | Working directory for the session (defaults to `process.cwd()`) |
+| `systemPrompt` | `string` | System prompt for the session |
+
+---
+
+### `agent.close()`
+
+Closes the connection to the agent. This shuts down the conductor and invalidates any active sessions.
+
+**Returns:** `void`
+
+## See Also
+
+- [API Overview](/api/overview) - ThinkBuilder methods and schema providers
+- [Sessions](/api/sessions) - Multi-turn conversation sessions
+- [Connectors](/api/connectors) - Available agent connectors

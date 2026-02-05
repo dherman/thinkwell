@@ -3,4 +3,136 @@ title: "Quick Start"
 description: "Quick instructions to get started with Thinkwell."
 ---
 
-_Under construction. Please check back again soon._
+This guide will walk you through creating your first Thinkwell agent in just a few minutes.
+
+## Installation with Homebrew (Recommended)
+
+Homebrew is the simplest way to install Thinkwell system-wide:
+```bash
+brew install dherman/thinkwell/thinkwell
+```
+
+## Manual Installation
+
+<Tabs>
+  <Tab title="macOS (Apple Silicon)">
+    ```bash
+    mkdir -p ~/.local/bin
+    curl -L https://github.com/dherman/thinkwell/releases/latest/download/thinkwell-darwin-arm64.tar.gz | tar -xz -C ~/.local/bin
+    mv ~/.local/bin/thinkwell-darwin-arm64 ~/.local/bin/thinkwell
+    ```
+  </Tab>
+  <Tab title="macOS (Intel)">
+    ```bash
+    mkdir -p ~/.local/bin
+    curl -L https://github.com/dherman/thinkwell/releases/latest/download/thinkwell-darwin-x64.tar.gz | tar -xz -C ~/.local/bin
+    mv ~/.local/bin/thinkwell-darwin-x64 ~/.local/bin/thinkwell
+    ```
+  </Tab>
+  <Tab title="Linux (ARM64)">
+    ```bash
+    mkdir -p ~/.local/bin
+    curl -L https://github.com/dherman/thinkwell/releases/latest/download/thinkwell-linux-arm64.tar.gz | tar -xz -C ~/.local/bin
+    mv ~/.local/bin/thinkwell-linux-arm64 ~/.local/bin/thinkwell
+    ```
+  </Tab>
+  <Tab title="Linux (x64)">
+    ```bash
+    mkdir -p ~/.local/bin
+    curl -L https://github.com/dherman/thinkwell/releases/latest/download/thinkwell-linux-x64.tar.gz | tar -xz -C ~/.local/bin
+    mv ~/.local/bin/thinkwell-linux-x64 ~/.local/bin/thinkwell
+    ```
+  </Tab>
+</Tabs>
+
+## Zero-Install (Node.js)
+
+If you don't want to install anything, you can use Thinkwell via `npx`:
+```bash
+npx -y thinkwell --help
+```
+
+
+## Create Your First Agent
+
+Create a new TypeScript file called `greeting.ts`:
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+/**
+ * A friendly greeting.
+ * @JSONSchema
+ */
+export interface Greeting {
+  /** The greeting message */
+  message: string;
+}
+
+async function main() {
+  const agent = await Agent.connect(CLAUDE_CODE);
+  try {
+    const greeting = await agent
+      .think(Greeting.Schema)
+      .text("Create a friendly greeting message.")
+      .run();
+    console.log(greeting.message);
+  } finally {
+    agent.close();
+  }
+}
+main();
+```
+
+## Run Your Script
+
+The Thinkwell CLI can run TypeScript files directly without any compilation step:
+
+```bash
+thinkwell greeting.ts
+```
+
+You should see a friendly greeting message printed to your console.
+
+## Understanding the Code
+
+Let's break down the key concepts:
+
+### Special Imports
+
+Thinkwell uses special import specifiers that the CLI resolves at runtime:
+
+- `thinkwell:agent` - Core agent functionality including the `Agent` class
+- `thinkwell:connectors` - Pre-configured connectors for AI backends like `CLAUDE_CODE`
+
+### The @JSONSchema Pattern
+
+The `@JSONSchema` JSDoc tag is central to how Thinkwell works. When you annotate an interface with `@JSONSchema`, Thinkwell automatically generates a JSON Schema and attaches it as a static `Schema` property:
+
+```typescript
+/**
+ * A friendly greeting.
+ * @JSONSchema
+ */
+export interface Greeting {
+  /** The greeting message */
+  message: string;
+}
+```
+
+This allows you to use `Greeting.Schema` when calling `agent.think()`, which tells the agent what structured output to produce. The JSDoc comments on properties become descriptions in the generated schema, helping the AI understand what each field should contain.
+
+### Agent Lifecycle
+
+1. **Connect** - `Agent.connect(CLAUDE_CODE)` establishes a connection to the AI backend
+2. **Think** - `agent.think(Schema).text(prompt).run()` sends your prompt and returns structured output matching your schema
+3. **Close** - Always close the agent when done to clean up resources
+
+## Next Steps
+
+Now that you have a basic agent working, explore:
+
+- [API Overview](/api/overview) - Learn about schemas, tools, and the ThinkBuilder API
+- [Connectors](/api/connectors) - Configure different AI backends
+- [Sessions](/api/sessions) - Create multi-turn conversations with persistent context

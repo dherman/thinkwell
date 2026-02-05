@@ -3,4 +3,238 @@ title: "Sentiment Analysis"
 description: "Use npm packages in tools."
 ---
 
-_Under construction. Please check back again soon._
+This example demonstrates how to wrap npm packages as tools for an LLM agent. We'll use the popular [`sentiment`](https://www.npmjs.com/package/sentiment) package to give Claude the ability to perform quantitative sentiment analysis on text passages.
+
+## The Complete Example
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+import * as fs from "fs/promises";
+import Sentiment from "sentiment";
+
+/**
+ * A section of a document with its sentiment analysis.
+ * @JSONSchema
+ */
+export interface DocumentSection {
+  /** The section title */
+  title: string;
+  /** The sentiment score from the analysis tool */
+  sentimentScore: number;
+  /** A brief summary of the section */
+  summary: string;
+}
+
+/**
+ * Analysis of a document's sentiment and content.
+ * @JSONSchema
+ */
+export interface DocumentAnalysis {
+  /** The overall emotional tone of the document */
+  overallTone: "positive" | "negative" | "mixed" | "neutral";
+  /** Analysis of each section */
+  sections: DocumentSection[];
+  /** A recommendation based on the analysis */
+  recommendation: string;
+}
+
+/**
+ * A text passage to analyze.
+ * @JSONSchema
+ */
+export interface TextPassage {
+  /** The text passage to analyze */
+  text: string;
+}
+
+// Initialize the sentiment analyzer (from the `sentiment` npm package)
+const sentimentAnalyzer = new Sentiment();
+
+async function main() {
+  const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
+
+  try {
+    const feedback = await fs.readFile(
+      new URL("feedback.txt", import.meta.url),
+      "utf-8"
+    );
+
+    const analysis = await agent
+      .think(DocumentAnalysis.Schema)
+      .text(`
+        Analyze the following customer feedback document.
+        Use the sentiment analysis tool to measure the emotional tone of each section,
+        then provide an overall analysis with recommendations.
+      `)
+      .quote(feedback, "feedback")
+
+      // Custom tool: wraps the `sentiment` npm package as an MCP tool
+      .tool(
+        "analyze_sentiment",
+        "Analyze the sentiment of a text passage.",
+        TextPassage.Schema,
+        async (passage) => {
+          const result = sentimentAnalyzer.analyze(passage.text);
+          return {
+            score: result.score,
+            comparative: result.comparative,
+            positive: result.positive,
+            negative: result.negative,
+          };
+        }
+      )
+
+      .run();
+
+    console.log(`Overall Tone: ${analysis.overallTone}`);
+    console.log(`Recommendation: ${analysis.recommendation}`);
+  } finally {
+    agent.close();
+  }
+}
+
+main();
+```
+
+Run this example with:
+
+```bash
+npx thinkwell sentiment.ts
+```
+
+## Using npm Packages as Tools
+
+The key insight here is that any npm package can be wrapped as a tool. The `sentiment` package provides AFINN-based sentiment analysis, but the LLM doesn't know how to use it directly. By wrapping it in a tool, we give the agent the ability to call this deterministic algorithm whenever it needs precise sentiment measurements.
+
+```typescript
+import Sentiment from "sentiment";
+
+const sentimentAnalyzer = new Sentiment();
+
+// Later, in the agent call:
+.tool(
+  "analyze_sentiment",
+  "Analyze the sentiment of a text passage.",
+  TextPassage.Schema,
+  async (passage) => {
+    const result = sentimentAnalyzer.analyze(passage.text);
+    return {
+      score: result.score,
+      comparative: result.comparative,
+      positive: result.positive,
+      negative: result.negative,
+    };
+  }
+)
+```
+
+The tool receives a `TextPassage` object (validated against the schema) and returns the raw sentiment analysis result. The agent can then interpret these numbers in context.
+
+## Typed Tool Inputs with Schemas
+
+Tools can accept structured input by providing a schema as the third argument. Here we define a `TextPassage` interface with the `@JSONSchema` decorator:
+
+```typescript
+/**
+ * A text passage to analyze.
+ * @JSONSchema
+ */
+export interface TextPassage {
+  /** The text passage to analyze */
+  text: string;
+}
+```
+
+When you pass `TextPassage.Schema` to the `.tool()` method, Thinkwell:
+
+1. Exposes the schema to the LLM so it knows how to format tool calls
+2. Validates incoming tool calls against the schema
+3. Provides full TypeScript typing for the handler function's `passage` parameter
+
+This pattern ensures that tool inputs are always well-formed, and your handler code gets proper type checking.
+
+## Including Document Content with `.quote()`
+
+The `.quote()` method adds content to the prompt in a clearly delimited format. This is ideal for including documents, user input, or any content that should be treated as data rather than instructions.
+
+```typescript
+.quote(feedback, "feedback")
+```
+
+The second argument is an optional label that helps the LLM understand what the quoted content represents. In the prompt, this renders as a clearly marked block that the agent can reference.
+
+Without a label:
+
+```typescript
+.quote(someContent)
+```
+
+With a label for clarity:
+
+```typescript
+.quote(feedback, "customer-feedback")
+.quote(policy, "company-policy-document")
+```
+
+## Complex Schema Patterns
+
+This example showcases several schema features working together:
+
+### Nested Types
+
+The `DocumentAnalysis` schema contains an array of `DocumentSection` objects:
+
+```typescript
+/**
+ * A section of a document with its sentiment analysis.
+ * @JSONSchema
+ */
+export interface DocumentSection {
+  title: string;
+  sentimentScore: number;
+  summary: string;
+}
+
+/**
+ * Analysis of a document's sentiment and content.
+ * @JSONSchema
+ */
+export interface DocumentAnalysis {
+  overallTone: "positive" | "negative" | "mixed" | "neutral";
+  sections: DocumentSection[];
+  recommendation: string;
+}
+```
+
+Thinkwell automatically resolves references between schemas when generating the JSON Schema for the LLM.
+
+### String Literal Unions (Enums)
+
+TypeScript string literal unions become enum constraints in the generated schema:
+
+```typescript
+overallTone: "positive" | "negative" | "mixed" | "neutral";
+```
+
+This ensures the LLM can only return one of these four values, and TypeScript knows the type is constrained to these literals.
+
+### Descriptive JSDoc Comments
+
+Every property should have a JSDoc comment explaining its purpose:
+
+```typescript
+/** The sentiment score from the analysis tool */
+sentimentScore: number;
+```
+
+These descriptions appear in the generated JSON Schema and help the LLM understand what each field should contain. Good descriptions lead to better, more consistent outputs.
+
+## Why Wrap Packages as Tools?
+
+LLMs are powerful reasoners but they can struggle with precise calculations or algorithms that require exact execution. By wrapping deterministic packages as tools, you get the best of both worlds:
+
+- **The LLM** handles understanding context, breaking down the document into sections, and synthesizing a recommendation
+- **The npm package** handles the precise, algorithmic work of calculating sentiment scores
+
+This pattern applies to many use cases: date parsing, math operations, data validation, API calls, database queries, and more. If there's an npm package that does something well, you can make it available to your agent as a tool.

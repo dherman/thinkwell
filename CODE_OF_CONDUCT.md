@@ -1,8 +1,3 @@
----
-title: "Code of Conduct"
-description: "Our community code of conduct."
----
-
 # Contributor Covenant Code of Conduct
 
 ## Our Pledge

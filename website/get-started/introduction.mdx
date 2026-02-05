@@ -3,4 +3,52 @@ title: "Introduction"
 description: "Get started with Thinkwell."
 ---
 
-_Under construction. Please check back again soon._
+# What is Thinkwell?
+
+Thinkwell is a TypeScript framework built to **make scripting AI agents easy**.
+
+With Thinkwell, you can write scripts that seamlessly combine traditional programming logic with the creative problem-solving capabilities of large language models. Your code stays in control while the AI handles the parts that benefit from reasoning and natural language understanding.
+
+## How It Works
+
+Thinkwell uses the [Agent Client Protocol (ACP)](https://github.com/anthropics/agent-client-protocol) to connect to AI agents like Claude Code, Codex, Gemini CLI, and others. This means you write one script and can run it against different AI backends.
+
+Here's a simple example:
+
+```typescript
+import { Agent } from "thinkwell:agent";
+import { CLAUDE_CODE } from "thinkwell:connectors";
+
+/** @JSONSchema */
+interface Analysis {
+  summary: string;
+  sentiment: "positive" | "negative" | "neutral";
+}
+
+const agent = await Agent.connect(CLAUDE_CODE);
+
+const result = await agent
+  .think(Analysis.Schema)
+  .text("Analyze the following customer feedback:")
+  .quote(customerFeedback)
+  .run();
+
+console.log(`Sentiment: ${result.sentiment}`);
+console.log(`Summary: ${result.summary}`);
+
+agent.close();
+```
+
+## Why Thinkwell?
+
+**Zero-config.** Run TypeScript files directly with `thinkwell script.ts`. Schemas are generated on the fly.
+
+**Tools that just work.** Give the agent access to your functions with a simple decorator pattern. Thinkwell handles the protocol details.
+
+**Agent-agnostic.** Write your logic once, then swap between Claude Code, Codex, or other ACP-compatible agents without changing your code.
+
+**Type safety from end to end.** Define your expected outputs as TypeScript interfaces and get compile-time checking plus runtime validation. No more hand-crafting MCP schemas or parsing prompt results.
+
+## Next Steps
+
+Ready to dive in? Head to the [Quick Start](/get-started/quickstart) guide to set up your first Thinkwell project.

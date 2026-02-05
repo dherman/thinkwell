@@ -3,4 +3,178 @@ title: "Contributing"
 description: "How to contribute to Thinkwell."
 ---
 
-_Under construction. Please check back again soon._
+Thank you for your interest in contributing to Thinkwell! This guide will help you get set up and explain our development workflow.
+
+## Development Setup
+
+### Prerequisites
+
+- **Node.js 24+** with native TypeScript support
+- **pnpm** as the package manager
+
+### Clone and Install
+
+```bash
+git clone https://github.com/anthropics/thinkwell.git
+cd thinkwell
+pnpm install
+```
+
+### Run in Development Mode
+
+You can run TypeScript files directly using Node.js with native TypeScript support:
+
+```bash
+node --experimental-transform-types src/cli.ts
+```
+
+### Build
+
+To build the project:
+
+```bash
+pnpm build
+```
+
+This uses esbuild to bundle the code, followed by [@yao-pkg/pkg](https://github.com/yao-pkg/pkg) for binary packaging.
+
+### Important: Do Not Use Bun
+
+This project explicitly does not use Bun for runtime or binary distribution. We encountered fundamental limitations with Bun's module resolution from its virtual filesystem that prevented user scripts from importing packages. See `doc/rfd/pkg-migration.md` in the repository for the full technical analysis.
+
+## Running Tests
+
+Run the test suite with:
+
+```bash
+pnpm test
+```
+
+To run tests in watch mode during development:
+
+```bash
+pnpm test:watch
+```
+
+## Commit Message Format
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) for clear history and automated release management. All commit messages should follow this format:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Commit Types
+
+| Type | Description | Version Bump |
+|------|-------------|--------------|
+| `feat` | A new feature | Minor |
+| `fix` | A bug fix | Patch |
+| `docs` | Documentation only changes | None |
+| `style` | Code style changes (formatting, semicolons, etc.) | None |
+| `refactor` | Code changes that neither fix bugs nor add features | None |
+| `perf` | Performance improvements | None |
+| `test` | Adding or updating tests | None |
+| `chore` | Maintenance tasks, dependency updates | None |
+| `ci` | CI/CD configuration changes | None |
+| `build` | Build system or external dependency changes | None |
+
+### Common Scopes
+
+- `acp` - Core protocol changes
+- `thinkwell` - High-level API changes
+- `conductor` - Conductor-specific changes
+- `deps` - Dependency updates
+
+### Breaking Changes
+
+Indicate breaking changes by adding `!` after the type:
+
+```
+feat!: change API to use async traits
+```
+
+Or include `BREAKING CHANGE:` in the commit footer:
+
+```
+feat: redesign conductor protocol
+
+BREAKING CHANGE: conductor now requires explicit capability registration
+```
+
+### Examples
+
+```
+feat(conductor): add support for dynamic proxy chains
+fix(acp): resolve deadlock in message routing
+docs: update README with installation instructions
+chore(deps): bump @agentclientprotocol/sdk to 0.12.0
+```
+
+## Pull Request Process
+
+1. **Create a branch** from `main` with a descriptive name:
+   ```bash
+   git checkout -b feat/add-new-connector
+   ```
+
+2. **Make your changes** with clear, focused commits following the conventional commits format.
+
+3. **Run tests** to ensure your changes work correctly:
+   ```bash
+   pnpm test
+   ```
+
+4. **Push your branch** and open a pull request against `main`.
+
+5. **Describe your changes** in the PR description. Include:
+   - What the change does
+   - Why it's needed
+   - Any breaking changes or migration steps
+
+6. **Address review feedback** by pushing additional commits. We squash merge PRs, so don't worry about commit count.
+
+## Code Style Guidelines
+
+### TypeScript
+
+- Use TypeScript for all source code
+- Prefer explicit types over `any`
+- Use JSDoc comments for public APIs
+- Use the `@JSONSchema` decorator for interfaces that need schema generation
+
+### Formatting
+
+The project uses consistent formatting rules. Before committing:
+
+```bash
+pnpm lint
+pnpm format
+```
+
+### File Organization
+
+- Source code lives in `src/`
+- Tests are co-located with source files or in `__tests__/` directories
+- Documentation source is in `website/`
+
+### Naming Conventions
+
+- Use `camelCase` for variables and functions
+- Use `PascalCase` for classes, interfaces, and types
+- Use `UPPER_SNAKE_CASE` for constants
+- Use descriptive names that convey intent
+
+## Getting Help
+
+If you have questions or need help:
+
+- Open a [GitHub Discussion](https://github.com/anthropics/thinkwell/discussions)
+- Check existing issues for similar problems
+- Read through the [documentation](/get-started/introduction)
+
+We appreciate all contributions, whether it's fixing a typo, improving documentation, or adding new features. Thank you for helping make Thinkwell better!
