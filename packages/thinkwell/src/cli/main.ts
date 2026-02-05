@@ -39,7 +39,7 @@ const VERSION = "0.4.3";
 
 function showHelp(): void {
   console.log(`
-thinkwell - Run TypeScript scripts with automatic schema generation
+thinkwell - agent scripting made easy
 
 Usage:
   thinkwell <script.ts> [args...]     Run a TypeScript script
@@ -51,22 +51,10 @@ Usage:
   thinkwell --help                    Show this help message
   thinkwell --version                 Show version
 
-Examples:
-  thinkwell hello.ts                 Run hello.ts
-  thinkwell run hello.ts --verbose   Run with arguments
-  thinkwell build src/agent.ts       Compile to binary
-  thinkwell init my-agent            Create a new project
-  ./script.ts                        Via shebang: #!/usr/bin/env thinkwell
-  thinkwell types                    Generate declarations in current dir
-  thinkwell types src                Generate declarations in src/
-  thinkwell types --watch            Watch for changes and regenerate
+Example:
+  thinkwell my-agent-script.ts
 
-The thinkwell CLI automatically:
-  - Generates JSON Schema for types marked with @JSONSchema
-  - Resolves thinkwell:* imports to built-in modules
-  - Creates .thinkwell.d.ts files for IDE autocomplete (types command)
-
-For more information, visit: https://github.com/dherman/thinkwell
+For more information, visit: https://thinkwell.sh
 `);
 }
 
