@@ -29,8 +29,8 @@ This monorepo contains the following packages:
 
 - **[thinkwell](packages/thinkwell)**: High-level API for blending deterministic code with LLM-powered reasoning
 - **[@thinkwell/acp](packages/acp)**: Core ACP library providing MCP-over-ACP protocol handling
-- **[@thinkwell/bun-plugin](packages/bun-plugin)**: Bun plugin for automatic JSON Schema generation
-- **[@thinkwell/cli](packages/cli)**: CLI for running thinkwell scripts with zero configuration
+- **[@thinkwell/protocol](packages/protocol)**: Protocol definitions and types
+- **[@thinkwell/conductor](packages/conductor)**: Conductor for orchestrating agent workflows
 
 ## Quick Start
 

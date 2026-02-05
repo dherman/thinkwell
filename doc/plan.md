@@ -18,8 +18,8 @@ RFD: [doc/rfd/bun-removal.md](rfd/bun-removal.md)
 
 ## Phase 4: Update Documentation
 
-- [ ] Update `README.md` to remove bun-plugin from packages list
-- [ ] Simplify `AGENTS.md` Bun warnings to historical note
+- [x] Update `README.md` to remove bun-plugin from packages list
+- [x] Simplify `AGENTS.md` Bun warnings to historical note
 
 ## Phase 5: Verification
 
