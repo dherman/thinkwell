@@ -9,7 +9,7 @@ dist-pkg/
 
 # Per-worktree local settings
 .vscode/settings.json
-.claude/
+.claude
 
 # Generated output from unminify demo
 examples/data/underscore.js
