@@ -112,7 +112,7 @@ async function main() {
     }
     console.log(`Recommendation: ${analysis.recommendation}`);
   } finally {
-    agent.close();
+    await agent.close();
   }
 }
 

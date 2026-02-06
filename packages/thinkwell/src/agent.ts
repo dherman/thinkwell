@@ -73,6 +73,7 @@ export interface AgentConnection {
   mcpHandler: McpOverAcpHandler;
   sessionHandlers: Map<string, SessionHandler>;
   initialized: boolean;
+  conductorPromise: Promise<void>;
 }
 
 /**
@@ -169,6 +170,7 @@ export class Agent {
       mcpHandler,
       sessionHandlers: new Map(),
       initialized: false,
+      conductorPromise: null!, // Set below after starting the conductor
     };
 
     // Create the ACP client connection
@@ -186,10 +188,10 @@ export class Agent {
     };
 
     // Start the conductor's message loop in the background
-    const conductorPromise = conductor.connect(clientConnector);
+    conn.conductorPromise = conductor.connect(clientConnector);
 
     // Handle conductor errors/completion
-    conductorPromise.catch((error) => {
+    conn.conductorPromise.catch((error) => {
       console.error("Conductor error:", error);
     });
 
@@ -260,10 +262,14 @@ export class Agent {
    *
    * This shuts down the conductor. Any active sessions will be invalidated.
    */
-  close(): void {
-    this._conn.conductor.shutdown().catch((error) => {
-      console.error("Conductor shutdown error:", error);
-    });
+  async close(): Promise<void> {
+    await this._conn.conductor.shutdown();
+    try {
+      await this._conn.conductorPromise;
+    } catch (error) {
+      // Conductor errors are already logged, just ensure we don't throw
+      console.error('[Agent.close] Conductor promise error:', error);
+    }
   }
 
   /**

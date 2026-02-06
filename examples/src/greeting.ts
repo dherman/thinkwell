@@ -53,8 +53,11 @@ async function main() {
 
     stopSpinner();
     console.log(styleText(["bold", "white"], `✨ ${greeting.message}`));
+  } catch (error) {
+    console.error("Error:", error);
+    throw error;
   } finally {
-    agent.close();
+    await agent.close();
   }
 }
 

@@ -53,7 +53,7 @@ async function main() {
       console.log(`  - ${point}`);
     }
   } finally {
-    agent.close();
+    await agent.close();
   }
 }
 
