@@ -58,6 +58,32 @@ The custom spinner in [packages/thinkwell/src/cli/build.ts](../packages/thinkwel
 
 ---
 
+## kiro-cli acp: Doesn't Exit on stdin EOF
+
+**Issue:** `kiro-cli acp` (v1.25.0) doesn't exit when stdin closes (EOF). This is a bug in kiro-cli that has been confirmed with the maintainers.
+
+**Expected behavior:** When stdin closes, the process should detect EOF and exit gracefully.
+
+**Actual behavior:** The process continues running indefinitely even after stdin is closed.
+
+**Workaround:** In `packages/conductor/src/connectors/stdio.ts`, we:
+1. Close stdin with `process.stdin.end()`
+2. Wait 250ms for graceful exit
+3. Send SIGTERM if the process hasn't exited
+4. Wait another 500ms
+5. Send SIGKILL if still running
+
+**Side effects:**
+- Process exits with code 255 (from SIGTERM) instead of 0
+- We suppress logging of non-zero exit codes during graceful shutdown to avoid confusing users
+
+**Files affected:**
+- `packages/conductor/src/connectors/stdio.ts` - Timeout logic and exit code logging
+
+**Tracking:** This workaround can be removed once kiro-cli properly handles stdin EOF.
+
+---
+
 ## Historical Workarounds (No Longer In Use)
 
 The following workarounds were used when thinkwell was built on Bun. The project has since migrated to Node.js with pkg for binary distribution. These are preserved for reference.

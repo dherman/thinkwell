@@ -49,7 +49,10 @@ class StdioConnection implements ComponentConnection {
     // Handle process exit
     process.on("exit", (code, signal) => {
       this.closed = true;
-      if (code !== 0 && code !== null) {
+      // Don't log exit codes during graceful shutdown - we expect non-zero codes
+      // when we send SIGTERM/SIGKILL to processes that don't handle stdin EOF.
+      // This is a workaround for kiro-cli acp (v1.25.0) which doesn't exit on stdin close.
+      if (code !== 0 && code !== null && !this.closingGracefully) {
         console.error(`Process exited with code ${code}`);
       }
       // Only log signal if it wasn't an expected graceful shutdown
@@ -116,26 +119,41 @@ class StdioConnection implements ComponentConnection {
 
     this.closed = true;
     this.closingGracefully = true;
+    
+    // Close the readline interface
     this.readline.close();
+    
+    // Close the stdout stream to release the pipe handle
+    this.process.stdout?.destroy();
 
     // Close stdin to signal EOF to the subprocess
     this.process.stdin?.end();
 
-    // Give the process a chance to exit gracefully
+    // Wait for the process to exit gracefully, with fallback to signals
+    // Note: Some processes don't properly handle stdin EOF and need explicit signals.
+    // For example, kiro-cli acp (as of v1.25.0) doesn't exit on stdin close.
     await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        // Force kill if it hasn't exited
-        this.process.kill("SIGKILL");
+      let sigtermTimeout: NodeJS.Timeout | null = null;
+      let sigkillTimeout: NodeJS.Timeout | null = null;
+      
+      const onExit = () => {
+        if (sigtermTimeout) clearTimeout(sigtermTimeout);
+        if (sigkillTimeout) clearTimeout(sigkillTimeout);
         resolve();
-      }, 5000);
+      };
+      
+      this.process.once("exit", onExit);
 
-      this.process.once("exit", () => {
-        clearTimeout(timeout);
-        resolve();
-      });
+      // Wait 250ms for graceful exit, then send SIGTERM
+      sigtermTimeout = setTimeout(() => {
+        this.process.kill("SIGTERM");
 
-      // Send SIGTERM first
-      this.process.kill("SIGTERM");
+        // Wait another 500ms, then force kill with SIGKILL
+        sigkillTimeout = setTimeout(() => {
+          this.process.kill("SIGKILL");
+          resolve();
+        }, 500);
+      }, 250);
     });
   }
 }

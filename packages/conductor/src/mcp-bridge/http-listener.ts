@@ -62,6 +62,7 @@ export async function createHttpListener(options: HttpListenerOptions): Promise<
 
   let sessionId: string | null = null;
   const connections = new Map<string, ActiveConnection>();
+  const sockets = new Set<any>();
   let server: Server | null = null;
 
   // Create HTTP server
@@ -141,6 +142,14 @@ export async function createHttpListener(options: HttpListenerOptions): Promise<
     server!.on("error", reject);
   });
 
+  // Track all socket connections so we can destroy them on close
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => {
+      sockets.delete(socket);
+    });
+  });
+
   const address = server.address();
   if (!address || typeof address === "string") {
     throw new Error("Failed to get server address");
@@ -170,10 +179,22 @@ export async function createHttpListener(options: HttpListenerOptions): Promise<
         connections.delete(key);
       }
 
+      // Destroy all active sockets to allow server to close immediately
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      sockets.clear();
+
       // Close the server
       if (server) {
-        await new Promise<void>((resolve) => {
-          server!.close(() => resolve());
+        await new Promise<void>((resolve, reject) => {
+          server!.close((err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
         });
       }
     },
