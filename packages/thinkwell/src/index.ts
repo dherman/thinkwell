@@ -1,6 +1,6 @@
 // New API
-export { Agent, open } from "./agent.js";
-export type { AgentName, AgentOptions, SessionOptions } from "./agent.js";
+export { open } from "./agent.js";
+export type { Agent, AgentName, AgentOptions, CustomAgentOptions, SessionOptions } from "./agent.js";
 export { Session } from "./session.js";
 
 // Think builder

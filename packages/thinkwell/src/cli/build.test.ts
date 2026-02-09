@@ -514,8 +514,8 @@ describe("build command E2E (compiled binary)", {
   it("should build a script from compiled binary (full E2E)", () => {
     const scriptPath = join(testDir, "e2e-buildable.ts");
     writeFileSync(scriptPath, `
-import { Agent } from "thinkwell";
-console.log("Agent imported:", typeof Agent);
+import { open } from "thinkwell";
+console.log("open imported:", typeof open);
 `);
 
     const outputPath = join(testDir, "e2e-output");
@@ -534,7 +534,7 @@ console.log("Agent imported:", typeof Agent);
     const execResult = run(outputPath, []);
     assert.strictEqual(execResult.code, 0, `Built binary failed: ${execResult.stderr}`);
     assert.ok(
-      execResult.stdout.includes("Agent imported:"),
+      execResult.stdout.includes("open imported:"),
       "Built binary should produce expected output"
     );
   });

@@ -48,12 +48,6 @@ const AGENT_COMMANDS: Record<AgentName, string> = {
  */
 export interface AgentOptions {
   /**
-   * Custom command to spawn the agent process.
-   * Mutually exclusive with passing an AgentName to `open()`.
-   */
-  cmd?: string;
-
-  /**
    * Environment variables for the agent process.
    */
   env?: Record<string, string>;
@@ -62,6 +56,25 @@ export interface AgentOptions {
    * Connection timeout in milliseconds.
    */
   timeout?: number;
+}
+
+/**
+ * Options for opening an agent connection with a custom spawn command.
+ *
+ * Use this overload of `open()` when connecting to an agent that isn't
+ * in the built-in {@link AgentName} list.
+ *
+ * @example
+ * ```typescript
+ * const agent = await open({ cmd: 'my-custom-agent --acp' });
+ * ```
+ */
+export interface CustomAgentOptions extends AgentOptions {
+  /**
+   * The shell command to spawn the agent process.
+   * The command is split on whitespace to extract the program and arguments.
+   */
+  cmd: string;
 }
 
 /**
@@ -100,26 +113,24 @@ export interface AgentConnection {
 }
 
 /**
- * Represents a connection to an AI agent (like Claude Code) and provides
- * a fluent API for blending deterministic code with LLM-powered reasoning.
+ * A connection to an AI agent (like Claude Code) that provides a fluent API
+ * for blending deterministic code with LLM-powered reasoning.
  *
  * Use the top-level `open()` function to create an Agent instance.
  *
  * @example Simple usage with ephemeral sessions
  * ```typescript
- * import { open, schemaOf } from "thinkwell";
+ * import { open } from "thinkwell";
+ *
+ * /** @JSONSchema *​/
+ * interface Summary {
+ *   title: string;
+ *   points: string[];
+ * }
  *
  * const agent = await open('claude');
- *
  * const summary = await agent
- *   .think(schemaOf<{ title: string; points: string[] }>({
- *     type: "object",
- *     properties: {
- *       title: { type: "string" },
- *       points: { type: "array", items: { type: "string" } }
- *     },
- *     required: ["title", "points"]
- *   }))
+ *   .think(Summary.Schema)
  *   .text("Summarize this document:")
  *   .quote(document)
  *   .run();
@@ -148,22 +159,7 @@ export interface AgentConnection {
  * agent.close();
  * ```
  */
-export class Agent {
-  private readonly _conn: AgentConnection;
-
-  private constructor(conn: AgentConnection) {
-    this._conn = conn;
-  }
-
-  /**
-   * Create an Agent from an existing connection.
-   * @internal Used by `open()`.
-   */
-  static _fromConnection(conn: AgentConnection): Agent {
-    return new Agent(conn);
-  }
-
-
+export interface Agent {
   /**
    * Create a new think builder for constructing a prompt with tools.
    *
@@ -175,19 +171,16 @@ export class Agent {
    *
    * @example
    * ```typescript
+   * /** @JSONSchema *​/
+   * interface Answer { answer: string }
+   *
    * const result = await agent
-   *   .think(schemaOf<{ answer: string }>({
-   *     type: "object",
-   *     properties: { answer: { type: "string" } },
-   *     required: ["answer"]
-   *   }))
+   *   .think(Answer.Schema)
    *   .text("What is 2 + 2?")
    *   .run();
    * ```
    */
-  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output> {
-    return new ThinkBuilder<Output>(this._conn, schema);
-  }
+  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output>;
 
   /**
    * Create a new session for multi-turn conversations.
@@ -211,6 +204,36 @@ export class Agent {
    * session.close();
    * ```
    */
+  createSession(options?: SessionOptions): Promise<Session>;
+
+  /**
+   * Close the connection to the agent.
+   *
+   * This shuts down the conductor. Any active sessions will be invalidated.
+   */
+  close(): void;
+}
+
+/** Symbol used to prevent external construction of AgentImpl. */
+const AGENT_KEY = Symbol("Agent");
+
+/**
+ * @internal
+ */
+class AgentImpl implements Agent {
+  private readonly _conn: AgentConnection;
+
+  constructor(key: symbol, conn: AgentConnection) {
+    if (key !== AGENT_KEY) {
+      throw new Error("Agent cannot be constructed directly. Use open() instead.");
+    }
+    this._conn = conn;
+  }
+
+  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output> {
+    return new ThinkBuilder<Output>(this._conn, schema);
+  }
+
   async createSession(options?: SessionOptions): Promise<Session> {
     await this._initialize();
 
@@ -223,30 +246,13 @@ export class Agent {
     return new Session(this._conn, response.sessionId, options);
   }
 
-  /**
-   * Close the connection to the agent.
-   *
-   * This shuts down the conductor. Any active sessions will be invalidated.
-   */
   close(): void {
     this._conn.conductor.shutdown().catch((error) => {
       console.error("Conductor shutdown error:", error);
     });
   }
 
-  /**
-   * Get the internal connection for use by ThinkBuilder
-   * @internal
-   */
-  get _connection(): AgentConnection {
-    return this._conn;
-  }
-
-  /**
-   * Initialize the connection (negotiate protocol version)
-   * @internal
-   */
-  async _initialize(): Promise<void> {
+  private async _initialize(): Promise<void> {
     if (this._conn.initialized) return;
 
     await this._conn.connection.initialize({
@@ -399,7 +405,7 @@ function parseCommandWithEnv(command: string, env: Record<string, string>): Comm
  * applying environment variable overrides.
  */
 function resolveCommand(
-  nameOrOptions: AgentName | (AgentOptions & { cmd: string }),
+  nameOrOptions: AgentName | (CustomAgentOptions),
   options?: AgentOptions,
 ): { command: string; options?: AgentOptions } {
   // Environment variable overrides take precedence
@@ -424,9 +430,6 @@ function resolveCommand(
 
   // No env override — resolve from arguments
   if (typeof nameOrOptions === "string") {
-    if (options?.cmd) {
-      throw new Error("Cannot specify both an agent name and `cmd` in options");
-    }
     return { command: AGENT_COMMANDS[nameOrOptions], options };
   }
 
@@ -448,9 +451,9 @@ function resolveCommand(
  * ```
  */
 export async function open(name: AgentName, options?: AgentOptions): Promise<Agent>;
-export async function open(options: AgentOptions & { cmd: string }): Promise<Agent>;
+export async function open(options: CustomAgentOptions): Promise<Agent>;
 export async function open(
-  nameOrOptions: AgentName | (AgentOptions & { cmd: string }),
+  nameOrOptions: AgentName | (CustomAgentOptions),
   maybeOptions?: AgentOptions,
 ): Promise<Agent> {
   const { command, options } = resolveCommand(nameOrOptions, maybeOptions);
@@ -505,5 +508,5 @@ export async function open(
     console.error("Conductor error:", error);
   });
 
-  return Agent._fromConnection(conn);
+  return new AgentImpl(AGENT_KEY, conn);
 }

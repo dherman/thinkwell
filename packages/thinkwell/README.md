@@ -7,9 +7,7 @@ A TypeScript library for easy scripting of AI agents. Thinkwell provides a fluen
 ## Quick Start
 
 ```typescript
-import { CLAUDE_CODE } from "thinkwell/connectors";
-import { Agent } from "thinkwell";
-import { GreetingSchema } from "./greeting.schemas.js";
+import { open } from "thinkwell";
 
 /**
  * A friendly greeting.
@@ -20,11 +18,11 @@ export interface Greeting {
   message: string;
 }
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 
 try {
   const greeting: Greeting = await agent
-    .think(GreetingSchema)
+    .think(Greeting.Schema)
     .text(`
       Use the current_time tool to get the current time, and create a
       friendly greeting message appropriate for that time of day.

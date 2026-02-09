@@ -10,18 +10,18 @@ Thinkwell provides a TypeScript API for integrating AI agents into your applicat
 Thinkwell exports everything from a single package:
 
 ```typescript
-import { open, Agent, Session, schemaOf } from "thinkwell";
+import { open } from "thinkwell";
+import type { Agent, Session } from "thinkwell";
 ```
 
 | Export | Description |
 |--------|-------------|
 | `open()` | Main entry point — opens a connection to a named agent |
-| `Agent` | The agent class returned by `open()` |
+| `Agent` | The agent interface returned by `open()` |
 | `Session` | Manages multi-turn conversations with persistent context |
 | `ThinkBuilder` | Fluent API for building prompts with tools |
-| `schemaOf()` | Helper for creating schema providers from JSON Schema objects |
 
-See [Named Agents](/api/connectors) for the list of supported agent names.
+See [Agent](/api/agent) for the list of supported agent names.
 
 ## Architecture
 
@@ -62,7 +62,6 @@ JSDoc comments become `description` fields in the generated schema, helping the 
 
 ## Next Steps
 
-- [Agent](/api/agent) - Opening agents and managing sessions
+- [Agent](/api/agent) - Opening agents, named agents, and managing sessions
 - [ThinkBuilder](/api/think-builder) - Building prompts with the fluent API
-- [Named Agents](/api/connectors) - Available agent names
 - [Sessions](/api/sessions) - Multi-turn conversations

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { Agent, schemaOf } from "./index.js";
+import { open, schemaOf } from "./index.js";
 
 /**
  * Integration tests for the thinkwell library.
@@ -17,11 +17,10 @@ describe("Thinkwell integration tests", { skip: SKIP_INTEGRATION }, () => {
   // These are lightweight tests that don't require a live conductor.
   // The manual tests below demonstrate full end-to-end functionality.
 
-  describe("Agent API (unit)", () => {
+  describe("Thinkwell API (unit)", () => {
     it("should export the expected API", () => {
       // Verify the module exports are correct
-      assert.ok(typeof Agent === "function", "Agent should be exported");
-      assert.ok(typeof Agent.connect === "function", "Agent.connect should be a static method");
+      assert.ok(typeof open === "function", "open should be exported");
       assert.ok(typeof schemaOf === "function", "schemaOf should be exported");
     });
   });
@@ -43,11 +42,7 @@ describe("Thinkwell integration tests", { skip: SKIP_INTEGRATION }, () => {
 async function manualThinkwellTest() {
   console.log("Starting manual thinkwell integration test...\n");
 
-  const agentCommand = process.env.AGENT_COMMAND ?? "npx -y @zed-industries/claude-code-acp";
-  console.log("Using agent command:", agentCommand);
-
-  // Connect to the agent
-  const agent = await Agent.connect(agentCommand);
+  const agent = await open('claude');
   console.log("Connected to agent\n");
 
   try {
@@ -148,8 +143,7 @@ async function manualThinkwellTest() {
 async function simpleManualTest() {
   console.log("Starting simple thinkwell test...\n");
 
-  const agentCommand = process.env.AGENT_COMMAND ?? "npx -y @zed-industries/claude-code-acp";
-  const agent = await Agent.connect(agentCommand);
+  const agent = await open('claude');
 
   try {
     interface SimpleResult {

@@ -255,7 +255,7 @@ Opens a connection using a custom command.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options` | `AgentOptions & { cmd: string }` | Options with required `cmd` field |
+| `options` | `CustomAgentOptions` | Options with required `cmd` field |
 
 **Returns:** `Promise<Agent>`
 
@@ -263,9 +263,14 @@ Opens a connection using a custom command.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `cmd` | `string` | Custom command to spawn the agent process |
 | `env` | `Record<string, string>` | Environment variables for the agent process |
 | `timeout` | `number` | Connection timeout in milliseconds |
+
+**CustomAgentOptions** (extends AgentOptions):
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `cmd` | `string` | The shell command to spawn the agent process |
 
 ---
 
