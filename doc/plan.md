@@ -41,5 +41,5 @@
 
 ## 6. Exports
 
-- [ ] Export `Skill`, `VirtualSkill`, `StoredSkill`, `SkillTool` types from `thinkwell` package
-- [ ] Export `parseSkillMd` from `@thinkwell/acp` (useful for advanced users)
+- [x] Export `Skill`, `VirtualSkill`, `StoredSkill`, `SkillTool` types from `thinkwell` package
+- [x] Export `parseSkillMd` from `@thinkwell/acp` (useful for advanced users)
