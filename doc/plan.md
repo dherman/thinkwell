@@ -4,16 +4,16 @@ Implementation plan for the [Thought Stream RFD](rfd/thought-stream.md).
 
 ## Types and Core Infrastructure
 
-- [ ] Define `ThoughtEvent` discriminated union, `ToolContent`, `ContentBlock`, `PlanEntry`, `ToolKind` types in `packages/thinkwell/src/thought-event.ts`
-- [ ] Implement `ThoughtStream<Output>` class with `.result` promise and `AsyncIterable<ThoughtEvent>` (producer-consumer queue pattern)
-- [ ] Export new types from `packages/thinkwell/src/index.ts`
+- [x] Define `ThoughtEvent` discriminated union, `ToolContent`, `ContentBlock`, `PlanEntry`, `ToolKind` types in `packages/thinkwell/src/thought-event.ts`
+- [x] Implement `ThoughtStream<Output>` class with `.result` promise and `AsyncIterable<ThoughtEvent>` (producer-consumer queue pattern)
+- [x] Export new types from `packages/thinkwell/src/index.ts`
 
 ## Notification Mapping
 
-- [ ] Expand `convertNotification` in `packages/thinkwell/src/agent.ts` to preserve `agent_thought_chunk` vs `agent_message_chunk` distinction (currently both map to `"text"`)
-- [ ] Add mapping for `tool_call_update` (currently dropped)
-- [ ] Add mapping for `plan` (currently dropped)
-- [ ] Parse `ToolCallContent` into typed `ToolContent` variants (content, diff, terminal)
+- [x] Expand `convertNotification` in `packages/thinkwell/src/agent.ts` to preserve `agent_thought_chunk` vs `agent_message_chunk` distinction (currently both map to `"text"`)
+- [x] Add mapping for `tool_call_update` (currently dropped)
+- [x] Add mapping for `plan` (currently dropped)
+- [x] Parse `ToolCallContent` into typed `ToolContent` variants (content, diff, terminal)
 
 ## Stream Method
 

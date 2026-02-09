@@ -1,13 +1,13 @@
 import {
   mcpServer,
   type SchemaProvider,
-  type SessionUpdate,
 } from "@thinkwell/acp";
 import type { AgentConnection, SessionHandler } from "./agent.js";
 import type {
   NewSessionRequest,
   McpServer as AcpMcpServer,
 } from "@agentclientprotocol/sdk";
+import type { ThoughtEvent } from "./thought-event.js";
 
 /**
  * Tool definition for internal tracking
@@ -21,14 +21,17 @@ interface ToolDefinition<I = unknown, O = unknown> {
   includeInPrompt: boolean;
 }
 
+/** Internal event type: ThoughtEvent from the agent, or a synthetic stop signal. */
+type InternalUpdate = ThoughtEvent | { type: "stop"; reason: string };
+
 /**
  * Internal session handler for ThinkBuilder
  */
 class ThinkSession implements SessionHandler {
   readonly sessionId: string;
   private readonly _conn: AgentConnection;
-  private _pendingUpdates: SessionUpdate[] = [];
-  private _updateResolvers: Array<(update: SessionUpdate) => void> = [];
+  private _pendingUpdates: InternalUpdate[] = [];
+  private _updateResolvers: Array<(update: InternalUpdate) => void> = [];
   private _closed: boolean = false;
 
   constructor(sessionId: string, conn: AgentConnection) {
@@ -42,11 +45,15 @@ class ThinkSession implements SessionHandler {
       prompt: [{ type: "text", text: content }],
     });
     if (response.stopReason) {
-      this.pushUpdate({ type: "stop", reason: response.stopReason });
+      this._pushInternal({ type: "stop", reason: response.stopReason });
     }
   }
 
-  pushUpdate(update: SessionUpdate): void {
+  pushUpdate(update: ThoughtEvent): void {
+    this._pushInternal(update);
+  }
+
+  private _pushInternal(update: InternalUpdate): void {
     if (this._updateResolvers.length > 0) {
       const resolver = this._updateResolvers.shift()!;
       resolver(update);
@@ -55,7 +62,7 @@ class ThinkSession implements SessionHandler {
     }
   }
 
-  async readUpdate(): Promise<SessionUpdate> {
+  async readUpdate(): Promise<InternalUpdate> {
     if (this._pendingUpdates.length > 0) {
       return this._pendingUpdates.shift()!;
     }

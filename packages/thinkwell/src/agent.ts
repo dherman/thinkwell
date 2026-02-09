@@ -20,10 +20,14 @@ import {
 import {
   McpOverAcpHandler,
   type SchemaProvider,
-  type SessionUpdate,
 } from "@thinkwell/acp";
 import { ThinkBuilder } from "./think-builder.js";
 import { Session } from "./session.js";
+import type { ThoughtEvent, ToolContent, ContentBlock } from "./thought-event.js";
+import type {
+  ToolCallContent as AcpToolCallContent,
+  ContentBlock as AcpContentBlock,
+} from "@agentclientprotocol/sdk";
 
 /**
  * Options for connecting to an agent
@@ -60,7 +64,7 @@ export interface SessionOptions {
  * @internal
  */
 export interface SessionHandler {
-  pushUpdate(update: SessionUpdate): void;
+  pushUpdate(update: ThoughtEvent): void;
 }
 
 /**
@@ -379,33 +383,95 @@ function createClient(
 }
 
 /**
- * Convert ACP notification to SessionUpdate
+ * Convert an ACP ContentBlock to a Thinkwell ContentBlock, or null if unsupported.
  */
-function convertNotification(notification: SessionNotification): SessionUpdate | null {
+function convertContentBlock(block: AcpContentBlock): ContentBlock | null {
+  switch (block.type) {
+    case "text":
+      return { type: "text", text: block.text };
+    case "image":
+      return { type: "image", data: block.data, mimeType: block.mimeType };
+    case "resource_link":
+      return { type: "resource_link", uri: block.uri, name: block.name ?? undefined };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Convert ACP ToolCallContent to Thinkwell ToolContent, or null if unsupported.
+ */
+function convertToolCallContent(content: AcpToolCallContent): ToolContent | null {
+  switch (content.type) {
+    case "diff":
+      return { type: "diff", path: content.path, oldText: content.oldText ?? "", newText: content.newText };
+    case "terminal":
+      return { type: "terminal", terminalId: content.terminalId };
+    case "content": {
+      const block = convertContentBlock(content.content);
+      if (!block) return null;
+      return { type: "content", content: block };
+    }
+  }
+}
+
+/**
+ * Convert ACP notification to ThoughtEvent
+ */
+function convertNotification(notification: SessionNotification): ThoughtEvent | null {
   const { update } = notification;
 
   switch (update.sessionUpdate) {
-    case "agent_message_chunk":
-    case "user_message_chunk":
     case "agent_thought_chunk": {
       const content = update.content;
       if (content.type === "text") {
-        return { type: "text", content: content.text };
+        return { type: "thought", text: content.text };
+      }
+      break;
+    }
+
+    case "agent_message_chunk": {
+      const content = update.content;
+      if (content.type === "text") {
+        return { type: "message", text: content.text };
       }
       break;
     }
 
     case "tool_call": {
       return {
-        type: "tool_use",
+        type: "tool_start",
         id: update.toolCallId,
-        name: update.title,
-        input: update.rawInput ?? {},
+        title: update.title,
+        kind: update.kind,
       };
     }
 
-    case "plan":
-    case "tool_call_update":
+    case "tool_call_update": {
+      const status = update.status ?? "in_progress";
+      if (status === "completed" || status === "failed") {
+        return { type: "tool_done", id: update.toolCallId, status };
+      }
+      return {
+        type: "tool_update",
+        id: update.toolCallId,
+        status,
+        content: update.content?.map(convertToolCallContent).filter((c): c is ToolContent => c !== null),
+      };
+    }
+
+    case "plan": {
+      return {
+        type: "plan",
+        entries: update.entries.map((e) => ({
+          content: e.content,
+          status: e.status,
+          priority: e.priority,
+        })),
+      };
+    }
+
+    case "user_message_chunk":
     case "available_commands_update":
     case "current_mode_update":
       break;
