@@ -567,8 +567,16 @@ export class ThinkBuilder<Output> {
 
     const server = serverBuilder.build();
 
-    // Register the MCP server
+    // Build skill MCP server if skills are present
+    const skillServer = resolvedSkills.length > 0
+      ? createSkillServer(resolvedSkills)
+      : undefined;
+
+    // Register the MCP server(s)
     this._conn.mcpHandler.register(server);
+    if (skillServer) {
+      this._conn.mcpHandler.register(skillServer);
+    }
     this._conn.mcpHandler.setSessionId(this._existingSessionId ?? "pending");
 
     try {
@@ -586,6 +594,15 @@ export class ThinkBuilder<Output> {
           url: server.acpUrl,
           headers: [],
         }];
+
+        if (skillServer) {
+          mcpServers.push({
+            type: "http" as const,
+            name: skillServer.name,
+            url: skillServer.acpUrl,
+            headers: [],
+          });
+        }
 
         const request: NewSessionRequest = {
           cwd: this._cwd ?? process.cwd(),
@@ -632,8 +649,11 @@ export class ThinkBuilder<Output> {
         this._conn.sessionHandlers.delete(sessionId);
       }
     } finally {
-      // Unregister MCP server
+      // Unregister MCP server(s)
       this._conn.mcpHandler.unregister(server);
+      if (skillServer) {
+        this._conn.mcpHandler.unregister(skillServer);
+      }
     }
   }
 }

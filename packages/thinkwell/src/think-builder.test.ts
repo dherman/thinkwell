@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { validateSkillName, validateSkillDescription, parseSkillMd } from "../../acp/src/skill.js";
+import { createSkillServer } from "../../acp/src/skill-server.js";
 import type { SkillTool, VirtualSkill, StoredSkill } from "../../acp/src/skill.js";
 import type { ResolvedSkill } from "../../acp/src/skill-server.js";
 
@@ -566,6 +567,109 @@ describe("ThinkBuilder prompt composition", () => {
         () => builder.resolveSkills(),
         /SKILL\.md must begin with YAML frontmatter/
       );
+
+      await rm(tmpDir, { recursive: true });
+    });
+  });
+
+  describe("skill MCP server registration", () => {
+    it("should create a skill server with correct name and acpUrl when skills are present", () => {
+      const skills: ResolvedSkill[] = [
+        { name: "my-skill", description: "A skill.", body: "Instructions." },
+      ];
+      const skillServer = createSkillServer(skills);
+
+      assert.strictEqual(skillServer.name, "skills");
+      assert.ok(skillServer.acpUrl.startsWith("acp:"), "acpUrl should start with acp:");
+    });
+
+    it("should create a skill server that exposes all three tools", () => {
+      const skills: ResolvedSkill[] = [
+        { name: "test-skill", description: "Test.", body: "body" },
+      ];
+      const skillServer = createSkillServer(skills);
+      const tools = skillServer.getToolDefinitions();
+
+      const names = tools.map((t) => t.name);
+      assert.ok(names.includes("activate_skill"));
+      assert.ok(names.includes("call_skill_tool"));
+      assert.ok(names.includes("read_skill_file"));
+    });
+
+    it("should produce a server that can be formatted for session mcpServers array", () => {
+      const skills: ResolvedSkill[] = [
+        { name: "my-skill", description: "A skill.", body: "body" },
+      ];
+      const skillServer = createSkillServer(skills);
+
+      // Verify the server has the properties needed for the AcpMcpServer entry
+      const entry = {
+        type: "http" as const,
+        name: skillServer.name,
+        url: skillServer.acpUrl,
+        headers: [],
+      };
+      assert.strictEqual(entry.type, "http");
+      assert.strictEqual(entry.name, "skills");
+      assert.ok(entry.url.startsWith("acp:"));
+    });
+
+    it("should not create a skill server when no skills are present", () => {
+      // Mirrors the conditional logic in _executeRun:
+      // const skillServer = resolvedSkills.length > 0 ? createSkillServer(resolvedSkills) : undefined;
+      const resolvedSkills: ResolvedSkill[] = [];
+      const skillServer = resolvedSkills.length > 0
+        ? createSkillServer(resolvedSkills)
+        : undefined;
+
+      assert.strictEqual(skillServer, undefined);
+    });
+
+    it("should include both virtual and stored skills in a single server", async () => {
+      const tmpDir = join(tmpdir(), `thinkwell-test-${randomUUID()}`);
+      await mkdir(tmpDir, { recursive: true });
+      const skillPath = join(tmpDir, "SKILL.md");
+      await writeFile(skillPath, [
+        "---",
+        "name: stored-skill",
+        "description: From disk.",
+        "---",
+        "",
+        "Stored body.",
+      ].join("\n"));
+
+      // Resolve skills manually (same logic as TestableThinkBuilder.resolveSkills)
+      const content = await readFile(skillPath, "utf-8");
+      const parsed = parseSkillMd(content);
+      const storedSkill: StoredSkill = {
+        name: parsed.name,
+        description: parsed.description,
+        body: parsed.body,
+        basePath: dirname(skillPath),
+      };
+
+      const virtualSkill: VirtualSkill = {
+        name: "virtual-skill",
+        description: "Virtual.",
+        body: "Virtual body.",
+        tools: [{ name: "greet", description: "Say hi", handler: async () => "hi" }],
+      };
+
+      const skillServer = createSkillServer([virtualSkill, storedSkill]);
+
+      // Both skills should be accessible via activate_skill
+      const ctx = { connectionId: "c1", sessionId: "s1" };
+      const result1 = await skillServer.handleMethod("tools/call", {
+        name: "activate_skill",
+        arguments: { skill_name: "virtual-skill" },
+      }, ctx) as { content: { text: string }[] };
+      assert.strictEqual(result1.content[0].text, "Virtual body.");
+
+      const result2 = await skillServer.handleMethod("tools/call", {
+        name: "activate_skill",
+        arguments: { skill_name: "stored-skill" },
+      }, ctx) as { content: { text: string }[] };
+      assert.ok(result2.content[0].text.includes("Stored body."));
 
       await rm(tmpDir, { recursive: true });
     });

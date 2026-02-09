@@ -35,9 +35,9 @@
 
 ## 5. MCP server registration (`thinkwell`)
 
-- [ ] At `run()` time, if skills are present, build and register the skill MCP server
-- [ ] Pass resolved skills (with handlers and basePaths) to the server builder
-- [ ] Register on the same `mcpHandler` used for the existing thinkwell server
+- [x] At `run()` time, if skills are present, build and register the skill MCP server
+- [x] Pass resolved skills (with handlers and basePaths) to the server builder
+- [x] Register on the same `mcpHandler` used for the existing thinkwell server
 
 ## 6. Exports
 
