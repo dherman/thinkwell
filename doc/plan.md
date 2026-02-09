@@ -4,13 +4,13 @@ See [doc/rfd/remove-uri-scheme.md](rfd/remove-uri-scheme.md) for context.
 
 ## New `open()` API
 
-- [ ] Define `AgentName` type and agent name → command mapping table
-- [ ] Rename `ConnectOptions` to `AgentOptions`, add `cmd` field
-- [ ] Implement `open()` with overloads (named agent + custom command)
-- [ ] Implement env var override logic (`$THINKWELL_AGENT`, `$THINKWELL_AGENT_CMD`)
-- [ ] Wire through `env` and `timeout` options (currently ignored in `connect()`)
-- [ ] Export `open`, `AgentName`, and `AgentOptions` from package root (`index.ts`)
-- [ ] Remove `Agent.connect()` static method
+- [x] Define `AgentName` type and agent name → command mapping table
+- [x] Rename `ConnectOptions` to `AgentOptions`, add `cmd` field
+- [x] Implement `open()` with overloads (named agent + custom command)
+- [x] Implement env var override logic (`$THINKWELL_AGENT`, `$THINKWELL_AGENT_CMD`)
+- [x] Wire through `env` and `timeout` options (currently ignored in `connect()`)
+- [x] Export `open`, `AgentName`, and `AgentOptions` from package root (`index.ts`)
+- [ ] Remove `Agent.connect()` static method (kept as `@internal` until callers are migrated)
 
 ## Remove connectors module
 
