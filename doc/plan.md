@@ -2,13 +2,13 @@
 
 ## 1. Types and SKILL.md parser (`@thinkwell/acp`)
 
-- [ ] Add `packages/acp/src/skill.ts` with `Skill`, `VirtualSkill`, `StoredSkill`, `SkillTool` types
-- [ ] Implement `parseSkillMd(content: string): Skill` — extract YAML frontmatter, validate name/description, return body
-- [ ] Validate name: 1-64 chars, lowercase alphanumeric + hyphens, no leading/trailing/consecutive hyphens
-- [ ] Validate description: 1-1024 chars, non-empty
-- [ ] Preserve optional fields (`license`, `compatibility`, `metadata`) without acting on them
-- [ ] Export types and parser from `packages/acp/src/index.ts`
-- [ ] Tests for parser: valid SKILL.md, missing name, missing description, invalid name format, optional fields
+- [x] Add `packages/acp/src/skill.ts` with `Skill`, `VirtualSkill`, `StoredSkill`, `SkillTool` types
+- [x] Implement `parseSkillMd(content: string): Skill` — extract YAML frontmatter, validate name/description, return body
+- [x] Validate name: 1-64 chars, lowercase alphanumeric + hyphens, no leading/trailing/consecutive hyphens
+- [x] Validate description: 1-1024 chars, non-empty
+- [x] Preserve optional fields (`license`, `compatibility`, `metadata`) without acting on them
+- [x] Export types and parser from `packages/acp/src/index.ts`
+- [x] Tests for parser: valid SKILL.md, missing name, missing description, invalid name format, optional fields
 
 ## 2. Skill MCP server (`@thinkwell/acp`)
 

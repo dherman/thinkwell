@@ -36,3 +36,7 @@ export type { SessionUpdate, PromptMessage, McpReadyOptions } from "./session.js
 // Connection
 export { SacpConnection, connect, connectToConductor } from "./connection.js";
 export type { SessionOptions } from "./connection.js";
+
+// Skills
+export { parseSkillMd, validateSkillName, validateSkillDescription } from "./skill.js";
+export type { Skill, VirtualSkill, StoredSkill, SkillTool } from "./skill.js";
