@@ -156,62 +156,13 @@ export class Agent {
   }
 
   /**
-   * Connect to an agent by spawn command.
-   * @internal Use the top-level `open()` function instead.
+   * Create an Agent from an existing connection.
+   * @internal Used by `open()`.
    */
-  static async connect(command: string, options?: AgentOptions): Promise<Agent> {
-    // When env is provided, we need to pass a CommandOptions object.
-    // Otherwise a plain string works (fromCommands parses it internally).
-    const commandSpec: CommandSpec = options?.env
-      ? parseCommandWithEnv(command, options.env)
-      : command;
-
-    const conductor = new Conductor({
-      instantiator: fromCommands([commandSpec]),
-    });
-
-    // Create an in-memory channel pair for client ↔ conductor communication
-    const pair = createChannelPair();
-
-    // Create a Stream adapter from the ComponentConnection
-    const stream = componentConnectionToStream(pair.left);
-
-    // Create the MCP handler
-    const mcpHandler = new McpOverAcpHandler();
-
-    // Build the connection state
-    const conn: AgentConnection = {
-      conductor,
-      connection: null!, // Set below after creating the client
-      mcpHandler,
-      sessionHandlers: new Map(),
-      initialized: false,
-    };
-
-    // Create the ACP client connection
-    const clientConnection = new ClientSideConnection(
-      (_agent: AcpAgent) => createClient(conn, mcpHandler),
-      stream
-    );
-    conn.connection = clientConnection;
-
-    // Create a connector that provides the other end of the channel
-    const clientConnector: ComponentConnector = {
-      async connect() {
-        return pair.right;
-      },
-    };
-
-    // Start the conductor's message loop in the background
-    const conductorPromise = conductor.connect(clientConnector);
-
-    // Handle conductor errors/completion
-    conductorPromise.catch((error: unknown) => {
-      console.error("Conductor error:", error);
-    });
-
+  static _fromConnection(conn: AgentConnection): Agent {
     return new Agent(conn);
   }
+
 
   /**
    * Create a new think builder for constructing a prompt with tools.
@@ -503,5 +454,56 @@ export async function open(
   maybeOptions?: AgentOptions,
 ): Promise<Agent> {
   const { command, options } = resolveCommand(nameOrOptions, maybeOptions);
-  return Agent.connect(command, options);
+
+  // When env is provided, we need to pass a CommandOptions object.
+  // Otherwise a plain string works (fromCommands parses it internally).
+  const commandSpec: CommandSpec = options?.env
+    ? parseCommandWithEnv(command, options.env)
+    : command;
+
+  const conductor = new Conductor({
+    instantiator: fromCommands([commandSpec]),
+  });
+
+  // Create an in-memory channel pair for client ↔ conductor communication
+  const pair = createChannelPair();
+
+  // Create a Stream adapter from the ComponentConnection
+  const stream = componentConnectionToStream(pair.left);
+
+  // Create the MCP handler
+  const mcpHandler = new McpOverAcpHandler();
+
+  // Build the connection state
+  const conn: AgentConnection = {
+    conductor,
+    connection: null!, // Set below after creating the client
+    mcpHandler,
+    sessionHandlers: new Map(),
+    initialized: false,
+  };
+
+  // Create the ACP client connection
+  const clientConnection = new ClientSideConnection(
+    (_agent: AcpAgent) => createClient(conn, mcpHandler),
+    stream
+  );
+  conn.connection = clientConnection;
+
+  // Create a connector that provides the other end of the channel
+  const clientConnector: ComponentConnector = {
+    async connect() {
+      return pair.right;
+    },
+  };
+
+  // Start the conductor's message loop in the background
+  const conductorPromise = conductor.connect(clientConnector);
+
+  // Handle conductor errors/completion
+  conductorPromise.catch((error: unknown) => {
+    console.error("Conductor error:", error);
+  });
+
+  return Agent._fromConnection(conn);
 }

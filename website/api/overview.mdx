@@ -7,33 +7,27 @@ Thinkwell provides a TypeScript API for integrating AI agents into your applicat
 
 ## Module Structure
 
-Thinkwell exports its API through two subpaths:
-
-### Main Types (`thinkwell:agent`)
+Thinkwell exports everything from a single package:
 
 ```typescript
-import { Agent, Session } from "thinkwell:agent";
+import { open, Agent, Session, schemaOf } from "thinkwell";
 ```
 
-| Type | Produced By | Description |
-|--------|-------------|-------------|
-| `Agent` | `Agent.connect()` | Main entry point for connecting to AI agents |
-| `Session` | `agent.createSession()` | Manages multi-turn conversations with persistent context |
-| `ThinkBuilder` | `agent.think()` | Fluent API for building prompts with tools |
+| Export | Description |
+|--------|-------------|
+| `open()` | Main entry point — opens a connection to a named agent |
+| `Agent` | The agent class returned by `open()` |
+| `Session` | Manages multi-turn conversations with persistent context |
+| `ThinkBuilder` | Fluent API for building prompts with tools |
+| `schemaOf()` | Helper for creating schema providers from JSON Schema objects |
 
-### Connectors (`thinkwell:connectors`)
-
-```typescript
-import { CLAUDE_CODE, CODEX, GEMINI, OPENCODE, AUGMENT, KIRO } from "thinkwell:connectors";
-```
-
-Pre-configured connector strings for popular AI agents. See [Connectors](/api/connectors) for details.
+See [Named Agents](/api/connectors) for the list of supported agent names.
 
 ## Architecture
 
 Thinkwell follows a layered architecture:
 
-1. **Agent** - Establishes a connection to an AI agent via ACP. Create one with `Agent.connect()`.
+1. **Agent** - Establishes a connection to an AI agent via ACP. Create one with `open()`.
 
 2. **Sessions** - Agents support two interaction modes:
    - **Ephemeral**: Use `agent.think()` for single-turn interactions
@@ -68,7 +62,7 @@ JSDoc comments become `description` fields in the generated schema, helping the 
 
 ## Next Steps
 
-- [Agent](/api/agent) - Connecting to agents and managing sessions
+- [Agent](/api/agent) - Opening agents and managing sessions
 - [ThinkBuilder](/api/think-builder) - Building prompts with the fluent API
-- [Connectors](/api/connectors) - Available agent connectors
+- [Named Agents](/api/connectors) - Available agent names
 - [Sessions](/api/sessions) - Multi-turn conversations

@@ -4,8 +4,8 @@
  * This tests the transformation path (write to temp file, then require).
  */
 
-// Import from thinkwell:agent (will be transformed to thinkwell)
-import { Agent } from "thinkwell:agent";
+// Import from thinkwell package
+import { Agent } from "thinkwell";
 
 // Type annotations
 const agentName: string = "test-agent";

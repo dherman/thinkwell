@@ -1,76 +1,68 @@
 ---
-title: "Connectors"
-description: "Common agent connectors."
+title: "Named Agents"
+description: "Supported agent names for the open() function."
 ---
 
-# Connectors
+# Named Agents
 
-A **connector** is a command string used to spawn an ACP-compatible agent process. Thinkwell provides built-in connectors for popular AI coding agents, and you can also define custom connectors for any agent that supports the Agent Client Protocol.
+The `open()` function accepts a named agent string to connect to a supported AI coding agent. Each name maps to a command that spawns the agent process via the Agent Client Protocol (ACP).
 
-## Built-in Connectors
+## Supported Agents
 
-Thinkwell includes the following built-in connectors:
-
-| Connector | Command | Description |
-|-----------|---------|-------------|
-| `CLAUDE_CODE` | `npx -y @zed-industries/claude-code-acp` | Anthropic's Claude Code CLI agent |
-| `CODEX` | `npx -y @zed-industries/codex-acp` | OpenAI's Codex CLI agent |
-| `GEMINI` | `npx -y @google/gemini-cli --experimental-acp` | Google's Gemini CLI agent |
-| `OPENCODE` | `opencode acp` | OpenCode agent |
-| `AUGMENT` | `auggie --acp` | Augment Code agent |
-| `KIRO` | `kiro-cli chat acp` | Kiro CLI agent |
+| Name | Command | Description |
+|------|---------|-------------|
+| `'claude'` | `npx -y @zed-industries/claude-code-acp` | Anthropic's Claude Code CLI agent |
+| `'codex'` | `npx -y @zed-industries/codex-acp` | OpenAI's Codex CLI agent |
+| `'gemini'` | `npx -y @google/gemini-cli --experimental-acp` | Google's Gemini CLI agent |
+| `'kiro'` | `kiro-cli acp` | Kiro CLI agent |
+| `'opencode'` | `opencode acp` | OpenCode agent |
+| `'auggie'` | `auggie --acp` | Augment Code agent |
 
 ## Usage
 
-Import a connector from `thinkwell:connectors` and pass it to `Agent.connect()`:
-
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 ```
 
-## Custom Connectors
+## Custom Commands
 
-A connector is simply a command string. To use a custom agent, pass any command that spawns an ACP-compatible process:
-
-```typescript
-import { Agent } from "thinkwell:agent";
-
-const agent = await Agent.connect("my-custom-agent --acp");
-```
-
-## Environment Variables
-
-You can pass environment variables to the spawned agent process via `ConnectOptions.env`:
+To use an agent not in the table above, pass a `cmd` option instead of a name:
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
-const agent = await Agent.connect(CLAUDE_CODE, {
-  env: {
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-    CUSTOM_VAR: "value"
-  }
-});
+const agent = await open({ cmd: 'my-custom-agent --acp' });
 ```
 
-## Testing with `THINKWELL_AGENT_CMD`
+## Environment Variable Overrides
 
-A common pattern for testing is to use an environment variable to override the connector. This allows you to swap agents without modifying code:
+You can override the agent at runtime without modifying code:
 
-```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+- **`$THINKWELL_AGENT`** — override with a named agent: `THINKWELL_AGENT=opencode thinkwell script.ts`
+- **`$THINKWELL_AGENT_CMD`** — override with a custom command: `THINKWELL_AGENT_CMD="myagent --acp" thinkwell script.ts`
 
-// Use THINKWELL_AGENT_CMD if set, otherwise default to CLAUDE_CODE
-const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
-```
+If both are set, `$THINKWELL_AGENT_CMD` takes precedence.
 
-This pattern is useful for:
+This is useful for:
 
 - Running tests against different agents
 - Using mock agents in CI/CD pipelines
 - Switching between production and development agents
+
+## Connection Options
+
+Pass additional options alongside the agent name:
+
+```typescript
+import { open } from "thinkwell";
+
+const agent = await open('claude', {
+  env: {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    CUSTOM_VAR: "value"
+  },
+  timeout: 30000,
+});
+```

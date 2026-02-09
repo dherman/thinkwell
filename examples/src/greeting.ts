@@ -8,8 +8,7 @@
  * Run with: thinkwell src/greeting.ts
  */
 
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 import { styleText } from 'node:util';
 import { startSpinner } from "./util/spinner.js";
 
@@ -23,7 +22,7 @@ export interface Greeting {
 }
 
 async function main() {
-  const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
+  const agent = await open('claude');
 
   try {
     const stopSpinner = startSpinner('Thinking...');

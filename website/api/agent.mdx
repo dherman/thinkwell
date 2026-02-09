@@ -1,46 +1,54 @@
 ---
 title: "Agent"
-description: "Connect to agents with the Agent API."
+description: "Open connections to agents with the open() API."
 ---
 
-The `Agent` class is the main entry point for Thinkwell. It represents a connection to an AI agent (like Claude Code) and provides a fluent API for blending deterministic code with LLM-powered reasoning.
+The `open()` function is the main entry point for Thinkwell. It connects to an AI agent (like Claude Code) and returns an `Agent` instance with a fluent API for blending deterministic code with LLM-powered reasoning.
 
-## Connecting to an Agent
+## Opening an Agent
 
-Use `Agent.connect()` to establish a connection to an AI agent. The method accepts a command string that spawns the agent process.
+Use `open()` to establish a connection to an AI agent by name.
 
-### Using Built-in Connectors
+### Named Agents
 
-Thinkwell provides pre-configured connector strings for popular AI agents:
+Thinkwell provides built-in support for popular AI agents:
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE, CODEX, GEMINI } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
 // Connect to Claude Code
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 
 // Or connect to other supported agents
-const codexAgent = await Agent.connect(CODEX);
-const geminiAgent = await Agent.connect(GEMINI);
+const codexAgent = await open('codex');
+const geminiAgent = await open('gemini');
 ```
 
-See the [Connectors](/api/connectors) page for the full list of available connectors and their underlying commands.
+Supported agent names:
 
-### Using Custom Commands
+| Name | Command |
+|------|---------|
+| `'claude'` | `npx -y @zed-industries/claude-code-acp` |
+| `'codex'` | `npx -y @zed-industries/codex-acp` |
+| `'gemini'` | `npx -y @google/gemini-cli --experimental-acp` |
+| `'kiro'` | `kiro-cli acp` |
+| `'opencode'` | `opencode acp` |
+| `'auggie'` | `auggie --acp` |
+
+### Custom Commands
 
 You can also connect using any custom command that implements the Agent Client Protocol:
 
 ```typescript
-const agent = await Agent.connect("my-custom-agent --acp");
+const agent = await open({ cmd: 'my-custom-agent --acp' });
 ```
 
 ### Connection Options
 
-The `connect()` method accepts optional configuration:
+The `open()` function accepts optional configuration:
 
 ```typescript
-const agent = await Agent.connect(CLAUDE_CODE, {
+const agent = await open('claude', {
   // Environment variables for the agent process
   env: {
     ANTHROPIC_API_KEY: process.env.MY_API_KEY,
@@ -49,6 +57,15 @@ const agent = await Agent.connect(CLAUDE_CODE, {
   timeout: 30000,
 });
 ```
+
+### Environment Variable Overrides
+
+`open()` checks two environment variables before resolving the agent:
+
+- `$THINKWELL_AGENT` — an agent name: `THINKWELL_AGENT=opencode thinkwell script.ts`
+- `$THINKWELL_AGENT_CMD` — a command string: `THINKWELL_AGENT_CMD="myagent --acp" thinkwell script.ts`
+
+If both are set, `$THINKWELL_AGENT_CMD` takes precedence. Either way, the env override applies regardless of what the script passes to `open()`. This lets you swap agents at runtime without changing code.
 
 ## Ephemeral vs Persistent Sessions
 
@@ -59,8 +76,7 @@ Thinkwell supports two patterns for interacting with agents:
 Use `agent.think()` for one-off prompts that don't need conversation history. Each call creates an ephemeral session that is automatically closed when the prompt completes.
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
 /**
  * A summary of content.
@@ -71,7 +87,7 @@ interface Summary {
   points: string[];
 }
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 
 const summary = await agent
   .think(Summary.Schema)
@@ -95,10 +111,9 @@ Ephemeral sessions are ideal for:
 Use `agent.createSession()` for multi-turn conversations where the agent needs to remember previous interactions.
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 const session = await agent.createSession({ cwd: "/my/project" });
 
 // First turn: analyze the codebase
@@ -127,8 +142,7 @@ Persistent sessions are ideal for:
 ### Basic Prompt with Structured Output
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
 /**
  * Sentiment analysis result.
@@ -144,7 +158,7 @@ interface Sentiment {
 }
 
 async function analyzeSentiment(text: string) {
-  const agent = await Agent.connect(CLAUDE_CODE);
+  const agent = await open('claude');
 
   try {
     return await agent
@@ -161,8 +175,7 @@ async function analyzeSentiment(text: string) {
 ### Using Custom Tools
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
 /**
  * A greeting message.
@@ -172,7 +185,7 @@ interface Greeting {
   message: string;
 }
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 
 const greeting = await agent
   .think(Greeting.Schema)
@@ -193,10 +206,9 @@ agent.close();
 ### Multi-Turn Session with Working Directory
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 
 // Create a session scoped to a specific project directory
 const session = await agent.createSession({
@@ -222,23 +234,36 @@ agent.close();
 
 ## API Reference
 
-### `Agent.connect(command, options?)`
+### `open(name, options?)`
 
-Connects to an agent by spawning a subprocess.
+Opens a connection to a named agent.
 
 **Parameters:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `command` | `string` | The command to spawn the agent process |
-| `options` | `ConnectOptions` | Optional connection configuration |
+| `name` | `AgentName` | Agent name: `'claude'`, `'codex'`, `'gemini'`, `'kiro'`, `'opencode'`, `'auggie'` |
+| `options` | `AgentOptions` | Optional connection configuration |
 
 **Returns:** `Promise<Agent>`
 
-**ConnectOptions:**
+### `open(options)`
+
+Opens a connection using a custom command.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `options` | `AgentOptions & { cmd: string }` | Options with required `cmd` field |
+
+**Returns:** `Promise<Agent>`
+
+**AgentOptions:**
 
 | Property | Type | Description |
 |----------|------|-------------|
+| `cmd` | `string` | Custom command to spawn the agent process |
 | `env` | `Record<string, string>` | Environment variables for the agent process |
 | `timeout` | `number` | Connection timeout in milliseconds |
 
@@ -289,4 +314,3 @@ Closes the connection to the agent. This shuts down the conductor and invalidate
 
 - [API Overview](/api/overview) - ThinkBuilder methods and schema providers
 - [Sessions](/api/sessions) - Multi-turn conversation sessions
-- [Connectors](/api/connectors) - Available agent connectors

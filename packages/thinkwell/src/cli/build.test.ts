@@ -514,7 +514,7 @@ describe("build command E2E (compiled binary)", {
   it("should build a script from compiled binary (full E2E)", () => {
     const scriptPath = join(testDir, "e2e-buildable.ts");
     writeFileSync(scriptPath, `
-import { Agent } from "thinkwell:agent";
+import { Agent } from "thinkwell";
 console.log("Agent imported:", typeof Agent);
 `);
 
