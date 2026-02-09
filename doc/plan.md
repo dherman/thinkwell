@@ -21,10 +21,10 @@
 
 ## 3. ThinkBuilder `.skill()` method (`thinkwell`)
 
-- [ ] Add internal `_skills` state to ThinkBuilder (list preserving attachment order)
-- [ ] Add `.skill(pathOrDef)` overloaded method: string → deferred stored skill, object → virtual skill
-- [ ] Validate virtual skill definitions eagerly (name, description format)
-- [ ] Stored skill paths are recorded but SKILL.md is parsed at `run()` time
+- [x] Add internal `_skills` state to ThinkBuilder (list preserving attachment order)
+- [x] Add `.skill(pathOrDef)` overloaded method: string → deferred stored skill, object → virtual skill
+- [x] Validate virtual skill definitions eagerly (name, description format)
+- [x] Stored skill paths are recorded but SKILL.md is parsed at `run()` time
 
 ## 4. Prompt assembly (`thinkwell`)
 

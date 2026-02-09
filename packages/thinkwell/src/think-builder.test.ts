@@ -1,5 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
+import { validateSkillName, validateSkillDescription } from "../../acp/src/skill.js";
+import type { SkillTool } from "../../acp/src/skill.js";
 
 /**
  * Since ThinkBuilder requires a live connection to run, we test
@@ -9,11 +11,23 @@ import assert from "node:assert";
  * without requiring a conductor connection.
  */
 
+interface VirtualSkillDefinition {
+  name: string;
+  description: string;
+  body: string;
+  tools?: SkillTool[];
+}
+
 describe("ThinkBuilder prompt composition", () => {
+  type DeferredSkill =
+    | { type: "stored"; path: string }
+    | { type: "virtual"; skill: { name: string; description: string; body: string; tools?: SkillTool[] } };
+
   // Helper class that exposes internal state for testing
   class TestableThinkBuilder {
     private _promptParts: string[] = [];
     private _tools: Map<string, { name: string; description: string; includeInPrompt: boolean }> = new Map();
+    private _skills: DeferredSkill[] = [];
 
     text(content: string): this {
       this._promptParts.push(content);
@@ -32,6 +46,25 @@ describe("ThinkBuilder prompt composition", () => {
 
     defineTool(name: string, description: string): this {
       this._tools.set(name, { name, description, includeInPrompt: false });
+      return this;
+    }
+
+    skill(pathOrDef: string | VirtualSkillDefinition): this {
+      if (typeof pathOrDef === "string") {
+        this._skills.push({ type: "stored", path: pathOrDef });
+      } else {
+        validateSkillName(pathOrDef.name);
+        validateSkillDescription(pathOrDef.description);
+        this._skills.push({
+          type: "virtual",
+          skill: {
+            name: pathOrDef.name,
+            description: pathOrDef.description,
+            body: pathOrDef.body,
+            tools: pathOrDef.tools,
+          },
+        });
+      }
       return this;
     }
 
@@ -60,6 +93,10 @@ describe("ThinkBuilder prompt composition", () => {
       return Array.from(this._tools.values())
         .filter((t) => t.includeInPrompt)
         .map((t) => t.name);
+    }
+
+    getSkills(): DeferredSkill[] {
+      return this._skills;
     }
   }
 
@@ -207,6 +244,96 @@ describe("ThinkBuilder prompt composition", () => {
 
       // Just verify it doesn't throw and has expected tools
       assert.deepStrictEqual(builder.getToolNames(), ["d", "e"]);
+    });
+  });
+
+  describe("skill()", () => {
+    it("should accept a string path as a deferred stored skill", () => {
+      const builder = new TestableThinkBuilder()
+        .skill("/path/to/SKILL.md");
+
+      const skills = builder.getSkills();
+      assert.strictEqual(skills.length, 1);
+      assert.deepStrictEqual(skills[0], { type: "stored", path: "/path/to/SKILL.md" });
+    });
+
+    it("should accept a virtual skill definition object", () => {
+      const builder = new TestableThinkBuilder()
+        .skill({
+          name: "my-skill",
+          description: "A test skill",
+          body: "# Instructions\nDo the thing.",
+        });
+
+      const skills = builder.getSkills();
+      assert.strictEqual(skills.length, 1);
+      assert.strictEqual(skills[0].type, "virtual");
+      const vs = skills[0] as { type: "virtual"; skill: { name: string; description: string; body: string } };
+      assert.strictEqual(vs.skill.name, "my-skill");
+      assert.strictEqual(vs.skill.description, "A test skill");
+      assert.strictEqual(vs.skill.body, "# Instructions\nDo the thing.");
+    });
+
+    it("should validate virtual skill name eagerly", () => {
+      const builder = new TestableThinkBuilder();
+      assert.throws(
+        () => builder.skill({ name: "INVALID", description: "A skill", body: "body" }),
+        /Invalid skill name/
+      );
+    });
+
+    it("should validate virtual skill description eagerly", () => {
+      const builder = new TestableThinkBuilder();
+      assert.throws(
+        () => builder.skill({ name: "valid-name", description: "", body: "body" }),
+        /Skill description is required/
+      );
+    });
+
+    it("should not validate stored skill paths eagerly", () => {
+      // Even a nonsensical path is accepted -- parsing is deferred to run()
+      const builder = new TestableThinkBuilder()
+        .skill("nonexistent/path/SKILL.md");
+
+      assert.strictEqual(builder.getSkills().length, 1);
+    });
+
+    it("should preserve attachment order", () => {
+      const builder = new TestableThinkBuilder()
+        .skill("/path/to/first/SKILL.md")
+        .skill({ name: "second", description: "Second skill", body: "body2" })
+        .skill("/path/to/third/SKILL.md");
+
+      const skills = builder.getSkills();
+      assert.strictEqual(skills.length, 3);
+      assert.strictEqual(skills[0].type, "stored");
+      assert.strictEqual(skills[1].type, "virtual");
+      assert.strictEqual(skills[2].type, "stored");
+    });
+
+    it("should accept virtual skills with tools", () => {
+      const builder = new TestableThinkBuilder()
+        .skill({
+          name: "with-tools",
+          description: "Skill with tools",
+          body: "Use the greet tool",
+          tools: [{ name: "greet", description: "Say hello", handler: async () => "hi" }],
+        });
+
+      const skills = builder.getSkills();
+      assert.strictEqual(skills.length, 1);
+      const vs = skills[0] as { type: "virtual"; skill: { tools?: unknown[] } };
+      assert.strictEqual(vs.skill.tools?.length, 1);
+    });
+
+    it("should chain with other builder methods", () => {
+      const builder = new TestableThinkBuilder()
+        .text("Prompt text")
+        .skill({ name: "my-skill", description: "A skill", body: "body" })
+        .tool("my-tool", "A tool");
+
+      assert.strictEqual(builder.getSkills().length, 1);
+      assert.deepStrictEqual(builder.getToolNames(), ["my-tool"]);
     });
   });
 });

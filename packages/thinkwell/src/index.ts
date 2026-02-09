@@ -5,6 +5,7 @@ export { Session } from "./session.js";
 
 // Think builder
 export { ThinkBuilder } from "./think-builder.js";
+export type { VirtualSkillDefinition } from "./think-builder.js";
 
 // Schema helpers
 export { schemaOf } from "./schema.js";

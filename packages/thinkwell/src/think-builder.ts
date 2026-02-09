@@ -1,13 +1,50 @@
 import {
   mcpServer,
+  validateSkillName,
+  validateSkillDescription,
   type SchemaProvider,
   type SessionUpdate,
+  type VirtualSkill,
+  type SkillTool,
 } from "@thinkwell/acp";
 import type { AgentConnection, SessionHandler } from "./agent.js";
 import type {
   NewSessionRequest,
   McpServer as AcpMcpServer,
 } from "@agentclientprotocol/sdk";
+
+/**
+ * A deferred stored skill: the path to a SKILL.md file that will be
+ * parsed at run() time.
+ */
+interface DeferredStoredSkill {
+  type: "stored";
+  path: string;
+}
+
+/**
+ * A virtual skill definition provided programmatically.
+ * Validated eagerly at .skill() call time.
+ */
+interface DeferredVirtualSkill {
+  type: "virtual";
+  skill: VirtualSkill;
+}
+
+/**
+ * Internal representation of a skill attachment before resolution.
+ */
+type DeferredSkill = DeferredStoredSkill | DeferredVirtualSkill;
+
+/**
+ * Input for defining a virtual skill via the .skill() method.
+ */
+export interface VirtualSkillDefinition {
+  name: string;
+  description: string;
+  body: string;
+  tools?: SkillTool[];
+}
 
 /**
  * Tool definition for internal tracking
@@ -91,6 +128,7 @@ export class ThinkBuilder<Output> {
   private readonly _conn: AgentConnection;
   private _promptParts: string[] = [];
   private _tools: Map<string, ToolDefinition> = new Map();
+  private _skills: DeferredSkill[] = [];
   private _schemaProvider: SchemaProvider<Output> | undefined;
   private _cwd: string | undefined;
   private _existingSessionId: string | undefined;
@@ -335,6 +373,37 @@ export class ThinkBuilder<Output> {
       outputSchema,
       includeInPrompt: false,
     });
+    return this;
+  }
+
+  /**
+   * Attach a skill to this prompt.
+   *
+   * When called with a string, it is treated as a path to a SKILL.md file
+   * that will be parsed at run() time (deferred stored skill).
+   *
+   * When called with an object, it is treated as a virtual skill definition
+   * and validated eagerly.
+   *
+   * @param pathOrDef - Path to a SKILL.md file, or a virtual skill definition
+   */
+  skill(pathOrDef: string | VirtualSkillDefinition): this {
+    if (typeof pathOrDef === "string") {
+      this._skills.push({ type: "stored", path: pathOrDef });
+    } else {
+      // Validate eagerly for virtual skills
+      validateSkillName(pathOrDef.name);
+      validateSkillDescription(pathOrDef.description);
+      this._skills.push({
+        type: "virtual",
+        skill: {
+          name: pathOrDef.name,
+          description: pathOrDef.description,
+          body: pathOrDef.body,
+          tools: pathOrDef.tools,
+        },
+      });
+    }
     return this;
   }
 
