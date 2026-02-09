@@ -1,5 +1,7 @@
 # RFD: VSCode Extension with TypeScript Plugin for `@JSONSchema`
 
+**Depends on:** [remove-uri-scheme](remove-uri-scheme.md)
+
 ## Summary
 
 Build a VSCode extension that bundles a TypeScript Language Service plugin to provide IDE support for the `@JSONSchema` feature. The plugin presents virtual type augmentations to TypeScript so that `Greeting.Schema` and other injected namespace members are visible in the editor — without generating any files on disk.

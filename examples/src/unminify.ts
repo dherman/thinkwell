@@ -274,7 +274,7 @@ async function main() {
     console.log(`  Step 5 (Apply renames):     ${(step5EndTime - step4EndTime) / 1000}s`);
     console.log(`  Total time:                 ${(step5EndTime - startTime) / 1000}s`);
   } finally {
-    agent.close();
+    await agent.close();
   }
 }
 

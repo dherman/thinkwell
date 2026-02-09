@@ -132,7 +132,7 @@ async function manualThinkwellTest() {
   } catch (error) {
     console.error("Error:", error);
   } finally {
-    agent.close();
+    await agent.close();
     console.log("\nConnection closed");
   }
 }
@@ -162,7 +162,7 @@ async function simpleManualTest() {
 
     console.log("Result:", result);
   } finally {
-    agent.close();
+    await agent.close();
   }
 }
 
