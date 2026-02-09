@@ -12,12 +12,12 @@
 
 ## 2. Skill MCP server (`@thinkwell/acp`)
 
-- [ ] Add `packages/acp/src/skill-server.ts` with a function that builds an `McpServer` for skills
-- [ ] Implement `activate_skill` handler: look up skill by name, return body as text content
-- [ ] Implement `call_skill_tool` handler: look up skill, look up tool by name, call handler, return result
-- [ ] Implement `read_skill_file` handler: validate skill has `basePath`, resolve path, validate no traversal, read text file
-- [ ] All three tools use the `defineTool` pattern (hidden from prompt)
-- [ ] Tests for each handler: happy path, unknown skill, unknown tool, path traversal rejection
+- [x] Add `packages/acp/src/skill-server.ts` with a function that builds an `McpServer` for skills
+- [x] Implement `activate_skill` handler: look up skill by name, return body as text content
+- [x] Implement `call_skill_tool` handler: look up skill, look up tool by name, call handler, return result
+- [x] Implement `read_skill_file` handler: validate skill has `basePath`, resolve path, validate no traversal, read text file
+- [x] All three tools use the `defineTool` pattern (hidden from prompt)
+- [x] Tests for each handler: happy path, unknown skill, unknown tool, path traversal rejection
 
 ## 3. ThinkBuilder `.skill()` method (`thinkwell`)
 
