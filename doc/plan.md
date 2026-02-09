@@ -17,9 +17,9 @@ Implementation plan for the [Thought Stream RFD](rfd/thought-stream.md).
 
 ## Stream Method
 
-- [ ] Add `ThinkBuilder.stream()` method that returns `ThoughtStream<Output>`
-- [ ] Refactor `_executeRun` update loop to fork events: check for `return_result` (resolve result promise) and map to `ThoughtEvent` (push to iterator queue)
-- [ ] Refactor `run()` to delegate to `stream().result`
+- [x] Add `ThinkBuilder.stream()` method that returns `ThoughtStream<Output>`
+- [x] Refactor `_executeRun` update loop to fork events: check for `return_result` (resolve result promise) and map to `ThoughtEvent` (push to iterator queue)
+- [x] Refactor `run()` to delegate to `stream().result`
 
 ## Tests
 
