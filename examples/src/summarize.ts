@@ -7,8 +7,7 @@
  * Run with: thinkwell src/summarize.ts
  */
 
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 import * as fs from "fs/promises";
 
 /**
@@ -28,7 +27,7 @@ export interface Summary {
 }
 
 async function main() {
-  const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
+  const agent = await open('claude');
 
   try {
     console.log("=== Summarization Example ===\n");
@@ -53,7 +52,7 @@ async function main() {
       console.log(`  - ${point}`);
     }
   } finally {
-    agent.close();
+    await agent.close();
   }
 }
 

@@ -9,7 +9,7 @@
  * - Basic script execution
  * - TypeScript support (type stripping and transformation)
  * - User script imports from node_modules
- * - thinkwell:* and bundled package imports
+ * - thinkwell and bundled package imports
  * - @JSONSchema processing
  *
  * Skip these tests by setting: SKIP_CLI_TESTS=1
@@ -282,23 +282,10 @@ console.log("File size:", info.size);
       cleanupTestDir(testDir);
     });
 
-    it("should resolve thinkwell:agent imports", () => {
-      const script = `
-import { Agent } from "thinkwell:agent";
-console.log("Agent available:", typeof Agent === "function");
-`;
-      const scriptPath = join(testDir, "thinkwell-agent.ts");
-      writeFileSync(scriptPath, script);
-
-      const result = run("node", [NPM_BIN, scriptPath]);
-      assert.strictEqual(result.code, 0, `Exit code should be 0: ${result.stderr}`);
-      assert.ok(result.stdout.includes("Agent available: true"), "Agent should be available");
-    });
-
     it("should resolve thinkwell package imports", () => {
       const script = `
-import { Agent, schemaOf } from "thinkwell";
-console.log("Agent:", typeof Agent === "function");
+import { open, schemaOf } from "thinkwell";
+console.log("open:", typeof open === "function");
 console.log("schemaOf:", typeof schemaOf === "function");
 `;
       const scriptPath = join(testDir, "thinkwell-pkg.ts");
@@ -306,7 +293,7 @@ console.log("schemaOf:", typeof schemaOf === "function");
 
       const result = run("node", [NPM_BIN, scriptPath]);
       assert.strictEqual(result.code, 0, `Exit code should be 0: ${result.stderr}`);
-      assert.ok(result.stdout.includes("Agent: true"), "Agent should be available");
+      assert.ok(result.stdout.includes("open: true"), "open should be available");
       assert.ok(result.stdout.includes("schemaOf: true"), "schemaOf should be available");
     });
 
@@ -338,7 +325,7 @@ console.log("Schema type:", schema.type);
 
     it("should generate schema for @JSONSchema-marked interface", () => {
       const script = `
-import { schemaOf } from "thinkwell:agent";
+import { schemaOf } from "thinkwell";
 
 /** @JSONSchema */
 export interface Person {
@@ -368,7 +355,7 @@ console.log("Required fields:", JSON.stringify(schema.required));
 
     it("should work with schemaOf for @JSONSchema types", () => {
       const script = `
-import { schemaOf } from "thinkwell:agent";
+import { schemaOf } from "thinkwell";
 
 /** @JSONSchema */
 export interface SearchResult {
@@ -398,7 +385,7 @@ console.log("Has score:", "score" in (schema.properties ?? {}));
 
     it("should handle complex @JSONSchema types with nested objects", () => {
       const script = `
-import { schemaOf } from "thinkwell:agent";
+import { schemaOf } from "thinkwell";
 
 /** @JSONSchema */
 export interface Address {
@@ -692,8 +679,8 @@ console.log(greeting);
 
   it("should resolve thinkwell imports", () => {
     const script = `
-import { Agent, schemaOf } from "thinkwell:agent";
-console.log("Agent:", typeof Agent === "function");
+import { open, schemaOf } from "thinkwell";
+console.log("open:", typeof open === "function");
 console.log("schemaOf:", typeof schemaOf === "function");
 `;
     const scriptPath = join(testDir, "thinkwell.ts");
@@ -701,13 +688,13 @@ console.log("schemaOf:", typeof schemaOf === "function");
 
     const result = run(binaryPath, [scriptPath]);
     assert.strictEqual(result.code, 0, `Exit code should be 0: ${result.stderr}`);
-    assert.ok(result.stdout.includes("Agent: true"), "Should have Agent");
+    assert.ok(result.stdout.includes("open: true"), "Should have open");
     assert.ok(result.stdout.includes("schemaOf: true"), "Should have schemaOf");
   });
 
   it("should process @JSONSchema types", () => {
     const script = `
-import { schemaOf } from "thinkwell:agent";
+import { schemaOf } from "thinkwell";
 
 /** @JSONSchema */
 export interface Item {

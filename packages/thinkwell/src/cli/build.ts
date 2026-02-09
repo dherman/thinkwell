@@ -548,13 +548,13 @@ async function bundleUserScript(ctx: BuildContext): Promise<string> {
 // Alias thinkwell packages to global.__bundled__
 const __origRequire = require;
 require = function(id) {
-  if (id === 'thinkwell' || id === 'thinkwell:agent' || id === 'thinkwell:connectors') {
+  if (id === 'thinkwell') {
     return global.__bundled__['thinkwell'];
   }
-  if (id === '@thinkwell/acp' || id === 'thinkwell:acp') {
+  if (id === '@thinkwell/acp') {
     return global.__bundled__['@thinkwell/acp'];
   }
-  if (id === '@thinkwell/protocol' || id === 'thinkwell:protocol') {
+  if (id === '@thinkwell/protocol') {
     return global.__bundled__['@thinkwell/protocol'];
   }
   return __origRequire(id);
@@ -597,24 +597,7 @@ require.main = __origRequire.main;
         {
           name: "thinkwell-resolver",
           setup(build) {
-            // Resolve thinkwell:* imports to the npm package
-            build.onResolve({ filter: /^thinkwell:/ }, (args) => {
-              const moduleName = args.path.replace("thinkwell:", "");
-              const moduleMap: Record<string, string> = {
-                agent: "thinkwell",
-                acp: "@thinkwell/acp",
-                protocol: "@thinkwell/protocol",
-                connectors: "thinkwell",
-              };
-              const resolved = moduleMap[moduleName];
-              if (resolved) {
-                // Mark as external - will be provided by global.__bundled__ at runtime
-                return { path: resolved, external: true };
-              }
-              return null;
-            });
-
-            // Mark thinkwell packages as external
+            // Mark thinkwell packages as external - provided via global.__bundled__ at runtime
             build.onResolve({ filter: /^(thinkwell|@thinkwell\/(acp|protocol))$/ }, (args) => {
               return { path: args.path, external: true };
             });

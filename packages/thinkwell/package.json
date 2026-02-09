@@ -13,11 +13,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
-    },
-    "./connectors": {
-      "types": "./dist/connectors/index.d.ts",
-      "import": "./dist/connectors/index.js",
-      "default": "./dist/connectors/index.js"
     }
   },
   "engines": {

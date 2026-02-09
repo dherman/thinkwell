@@ -11,13 +11,12 @@ With Thinkwell, you can write scripts that seamlessly combine traditional progra
 
 ## How It Works
 
-Thinkwell uses the [Agent Client Protocol (ACP)](https://github.com/anthropics/agent-client-protocol) to connect to AI agents like Claude Code, Codex, Gemini CLI, and others. This means you write one script and can run it against different AI backends.
+Thinkwell uses the [Agent Client Protocol (ACP)](https://agentclientprotocol.com) to connect to AI agents like Claude Code, Codex, Gemini CLI, and others. This means you write one script and can run it against different AI backends.
 
 Here's a simple example:
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
 /** @JSONSchema */
 interface Analysis {
@@ -25,7 +24,7 @@ interface Analysis {
   sentiment: "positive" | "negative" | "neutral";
 }
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 
 const result = await agent
   .think(Analysis.Schema)

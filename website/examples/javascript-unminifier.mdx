@@ -215,7 +215,7 @@ for (const batch of results) {
 ```
 
 Key patterns here:
-- **`p-limit`** prevents overwhelming the agent with too many concurrent requests
+- **`p-limit`** avoids the risk of rate-limiting or API bans
 - **`_.chunk`** groups functions into manageable batches
 - **`FunctionAnalysisBatch`** returns multiple analyses per request, reducing round trips
 - **Sending full source code** as context helps the LLM understand function interdependencies
@@ -255,15 +255,14 @@ Doing renames in a single pass rather than incrementally avoids ordering issues 
 Here's how it all fits together:
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 import * as fs from "fs/promises";
 import * as prettier from "prettier";
 import pLimit from "p-limit";
 import _ from "lodash";
 
 async function main() {
-  const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
+  const agent = await open('claude');
 
   try {
     const minifiedCode = await fs.readFile("underscore-umd-min.js", "utf-8");
@@ -347,7 +346,7 @@ Applied 47 renames
 
 1. **Mix LLM and traditional tools** - Use Prettier for formatting, LLM for semantic understanding
 2. **Sequential `agent.think()` calls** create natural pipeline stages
-3. **Parallel processing with `p-limit`** keeps pipelines efficient without overwhelming the agent
+3. **Parallel processing with `p-limit`** keeps pipelines efficient without exhausting account limits
 4. **Batch schemas like `FunctionAnalysisBatch`** reduce round trips for repeated operations
 5. **The `.code()` method** clearly delineates code blocks in prompts
-6. **Send full context** when the LLM needs to understand relationships between code elements
+6. **Send full code context** when a prompt requires understanding relationships between code elements

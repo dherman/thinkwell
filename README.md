@@ -35,9 +35,7 @@ This monorepo contains the following packages:
 ## Quick Start
 
 ```typescript
-import { CLAUDE_CODE } from "thinkwell/connectors";
-import { Agent } from "thinkwell";
-import { GreetingSchema } from "./greeting.schemas.js";
+import { open } from "thinkwell";
 
 /**
  * A friendly greeting.
@@ -48,11 +46,11 @@ export interface Greeting {
   message: string;
 }
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 
 try {
   const greeting: Greeting = await agent
-    .think(GreetingSchema)
+    .think(Greeting.Schema)
     .text(`
       Use the current_time tool to get the current time, and create a
       friendly greeting message appropriate for that time of day.
@@ -91,19 +89,18 @@ thinkwell script.ts
 #!/usr/bin/env thinkwell
 ```
 
-Scripts can use the `thinkwell:*` import scheme for built-in modules:
+Scripts use standard npm imports:
 
 ```typescript
 #!/usr/bin/env thinkwell
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
 /** @JSONSchema */
 interface Greeting {
   message: string;
 }
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 const greeting = await agent.think(Greeting.Schema).text("Say hello").run();
 console.log(greeting.message);
 ```

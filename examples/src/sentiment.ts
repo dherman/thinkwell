@@ -8,8 +8,7 @@
  * Run with: thinkwell src/sentiment.ts
  */
 
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 import * as fs from "fs/promises";
 import Sentiment from "sentiment";
 
@@ -52,7 +51,7 @@ export interface TextPassage {
 const sentimentAnalyzer = new Sentiment();
 
 async function main() {
-  const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD ?? CLAUDE_CODE);
+  const agent = await open('claude');
 
   try {
     console.log("=== Document Analysis with Sentiment Tool ===\n");
@@ -112,7 +111,7 @@ async function main() {
     }
     console.log(`Recommendation: ${analysis.recommendation}`);
   } finally {
-    agent.close();
+    await agent.close();
   }
 }
 

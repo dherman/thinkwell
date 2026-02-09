@@ -60,7 +60,6 @@
           "api/overview",
           "api/agent",
           "api/think-builder",
-          "api/connectors",
           "api/sessions"
         ]
       },
@@ -113,6 +112,11 @@
       "source": "/registry",
       "destination": "/get-started/registry",
       "permanent": false
+    },
+    {
+      "source": "/api/connectors",
+      "destination": "/api/agent",
+      "permanent": true
     }
   ]
 }

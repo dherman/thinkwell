@@ -27,7 +27,7 @@ const PACKAGE_JSON_TEMPLATE = (name: string) => `{
 }
 `;
 
-const MAIN_TS_TEMPLATE = `import { Agent } from "thinkwell:agent";
+const MAIN_TS_TEMPLATE = `import { open } from "thinkwell";
 
 /**
  * A greeting response from the agent.
@@ -38,8 +38,7 @@ export interface Greeting {
 }
 
 async function main() {
-  // Connect to an agent (configure THINKWELL_AGENT_CMD in your environment)
-  const agent = await Agent.connect(process.env.THINKWELL_AGENT_CMD!);
+  const agent = await open('claude');
 
   // Ask the agent to generate a structured greeting
   const greeting = await agent

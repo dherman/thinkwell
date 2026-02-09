@@ -13,6 +13,7 @@ import {
   Conductor,
   fromCommands,
   createChannelPair,
+  type CommandSpec,
   type ComponentConnection,
   type ComponentConnector,
   type JsonRpcMessage,
@@ -30,18 +31,54 @@ import type {
 } from "@agentclientprotocol/sdk";
 
 /**
- * Options for connecting to an agent
+ * Known agent names that can be passed to `open()`.
  */
-export interface ConnectOptions {
+export type AgentName = 'claude' | 'codex' | 'gemini' | 'kiro' | 'opencode' | 'auggie';
+
+/**
+ * Maps agent names to their spawn commands.
+ */
+const AGENT_COMMANDS: Record<AgentName, string> = {
+  claude: "npx -y @zed-industries/claude-code-acp",
+  codex: "npx -y @zed-industries/codex-acp",
+  gemini: "npx -y @google/gemini-cli --experimental-acp",
+  kiro: "kiro-cli acp",
+  opencode: "opencode acp",
+  auggie: "auggie --acp",
+};
+
+/**
+ * Options for opening an agent connection.
+ */
+export interface AgentOptions {
   /**
-   * Environment variables for the agent process
+   * Environment variables for the agent process.
    */
   env?: Record<string, string>;
 
   /**
-   * Connection timeout in milliseconds
+   * Connection timeout in milliseconds.
    */
   timeout?: number;
+}
+
+/**
+ * Options for opening an agent connection with a custom spawn command.
+ *
+ * Use this overload of `open()` when connecting to an agent that isn't
+ * in the built-in {@link AgentName} list.
+ *
+ * @example
+ * ```typescript
+ * const agent = await open({ cmd: 'my-custom-agent --acp' });
+ * ```
+ */
+export interface CustomAgentOptions extends AgentOptions {
+  /**
+   * The shell command to spawn the agent process.
+   * The command is split on whitespace to extract the program and arguments.
+   */
+  cmd: string;
 }
 
 /**
@@ -77,30 +114,28 @@ export interface AgentConnection {
   mcpHandler: McpOverAcpHandler;
   sessionHandlers: Map<string, SessionHandler>;
   initialized: boolean;
+  conductorPromise: Promise<void>;
 }
 
 /**
- * The main entry point for Thinkwell.
+ * A connection to an AI agent (like Claude Code) that provides a fluent API
+ * for blending deterministic code with LLM-powered reasoning.
  *
- * Agent represents a connection to an AI agent (like Claude Code) and provides
- * a fluent API for blending deterministic code with LLM-powered reasoning.
+ * Use the top-level `open()` function to create an Agent instance.
  *
  * @example Simple usage with ephemeral sessions
  * ```typescript
- * import { Agent, schemaOf } from "thinkwell";
- * import { CLAUDE_CODE } from "thinkwell/connectors";
+ * import { open } from "thinkwell";
  *
- * const agent = await Agent.connect(CLAUDE_CODE);
+ * /** @JSONSchema *​/
+ * interface Summary {
+ *   title: string;
+ *   points: string[];
+ * }
  *
+ * const agent = await open('claude');
  * const summary = await agent
- *   .think(schemaOf<{ title: string; points: string[] }>({
- *     type: "object",
- *     properties: {
- *       title: { type: "string" },
- *       points: { type: "array", items: { type: "string" } }
- *     },
- *     required: ["title", "points"]
- *   }))
+ *   .think(Summary.Schema)
  *   .text("Summarize this document:")
  *   .quote(document)
  *   .run();
@@ -110,8 +145,8 @@ export interface AgentConnection {
  *
  * @example Multi-turn conversation with explicit session
  * ```typescript
- * import { CLAUDE_CODE } from "thinkwell/connectors";
- * const agent = await Agent.connect(CLAUDE_CODE);
+ * import { open } from "thinkwell";
+ * const agent = await open('claude');
  * const session = await agent.createSession({ cwd: "/my/project" });
  *
  * const analysis = await session
@@ -129,77 +164,7 @@ export interface AgentConnection {
  * agent.close();
  * ```
  */
-export class Agent {
-  private readonly _conn: AgentConnection;
-
-  private constructor(conn: AgentConnection) {
-    this._conn = conn;
-  }
-
-  /**
-   * Connect to an agent.
-   *
-   * @param command - The command to spawn the agent process (e.g., "npx -y @zed-industries/claude-code-acp")
-   * @param options - Connection options
-   * @returns A connected Agent instance
-   *
-   * @example
-   * ```typescript
-   * import { CLAUDE_CODE } from "thinkwell/connectors";
-   * const agent = await Agent.connect(CLAUDE_CODE);
-   * ```
-   */
-  static async connect(command: string, options?: ConnectOptions): Promise<Agent> {
-    // Create a conductor that spawns the agent as a subprocess
-    // The command string is passed as a single agent command - fromCommands
-    // will parse it internally to extract command and arguments
-    const conductor = new Conductor({
-      instantiator: fromCommands([command]),
-    });
-
-    // Create an in-memory channel pair for client ↔ conductor communication
-    const pair = createChannelPair();
-
-    // Create a Stream adapter from the ComponentConnection
-    const stream = componentConnectionToStream(pair.left);
-
-    // Create the MCP handler
-    const mcpHandler = new McpOverAcpHandler();
-
-    // Build the connection state
-    const conn: AgentConnection = {
-      conductor,
-      connection: null!, // Set below after creating the client
-      mcpHandler,
-      sessionHandlers: new Map(),
-      initialized: false,
-    };
-
-    // Create the ACP client connection
-    const clientConnection = new ClientSideConnection(
-      (_agent: AcpAgent) => createClient(conn, mcpHandler),
-      stream
-    );
-    conn.connection = clientConnection;
-
-    // Create a connector that provides the other end of the channel
-    const clientConnector: ComponentConnector = {
-      async connect() {
-        return pair.right;
-      },
-    };
-
-    // Start the conductor's message loop in the background
-    const conductorPromise = conductor.connect(clientConnector);
-
-    // Handle conductor errors/completion
-    conductorPromise.catch((error) => {
-      console.error("Conductor error:", error);
-    });
-
-    return new Agent(conn);
-  }
-
+export interface Agent {
   /**
    * Create a new think builder for constructing a prompt with tools.
    *
@@ -211,19 +176,16 @@ export class Agent {
    *
    * @example
    * ```typescript
+   * /** @JSONSchema *​/
+   * interface Answer { answer: string }
+   *
    * const result = await agent
-   *   .think(schemaOf<{ answer: string }>({
-   *     type: "object",
-   *     properties: { answer: { type: "string" } },
-   *     required: ["answer"]
-   *   }))
+   *   .think(Answer.Schema)
    *   .text("What is 2 + 2?")
    *   .run();
    * ```
    */
-  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output> {
-    return new ThinkBuilder<Output>(this._conn, schema);
-  }
+  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output>;
 
   /**
    * Create a new session for multi-turn conversations.
@@ -247,6 +209,36 @@ export class Agent {
    * session.close();
    * ```
    */
+  createSession(options?: SessionOptions): Promise<Session>;
+
+  /**
+   * Close the connection to the agent.
+   *
+   * This shuts down the conductor. Any active sessions will be invalidated.
+   */
+  close(): Promise<void>;
+}
+
+/** Symbol used to prevent external construction of AgentImpl. */
+const AGENT_KEY = Symbol("Agent");
+
+/**
+ * @internal
+ */
+class AgentImpl implements Agent {
+  private readonly _conn: AgentConnection;
+
+  constructor(key: symbol, conn: AgentConnection) {
+    if (key !== AGENT_KEY) {
+      throw new Error("Agent cannot be constructed directly. Use open() instead.");
+    }
+    this._conn = conn;
+  }
+
+  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output> {
+    return new ThinkBuilder<Output>(this._conn, schema);
+  }
+
   async createSession(options?: SessionOptions): Promise<Session> {
     await this._initialize();
 
@@ -259,30 +251,17 @@ export class Agent {
     return new Session(this._conn, response.sessionId, options);
   }
 
-  /**
-   * Close the connection to the agent.
-   *
-   * This shuts down the conductor. Any active sessions will be invalidated.
-   */
-  close(): void {
-    this._conn.conductor.shutdown().catch((error) => {
-      console.error("Conductor shutdown error:", error);
-    });
+  async close(): Promise<void> {
+    await this._conn.conductor.shutdown();
+    try {
+      await this._conn.conductorPromise;
+    } catch (error) {
+      // Conductor errors are already logged, just ensure we don't throw
+      console.error('[Agent.close] Conductor promise error:', error);
+    }
   }
 
-  /**
-   * Get the internal connection for use by ThinkBuilder
-   * @internal
-   */
-  get _connection(): AgentConnection {
-    return this._conn;
-  }
-
-  /**
-   * Initialize the connection (negotiate protocol version)
-   * @internal
-   */
-  async _initialize(): Promise<void> {
+  private async _initialize(): Promise<void> {
     if (this._conn.initialized) return;
 
     await this._conn.connection.initialize({
@@ -481,4 +460,128 @@ export function convertNotification(notification: SessionNotification): ThoughtE
   }
 
   return null;
+}
+
+/**
+ * Parse a command string into a CommandSpec with env vars attached.
+ */
+function parseCommandWithEnv(command: string, env: Record<string, string>): CommandSpec {
+  const parts = command.split(/\s+/);
+  return {
+    command: parts[0],
+    args: parts.slice(1),
+    env,
+  };
+}
+
+/**
+ * Resolve the agent command string from the arguments to `open()`,
+ * applying environment variable overrides.
+ */
+function resolveCommand(
+  nameOrOptions: AgentName | (CustomAgentOptions),
+  options?: AgentOptions,
+): { command: string; options?: AgentOptions } {
+  // Environment variable overrides take precedence
+  const envCmd = process.env.THINKWELL_AGENT_CMD;
+  const envAgent = process.env.THINKWELL_AGENT;
+
+  if (envCmd) {
+    const opts = typeof nameOrOptions === "string" ? options : nameOrOptions;
+    return { command: envCmd, options: opts };
+  }
+
+  if (envAgent) {
+    if (!(envAgent in AGENT_COMMANDS)) {
+      throw new Error(
+        `Unknown agent name in $THINKWELL_AGENT: '${envAgent}'. ` +
+        `Valid names: ${Object.keys(AGENT_COMMANDS).join(", ")}`
+      );
+    }
+    const opts = typeof nameOrOptions === "string" ? options : nameOrOptions;
+    return { command: AGENT_COMMANDS[envAgent as AgentName], options: opts };
+  }
+
+  // No env override — resolve from arguments
+  if (typeof nameOrOptions === "string") {
+    return { command: AGENT_COMMANDS[nameOrOptions], options };
+  }
+
+  return { command: nameOrOptions.cmd, options: nameOrOptions };
+}
+
+/**
+ * Open a connection to an AI agent.
+ *
+ * @example Named agent (the common case)
+ * ```typescript
+ * import { open } from "thinkwell";
+ * const agent = await open('claude');
+ * ```
+ *
+ * @example Custom command
+ * ```typescript
+ * const agent = await open({ cmd: 'myagent --acp' });
+ * ```
+ */
+export async function open(name: AgentName, options?: AgentOptions): Promise<Agent>;
+export async function open(options: CustomAgentOptions): Promise<Agent>;
+export async function open(
+  nameOrOptions: AgentName | (CustomAgentOptions),
+  maybeOptions?: AgentOptions,
+): Promise<Agent> {
+  const { command, options } = resolveCommand(nameOrOptions, maybeOptions);
+
+  // When env is provided, we need to pass a CommandOptions object.
+  // Otherwise a plain string works (fromCommands parses it internally).
+  const commandSpec: CommandSpec = options?.env
+    ? parseCommandWithEnv(command, options.env)
+    : command;
+
+  const conductor = new Conductor({
+    instantiator: fromCommands([commandSpec]),
+  });
+
+  // Create an in-memory channel pair for client ↔ conductor communication
+  const pair = createChannelPair();
+
+  // Create a Stream adapter from the ComponentConnection
+  const stream = componentConnectionToStream(pair.left);
+
+  // Create the MCP handler
+  const mcpHandler = new McpOverAcpHandler();
+
+  // Build the connection state
+  const conn: AgentConnection = {
+    conductor,
+    connection: null!, // Set below after creating the client
+    mcpHandler,
+    sessionHandlers: new Map(),
+    initialized: false,
+    conductorPromise: null!, // Set below after starting the conductor
+  };
+
+  // Create the ACP client connection
+  const clientConnection = new ClientSideConnection(
+    (_agent: AcpAgent) => createClient(conn, mcpHandler),
+    stream
+  );
+  conn.connection = clientConnection;
+
+  // Create a connector that provides the other end of the channel
+  const clientConnector: ComponentConnector = {
+    async connect() {
+      return pair.right;
+    },
+  };
+
+  // Start the conductor's message loop in the background
+  conn.conductorPromise = conductor.connect(clientConnector);
+
+  // Handle conductor errors/completion
+  conn.conductorPromise.catch((error: unknown) => {
+    console.error("Conductor error:", error);
+  });
+
+  return new AgentImpl(AGENT_KEY, conn);
 }

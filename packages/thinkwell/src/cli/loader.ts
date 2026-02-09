@@ -5,12 +5,10 @@
  * user scripts in the compiled binary. It handles:
  *
  * 1. **Module Resolution**: Routes imports to the appropriate source:
- *    - `thinkwell:*` imports → bundled packages via `global.__bundled__`
  *    - thinkwell packages → bundled packages via `global.__bundled__`
  *    - External packages → user's node_modules via `require.resolve()`
  *
  * 2. **Import Transformation**: Rewrites user script imports before execution:
- *    - `import { Agent } from "thinkwell:agent"` → bundled thinkwell
  *    - `import { Agent } from "thinkwell"` → bundled thinkwell
  *
  * 3. **@JSONSchema Processing**: Generates JSON schemas for marked types and
@@ -41,16 +39,6 @@ interface ModuleConstructorInternal {
   new (id: string, parent?: Module): ModuleInternal;
   _nodeModulePaths(from: string): string[];
 }
-
-/**
- * Maps thinkwell:* URI scheme to npm package names.
- */
-const THINKWELL_MODULES: Record<string, string> = {
-  agent: "thinkwell",
-  acp: "@thinkwell/acp",
-  protocol: "@thinkwell/protocol",
-  connectors: "thinkwell",
-};
 
 /**
  * Package names that should be resolved from bundled modules.
@@ -105,42 +93,6 @@ export function extractShebang(source: string): [string, string] {
     return [source, ""];
   }
   return ["", source];
-}
-
-/**
- * Transform thinkwell:* imports to use bundled packages.
- *
- * Rewrites import specifiers from the thinkwell:* URI scheme to
- * their corresponding npm package names.
- *
- * @example
- * ```typescript
- * // Input:
- * import { Agent } from "thinkwell:agent";
- *
- * // Output:
- * import { Agent } from "thinkwell";
- * ```
- *
- * @param source - The script source code
- * @returns The source with thinkwell:* imports rewritten
- */
-export function rewriteThinkwellImports(source: string): string {
-  // Match import/export statements with thinkwell:* specifiers
-  // Handles: import { x } from "thinkwell:foo"
-  //          import x from 'thinkwell:foo'
-  //          export { x } from "thinkwell:foo"
-  return source.replace(
-    /(from\s+['"])thinkwell:(\w+)(['"])/g,
-    (_, prefix, moduleName, suffix) => {
-      const npmPackage = THINKWELL_MODULES[moduleName];
-      if (npmPackage) {
-        return `${prefix}${npmPackage}${suffix}`;
-      }
-      // Unknown module - leave as is (will error at resolution)
-      return `${prefix}thinkwell:${moduleName}${suffix}`;
-    }
-  );
 }
 
 /**
@@ -276,10 +228,6 @@ export function createCustomRequire(
  * @returns true if the source contains thinkwell imports or @JSONSchema markers
  */
 function needsTransformation(source: string): boolean {
-  // Check for thinkwell:* URI scheme imports
-  if (/from\s+['"]thinkwell:\w+['"]/.test(source)) {
-    return true;
-  }
   // Check for bundled package imports
   if (/from\s+['"](?:thinkwell|@thinkwell\/(?:acp|protocol))['"]/.test(source)) {
     return true;
@@ -407,12 +355,9 @@ export function loadScript(scriptPath: string): unknown {
   }
 
   // Source needs transformation - apply transforms and use a temp file
-  // Rewrite thinkwell:* imports to npm package names
-  let source = rewriteThinkwellImports(sourceWithoutShebang);
-
   // Process @JSONSchema types (must happen before import transformation
   // because it adds an import statement that also needs transformation)
-  source = transformJsonSchemas(absolutePath, source);
+  let source = transformJsonSchemas(absolutePath, sourceWithoutShebang);
 
   // Transform imports to use bundled modules (global.__bundled__)
   source = transformVirtualImports(source);

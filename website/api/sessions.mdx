@@ -10,10 +10,9 @@ Sessions enable multi-turn conversations with an agent, maintaining context acro
 Create a session using `agent.createSession()`:
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 const session = await agent.createSession({ cwd: "/my/project" });
 ```
 
@@ -104,8 +103,7 @@ The agent connection remains open and can be used for other sessions or standalo
 Here's a complete example showing a multi-turn code review session:
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
 /** @JSONSchema */
 interface ReviewResult {
@@ -124,7 +122,7 @@ interface FixPlan {
 }
 
 async function reviewCode(projectPath: string) {
-  const agent = await Agent.connect(CLAUDE_CODE);
+  const agent = await open('claude');
   const session = await agent.createSession({ cwd: projectPath });
 
   try {

@@ -8,8 +8,7 @@ The `ThinkBuilder` class provides a fluent interface for constructing prompts. Y
 ## Basic Usage
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 
 /** @JSONSchema */
 interface Summary {
@@ -17,7 +16,7 @@ interface Summary {
   points: string[];
 }
 
-const agent = await Agent.connect(CLAUDE_CODE);
+const agent = await open('claude');
 
 const result = await agent
   .think(Summary.Schema)      // Start building with output schema
@@ -156,8 +155,7 @@ const result = await agent
 Here's a complete example showing multiple ThinkBuilder features:
 
 ```typescript
-import { Agent } from "thinkwell:agent";
-import { CLAUDE_CODE } from "thinkwell:connectors";
+import { open } from "thinkwell";
 import * as fs from "fs/promises";
 
 /**
@@ -188,7 +186,7 @@ interface ReadFileInput {
 }
 
 async function analyzeProject(projectPath: string) {
-  const agent = await Agent.connect(CLAUDE_CODE);
+  const agent = await open('claude');
 
   try {
     const analysis = await agent
