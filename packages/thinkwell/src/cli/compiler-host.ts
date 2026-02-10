@@ -6,7 +6,7 @@
  * without @JSONSchema markers pass through unchanged. Files from node_modules
  * and TypeScript lib files are always passed through unchanged.
  *
- * Used by both `thinkwell build` (with emit) and `thinkwell check` (noEmit).
+ * Used by `thinkwell build` (single-pass and watch mode) and `thinkwell check` (noEmit).
  */
 
 import ts from "typescript";
@@ -200,4 +200,104 @@ export function createThinkwellProgram(configPathOrOptions: string | CreateProgr
   const program = ts.createProgram(fileNames, options, host);
 
   return { program, configErrors: errors };
+}
+
+// ============================================================================
+// Watch Mode
+// ============================================================================
+
+/**
+ * Options for creating a watch-mode compiler host.
+ */
+export interface CreateWatchHostOptions {
+  /** Absolute path to the project's tsconfig.json */
+  configPath: string;
+  /**
+   * Optional filter for controlling which files receive @JSONSchema
+   * transformation. See {@link ThinkwellHostOptions.fileFilter}.
+   */
+  fileFilter?: (fileName: string) => boolean;
+  /** Callback to report individual diagnostics (errors, warnings) */
+  reportDiagnostic: ts.DiagnosticReporter;
+  /** Callback to report watch status changes ("Starting compilation...", etc.) */
+  reportWatchStatus: ts.WatchStatusReporter;
+}
+
+/**
+ * Patch a CompilerHost's getSourceFile to apply @JSONSchema transformation.
+ *
+ * This is used by watch mode to wrap the host that TypeScript's watch system
+ * provides, preserving its internal state while intercepting file reads.
+ */
+function patchHostGetSourceFile(
+  host: ts.CompilerHost,
+  fileFilter?: (fileName: string) => boolean,
+): void {
+  const originalGetSourceFile = host.getSourceFile.bind(host);
+
+  host.getSourceFile = (fileName, languageVersionOrOptions, onError?, shouldCreateNewSourceFile?) => {
+    const source = ts.sys.readFile(fileName);
+    if (source === undefined) {
+      return originalGetSourceFile(fileName, languageVersionOrOptions, onError, shouldCreateNewSourceFile);
+    }
+
+    if (shouldTransform(fileName) && hasJsonSchemaMarkers(source)) {
+      if (!fileFilter || fileFilter(fileName)) {
+        const transformed = transformJsonSchemas(fileName, source);
+        return ts.createSourceFile(fileName, transformed, languageVersionOrOptions);
+      }
+    }
+
+    return ts.createSourceFile(fileName, source, languageVersionOrOptions);
+  };
+}
+
+/**
+ * Create a watch-mode compiler host with @JSONSchema transformation.
+ *
+ * Uses TypeScript's `ts.createWatchCompilerHost` (config-file mode) with a
+ * custom `createProgram` callback that patches the host's `getSourceFile()`
+ * to apply `@JSONSchema` namespace injection. TypeScript handles file watching,
+ * debouncing, and incremental re-compilation automatically.
+ *
+ * @param options - Watch host configuration
+ * @returns A watch compiler host ready to pass to `ts.createWatchProgram()`
+ */
+export function createThinkwellWatchHost(
+  options: CreateWatchHostOptions,
+): ts.WatchCompilerHostOfConfigFile<ts.EmitAndSemanticDiagnosticsBuilderProgram> {
+  const { configPath, fileFilter, reportDiagnostic, reportWatchStatus } = options;
+
+  const createProgram: ts.CreateProgram<ts.EmitAndSemanticDiagnosticsBuilderProgram> = (
+    rootNames,
+    compilerOptions,
+    host,
+    oldProgram,
+    configFileParsingDiagnostics,
+    projectReferences,
+  ) => {
+    // Patch the host that TypeScript's watch system created, rather than
+    // replacing it entirely. This preserves watch-specific internal state.
+    if (host) {
+      patchHostGetSourceFile(host, fileFilter);
+    }
+
+    return ts.createEmitAndSemanticDiagnosticsBuilderProgram(
+      rootNames,
+      compilerOptions,
+      host,
+      oldProgram,
+      configFileParsingDiagnostics,
+      projectReferences,
+    );
+  };
+
+  return ts.createWatchCompilerHost(
+    resolve(configPath),
+    /* optionsToExtend */ undefined,
+    ts.sys,
+    createProgram,
+    reportDiagnostic,
+    reportWatchStatus,
+  );
 }

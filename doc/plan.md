@@ -32,6 +32,6 @@ The shared infrastructure for both `thinkwell build` and `thinkwell check`.
 
 ## Phase 4: Watch mode
 
-- [ ] Add `--watch` flag to `thinkwell build`
-- [ ] Use TypeScript's `ts.createWatchProgram()` with the custom CompilerHost
-- [ ] Support incremental compilation (`--incremental` / `.tsbuildinfo`)
+- [x] Add `--watch` flag to `thinkwell build`
+- [x] Use TypeScript's `ts.createWatchProgram()` with the custom CompilerHost
+- [x] Support incremental compilation (`--incremental` / `.tsbuildinfo`)

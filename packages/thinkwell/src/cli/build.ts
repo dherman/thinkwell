@@ -13,7 +13,7 @@ import ts from "typescript";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, join, matchesGlob } from "node:path";
 import { styleText } from "node:util";
-import { createThinkwellProgram } from "./compiler-host.js";
+import { createThinkwellProgram, createThinkwellWatchHost } from "./compiler-host.js";
 
 // ============================================================================
 // Types
@@ -26,6 +26,8 @@ export interface BuildOptions {
   verbose?: boolean;
   /** Suppress all output except errors */
   quiet?: boolean;
+  /** Watch for file changes and recompile */
+  watch?: boolean;
 }
 
 /**
@@ -122,13 +124,15 @@ function createFileFilter(
 // Diagnostics Formatting
 // ============================================================================
 
+const diagnosticsHost: ts.FormatDiagnosticsHost = {
+  getCanonicalFileName: (fileName) => fileName,
+  getCurrentDirectory: ts.sys.getCurrentDirectory,
+  getNewLine: () => ts.sys.newLine,
+};
+
 function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
   if (diagnostics.length === 0) return "";
-  return ts.formatDiagnosticsWithColorAndContext(diagnostics, {
-    getCanonicalFileName: (fileName) => fileName,
-    getCurrentDirectory: ts.sys.getCurrentDirectory,
-    getNewLine: () => ts.sys.newLine,
-  });
+  return ts.formatDiagnosticsWithColorAndContext(diagnostics, diagnosticsHost);
 }
 
 // ============================================================================
@@ -162,7 +166,12 @@ export async function runBuild(options: BuildOptions): Promise<void> {
     }
   }
 
-  // Create the program with the custom CompilerHost
+  // Watch mode: use TypeScript's watch API for continuous compilation
+  if (options.watch) {
+    return runWatch(configPath, fileFilter);
+  }
+
+  // Single-pass build
   const { program, configErrors } = fileFilter
     ? createThinkwellProgram({ configPath, fileFilter })
     : createThinkwellProgram(configPath);
@@ -219,6 +228,46 @@ export async function runBuild(options: BuildOptions): Promise<void> {
 }
 
 // ============================================================================
+// Watch Mode
+// ============================================================================
+
+/**
+ * Run the build in watch mode using TypeScript's watch API.
+ *
+ * TypeScript handles file watching, debouncing, and incremental re-compilation
+ * automatically. The custom CompilerHost's @JSONSchema transformation is applied
+ * on each rebuild via the createProgram callback.
+ *
+ * This function never returns — it runs until the process is killed (Ctrl+C).
+ */
+function runWatch(
+  configPath: string,
+  fileFilter: ((fileName: string) => boolean) | undefined,
+): Promise<never> {
+  const reportDiagnostic: ts.DiagnosticReporter = (diagnostic) => {
+    console.error(ts.formatDiagnosticsWithColorAndContext([diagnostic], diagnosticsHost));
+  };
+
+  const reportWatchStatus: ts.WatchStatusReporter = (diagnostic) => {
+    console.error(ts.formatDiagnostic(diagnostic, diagnosticsHost).trimEnd());
+  };
+
+  const watchHost = createThinkwellWatchHost({
+    configPath,
+    fileFilter,
+    reportDiagnostic,
+    reportWatchStatus,
+  });
+
+  ts.createWatchProgram(watchHost);
+
+  // Keep the process alive. TypeScript's watch system registers file watchers
+  // that keep the event loop active, so this promise never resolves.
+  // The process exits when the user presses Ctrl+C.
+  return new Promise(() => {});
+}
+
+// ============================================================================
 // Argument Parsing
 // ============================================================================
 
@@ -235,6 +284,8 @@ export function parseBuildArgs(args: string[]): BuildOptions {
         throw new Error("Missing value for --project");
       }
       options.project = args[i];
+    } else if (arg === "--watch" || arg === "-w") {
+      options.watch = true;
     } else if (arg === "--verbose") {
       options.verbose = true;
     } else if (arg === "--quiet" || arg === "-q") {
@@ -267,6 +318,7 @@ Usage:
   thinkwell build [options]
 
 Options:
+  -w, --watch            Watch for file changes and recompile
   -p, --project <path>   Path to tsconfig.json (default: ./tsconfig.json)
   -q, --quiet            Suppress all output except errors
   --verbose              Show detailed build output
@@ -281,9 +333,10 @@ Description:
   in your tsconfig.json.
 
 Examples:
-  thinkwell build                     Build the project
+  thinkwell build                        Build the project
+  thinkwell build --watch                Watch and rebuild on changes
   thinkwell build -p tsconfig.app.json   Use a specific tsconfig
-  thinkwell build --quiet             Suppress success output (for CI)
+  thinkwell build --quiet                Suppress success output (for CI)
 
 Configuration via package.json:
   Control which files receive @JSONSchema transformation:
