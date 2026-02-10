@@ -1,5 +1,7 @@
 # RFD: JavaScript Unminifier Demo
 
+**Implementation:** [PR #2](https://github.com/dherman/thinkwell/pull/2)
+
 ## Summary
 
 A thinkwell demo that takes a minified JavaScript library and produces a more readable version by:

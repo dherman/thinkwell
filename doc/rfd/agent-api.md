@@ -1,5 +1,7 @@
 # RFD: Agent-Centric API for Thinkwell
 
+**Implementation:** [PR #3](https://github.com/dherman/thinkwell/pull/3)
+
 ## Summary
 
 Redesign Thinkwell's public API around the `Agent` type, with a static `Agent.connect()` method that hides conductor implementation details. Support both simple single-shot usage and advanced multi-session patterns.

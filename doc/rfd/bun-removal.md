@@ -1,5 +1,8 @@
 # RFD: Remove Bun Remnants from Codebase
 
+- **Depends on:** [pkg-migration](./pkg-migration.md)
+- **Implemented:** [PR #20](https://github.com/dherman/thinkwell/pull/20)
+
 ## Summary
 
 Following the successful migration from Bun to pkg for binary distribution (see [pkg-migration.md](./pkg-migration.md)), this document proposes removing all remaining Bun references from the codebase. The `@thinkwell/bun-plugin` package and associated code are now deprecated and should be removed to reduce maintenance burden and eliminate confusion.

@@ -1,5 +1,7 @@
 # @thinkwell/conductor: TypeScript Conductor Design
 
+**Implementation:** [PR #5](https://github.com/dherman/thinkwell/pull/5)
+
 This document describes the design for porting the Rust `sacp-conductor` to TypeScript as a new `@thinkwell/conductor` package.
 
 ## Background

@@ -1,5 +1,7 @@
 # RFD: In-Memory Agent Skills API for ThinkBuilder
 
+**Implementation:** [PR #26](https://github.com/dherman/thinkwell/pull/26)
+
 ## Summary
 
 Add a `.skill()` API to ThinkBuilder that implements the [Agent Skills standard](https://agentskills.io/) without leaving visible artifacts in the filesystem. The `.skill()` method is overloaded: pass a string path to load a stored skill from a `SKILL.md` file on disk, or pass an object to define a virtual skill programmatically. Skills are parsed in memory and injected into the agent session as system prompt content and MCP-based activation/dispatch tools -- all on the client side of the ACP connection.

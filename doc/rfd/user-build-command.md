@@ -1,5 +1,7 @@
 # RFD: `thinkwell build` Command
 
+**Implementation:** [PR #19](https://github.com/dherman/thinkwell/pull/19)
+
 ## Summary
 
 This document proposes a new `thinkwell build` command that allows users to compile their thinkwell modules into self-contained executables. The command will leverage the same pkg-based tooling that we use to build the `thinkwell` CLI itself, enabling users to distribute their agents as standalone binaries without requiring Node.js or thinkwell to be installed on target machines.

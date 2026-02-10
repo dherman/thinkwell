@@ -1,5 +1,7 @@
 # RFD: Thinkwell CLI Installation and Distribution
 
+**Implementation:** [PR #15](https://github.com/dherman/thinkwell/pull/15)
+
 ## Summary
 
 This document describes the distribution strategy for the `thinkwell` CLI, providing a frictionless installation experience across multiple channels: npm/npx for universal access, Homebrew for macOS/Linux power users, and local project installation for development workflows.

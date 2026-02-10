@@ -1,5 +1,7 @@
 # RFD: Schema Provider Interface
 
+**Implementation:** [PR #1](https://github.com/dherman/thinkwell/pull/1)
+
 ## Summary
 
 This document proposes a `SchemaProvider<T>` interface to decouple thinkwell from specific JSON Schema technologies, enabling users to integrate their preferred schema definition approach (Zod, TypeBox, build-time generators, etc.) without coupling the library to any single solution.

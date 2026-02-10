@@ -1,5 +1,7 @@
 # RFD: Migrate Binary Distribution from Bun to pkg
 
+**Implementation:** [PR #17](https://github.com/dherman/thinkwell/pull/17)
+
 ## Summary
 
 This document proposes replacing Bun's `--compile` flag with [yao-pkg/pkg](https://github.com/yao-pkg/pkg) for building the thinkwell compiled binary. This migration solves a fundamental limitation in Bun's compiled binaries: the inability to resolve npm packages from a user's `node_modules` at runtime.

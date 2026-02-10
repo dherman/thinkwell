@@ -1,5 +1,7 @@
 # RFD: Thought Stream API
 
+**Implementation:** [PR #25](https://github.com/dherman/thinkwell/pull/25)
+
 ## Summary
 
 Add a `stream()` method to `ThinkBuilder` that returns a `ThoughtStream<Output>` — a lightweight handle providing both the final typed result (as a promise) and an async iterable of intermediate progress events. This exposes ACP's rich session update notifications to Thinkwell users, enabling use cases like streaming reasoning to a terminal, showing tool activity in a UI, or displaying execution plans.

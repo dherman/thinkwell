@@ -1,5 +1,7 @@
 # RFD: Remove `thinkwell:*` URI Scheme
 
+**Implementation:** [PR #28](https://github.com/dherman/thinkwell/pull/28)
+
 ## Summary
 
 Replace the custom `thinkwell:*` import URI scheme with standard npm package imports and redesign the agent connection API. The new `open()` function accepts a named agent string (like `'claude'` or `'codex'`) with built-in environment variable overrides, so the simplest scripts need only a single import and a single line to connect. This eliminates an entire category of IDE integration problems by making imports resolve natively through TypeScript, Node.js, and every editor and bundler — with zero configuration.
