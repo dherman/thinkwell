@@ -8,10 +8,10 @@ Implement `thinkwell check` per [the RFD](rfd/check-command.md). The custom Comp
 
 ### Workspace Detection
 
-- [ ] Create `packages/thinkwell/src/cli/workspace.ts` with logic to detect pnpm workspaces (`pnpm-workspace.yaml`) and npm workspaces (`package.json` `"workspaces"`)
-- [ ] Enumerate workspace member directories (expand glob patterns), read each `package.json` for name and each directory for `tsconfig.json` presence
-- [ ] Package name resolution: exact match on full name, short-name fallback on last segment of scoped names, ambiguity detection
-- [ ] Unit tests for workspace detection and package resolution
+- [x] Create `packages/thinkwell/src/cli/workspace.ts` with logic to detect pnpm workspaces (`pnpm-workspace.yaml`) and npm workspaces (`package.json` `"workspaces"`)
+- [x] Enumerate workspace member directories (expand glob patterns), read each `package.json` for name and each directory for `tsconfig.json` presence
+- [x] Package name resolution: exact match on full name, short-name fallback on last segment of scoped names, ambiguity detection
+- [x] Unit tests for workspace detection and package resolution
 
 ### Check Command
 
