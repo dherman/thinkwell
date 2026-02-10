@@ -40,6 +40,8 @@ export interface TypeInfo {
   column: number;
   /** Length of the type declaration keyword + name (for error underlining) */
   declarationLength: number;
+  /** Whether the type declaration has an `export` modifier */
+  isExported: boolean;
 }
 
 /**
@@ -88,6 +90,10 @@ export function findMarkedTypes(path: string, source: string): TypeInfo[] {
           else if (ts.isClassDeclaration(node)) keyword = "class";
           const declarationLength = keyword.length + 1 + name.length;
 
+          const isExported = node.modifiers?.some(
+            (m) => m.kind === ts.SyntaxKind.ExportKeyword,
+          ) ?? false;
+
           results.push({
             name,
             node,
@@ -96,6 +102,7 @@ export function findMarkedTypes(path: string, source: string): TypeInfo[] {
             line: line + 1,
             column: character + 1,
             declarationLength,
+            isExported,
           });
         }
       }
@@ -255,15 +262,20 @@ export interface Insertion {
 
 /**
  * Generate a namespace declaration for a single type.
+ *
+ * If the original type declaration is exported, the namespace is also exported
+ * so that cross-file imports (e.g. `import { Greeting } from "./types.js"`)
+ * can access `Greeting.Schema`.
  */
-function generateNamespace(name: string, schema: object): string {
+function generateNamespace(name: string, schema: object, isExported: boolean): string {
   const schemaJson = JSON.stringify(schema, null, 2)
     .split("\n")
     .map((line, i) => (i === 0 ? line : "      " + line))
     .join("\n");
 
+  const exportPrefix = isExported ? "export " : "";
   return [
-    `namespace ${name} {`,
+    `${exportPrefix}namespace ${name} {`,
     `  export const Schema: ${ACP_NAMESPACE}.SchemaProvider<${name}> = {`,
     `    toJsonSchema: () => (${schemaJson}) as ${ACP_NAMESPACE}.JsonSchema,`,
     `  };`,
@@ -284,7 +296,7 @@ export function generateInsertions(
 ): Insertion[] {
   const insertions: Insertion[] = [];
 
-  for (const { name, endPosition } of types) {
+  for (const { name, endPosition, isExported } of types) {
     const schema = schemas.get(name);
     if (!schema) {
       continue;
@@ -292,7 +304,7 @@ export function generateInsertions(
 
     insertions.push({
       position: endPosition,
-      code: "\n" + generateNamespace(name, schema),
+      code: "\n" + generateNamespace(name, schema, isExported),
     });
   }
 
