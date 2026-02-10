@@ -25,7 +25,7 @@ Implement `thinkwell check` per [the RFD](rfd/check-command.md). The custom Comp
 
 ### Integration Tests
 
-- [ ] Integration test with a minimal fixture project (no `@JSONSchema`) — expect clean check
-- [ ] Integration test with `@JSONSchema` fixture — expect clean check (reuse existing `node-ux-project` fixture)
-- [ ] Integration test with intentional type error — expect exit code 1 and error output
-- [ ] Integration test for workspace mode with multiple packages
+- [x] Integration test with a minimal fixture project (no `@JSONSchema`) — expect clean check
+- [x] Integration test with `@JSONSchema` fixture — expect clean check (reuse existing `node-ux-project` fixture)
+- [x] Integration test with intentional type error — expect exit code 1 and error output
+- [x] Integration test for workspace mode with multiple packages
