@@ -163,10 +163,10 @@ npm run dev          # watches source, rebuilds on changes
 For quick iteration without a full `tsc` build, users can continue to use `tsx` or `node --experimental-transform-types` directly on their source files. The `@JSONSchema` runtime injection is handled by the thinkwell CLI's loader — the same loader used by `thinkwell src/main.ts`.
 
 The CompilerHost-based build is primarily for users who want:
-- Full type checking with `@JSONSchema` support (via `thinkwell check`)
 - Compiled `.js`/`.d.ts` output (via `thinkwell build`)
+- Full type checking with `@JSONSchema` support (via a future [`thinkwell check`](check-command.md) command that reuses the same CompilerHost)
 
-For users who just want to run scripts, the thinkwell CLI's runtime transformation (`thinkwell src/main.ts`) remains the fastest path. For fast type-checking feedback during development, `thinkwell check --watch` provides continuous type checking without producing output files.
+For users who just want to run scripts, the thinkwell CLI's runtime transformation (`thinkwell src/main.ts`) remains the fastest path.
 
 ### CLI Interface: `build` vs `bundle`
 
@@ -228,32 +228,18 @@ The CLI workflow (`thinkwell src/main.ts`) continues to work exactly as it does 
 | `@JSONSchema` | Runtime injection | Build-time injection via CompilerHost |
 | Build step | None | `thinkwell build` (CompilerHost + tsc emit) |
 | Run command | `thinkwell src/main.ts` | `node dist/main.js` |
-| Type checking | `thinkwell check` or VS Code extension | `thinkwell check` (same CompilerHost) |
+| Type checking | VS Code extension | `thinkwell build` (same CompilerHost); future [`thinkwell check`](check-command.md) |
 | IDE support | VS Code extension ([vscode-ts-plugin](vscode-ts-plugin.md)) | Same VS Code extension |
 
 ### IDE Support
 
 IDE support for `@JSONSchema` augmentations is covered by a separate effort: the Thinkwell VS Code extension with a TypeScript Language Service plugin ([vscode-ts-plugin](vscode-ts-plugin.md)). The extension presents virtual namespace augmentations to TypeScript so that `Greeting.Schema` is visible in the editor without generating files on disk.
 
-This works identically for both workflows — the VS Code extension doesn't care whether the user runs scripts via the thinkwell CLI or standard Node tooling. All three mechanisms — the VS Code extension, `thinkwell check`, and `thinkwell build` — use the same concept of virtual/in-memory `@JSONSchema` injection, just through different interfaces (TS Language Service plugin for the IDE, CompilerHost for CLI tools). The migration path to TypeScript 7's `tsgo` is covered in [tsgo-api-migration](tsgo-api-migration.md).
+This works identically for both workflows — the VS Code extension doesn't care whether the user runs scripts via the thinkwell CLI or standard Node tooling. Both the VS Code extension and `thinkwell build` use the same concept of virtual/in-memory `@JSONSchema` injection, just through different interfaces (TS Language Service plugin for the IDE, CompilerHost for CLI tools). The migration path to TypeScript 7's `tsgo` is covered in [tsgo-api-migration](tsgo-api-migration.md).
 
-### Shared Infrastructure with `thinkwell check`
+### Designed for Reuse by `thinkwell check`
 
-The [`thinkwell check`](check-command.md) command uses the same custom CompilerHost as `thinkwell build`, but with `--noEmit`. Both commands:
-
-- Create a `ts.Program` using the same custom CompilerHost
-- Apply `@JSONSchema` namespace injection via `getSourceFile()` interception
-- Read the user's `tsconfig.json` directly
-
-The only difference is what happens after type checking:
-
-| | `thinkwell check` | `thinkwell build` |
-|---|---|---|
-| Type checking | Yes | Yes |
-| Emit (.js, .d.ts, source maps) | No (`--noEmit`) | Yes (`program.emit()`) |
-| Primary use | Fast feedback during development | Produce compiled output |
-
-This shared CompilerHost is implemented once and used by both commands, ensuring consistent `@JSONSchema` handling and reducing maintenance burden.
+The custom CompilerHost is designed to be shared with a future [`thinkwell check`](check-command.md) command (detailed in its own RFD). The `check` command would use the same CompilerHost with `--noEmit` to provide fast type-checking feedback without producing output files — the same relationship as `cargo check` vs `cargo build` in Rust. Since the CompilerHost is the same, `@JSONSchema` handling is consistent across both commands.
 
 ## Architecture
 
@@ -269,9 +255,9 @@ The CompilerHost reuses the core `@JSONSchema` transformation functions from `sc
 | `applyInsertions()` | CLI loader, CompilerHost `getSourceFile()` |
 | `generateSchemaImport()` | CLI loader, CompilerHost `getSourceFile()` |
 | `transformJsonSchemas()` | CLI loader, CompilerHost `getSourceFile()` (top-level orchestrator) |
-| Custom `CompilerHost` | `thinkwell build`, `thinkwell check` |
+| Custom `CompilerHost` | `thinkwell build` (and future `thinkwell check`) |
 
-The build tool adds orchestration logic around these: CompilerHost creation, `ts.Program` construction, `program.emit()` invocation, watch mode, and diagnostic formatting.
+The build tool adds orchestration logic around these: CompilerHost creation, `ts.Program` construction, `program.emit()` invocation, watch mode, and diagnostic formatting. A future [`thinkwell check`](check-command.md) command will add a second consumer that calls `ts.getPreEmitDiagnostics()` instead of `program.emit()`.
 
 ### CompilerHost Architecture
 
@@ -299,11 +285,11 @@ const host: ts.CompilerHost = {
 
 const program = ts.createProgram({ rootNames, options, host });
 
-// For thinkwell check:
-const diagnostics = ts.getPreEmitDiagnostics(program);
-
-// For thinkwell build:
+// thinkwell build:
 program.emit();
+
+// Future thinkwell check (see check-command.md):
+// const diagnostics = ts.getPreEmitDiagnostics(program);
 ```
 
 The `transformJsonSchemas()` function is a no-op for files without `@JSONSchema` markers, so the CompilerHost is a transparent pass-through for standard TypeScript files.
@@ -326,7 +312,7 @@ The CompilerHost itself does not need to cache transformations between runs — 
 | Full type checking | tsc runs on complete, valid TypeScript (with namespace merges) |
 | Source map support | Output maps directly to original source files — no path rewriting needed |
 | No intermediate files | No staging directory, no duplicated files, no generated tsconfig |
-| Shared with `check` | Same CompilerHost used by `thinkwell check` — one implementation to maintain |
+| Designed for reuse | Same CompilerHost can be used by a future [`thinkwell check`](check-command.md) command |
 
 ### Disadvantages
 
@@ -345,7 +331,7 @@ An earlier version of this design proposed copying source files to `.thinkwell/s
 1. **Source map complexity** — Staged files live at different paths from the originals, requiring post-processing of source maps to rewrite paths back to the user's source. The CompilerHost serves files from their original paths, eliminating this entirely.
 2. **Disk I/O overhead** — Every source file must be copied to the staging directory, even files without `@JSONSchema`. The CompilerHost only transforms files that need it; everything else is a pass-through read from the real filesystem.
 3. **Generated tsconfig** — The staging approach requires generating a second `tsconfig.json` that extends the user's config from the staging directory, introducing a layer of indirection and potential for configuration drift.
-4. **Shared infrastructure** — The `thinkwell check` command already uses the CompilerHost approach (with `--noEmit`). Using the same CompilerHost for `build` means one implementation to maintain rather than two parallel transformation mechanisms.
+4. **Shared infrastructure** — The CompilerHost is designed to be reused by a future [`thinkwell check`](check-command.md) command (with `--noEmit`). One implementation serves both use cases rather than two parallel transformation mechanisms.
 5. **Cleaner project structure** — No `.thinkwell/staged/` directory to gitignore, no duplicated files on disk.
 
 ### Why Not Companion Files?
