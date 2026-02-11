@@ -29,12 +29,13 @@ Implementation plan for [RFD: Explicit Configuration Experience](rfd/explicit-co
 
 ## Phase 4: `thinkwell init` Command
 
-- [ ] Create `src/cli/init.ts` module
-- [ ] Implement interactive mode (TTY detection, prompts)
-- [ ] Implement `--yes` flag for non-interactive mode
-- [ ] Add version detection (match CLI binary versions)
-- [ ] Wire up to CLI argument parser
-- [ ] Add integration tests
+- [x] Create `src/cli/init.ts` module
+- [x] Implement interactive mode (TTY detection, prompts)
+- [x] Implement `--yes` flag for non-interactive mode
+- [x] Add version detection (match CLI binary versions)
+- [x] Wire up to CLI argument parser
+- [x] Add integration tests
+- [x] Rename previous `init` (project scaffolding) to `thinkwell new`
 
 ## Phase 5: Test Fixture Updates
 

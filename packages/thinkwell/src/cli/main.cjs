@@ -76,13 +76,30 @@ function registerBundledModules() {
 // showMainHelp() is imported from commands.ts
 
 /**
- * Run the init command to scaffold a new project.
+ * Run the init command to add dependencies to an existing project.
  */
 async function runInitCommand(args) {
   // Import the init command from the bundled dist
-  // Path: src/cli/ -> ../../dist/cli/init-command.js
-  const { runInit } = require("../../dist/cli/init-command.js");
-  await runInit(args);
+  // Path: src/cli/ -> ../../dist/cli/init.js
+  const { parseInitArgs, runInit, showInitHelp } = require("../../dist/cli/init.js");
+
+  if (hasHelpFlag(args)) {
+    showInitHelp();
+    return;
+  }
+
+  const options = parseInitArgs(args);
+  await runInit(options);
+}
+
+/**
+ * Run the new command to scaffold a new project.
+ */
+async function runNewCommand(args) {
+  // Import the new command from the bundled dist
+  // Path: src/cli/ -> ../../dist/cli/new-command.js
+  const { runNew } = require("../../dist/cli/new-command.js");
+  await runNew(args);
 }
 
 /**
@@ -296,10 +313,16 @@ async function runUserScript(scriptPath, args) {
 async function main() {
   const args = process.argv.slice(2);
 
-  // Handle "init" subcommand - does NOT require bundled modules
+  // Handle "init" subcommand - adds dependencies to existing project
   // Must come before global --help check so "init --help" works
   if (args[0] === "init") {
     await runInitCommand(args.slice(1));
+    process.exit(0);
+  }
+
+  // Handle "new" subcommand - scaffolds a new project
+  if (args[0] === "new") {
+    await runNewCommand(args.slice(1));
     process.exit(0);
   }
 

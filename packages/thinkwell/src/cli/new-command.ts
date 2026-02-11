@@ -1,8 +1,11 @@
 /**
- * CLI command for initializing a new thinkwell project.
+ * CLI command for creating a new thinkwell project.
  *
  * This command scaffolds a new project with the necessary configuration
  * and example files. It does not require Bun to run.
+ *
+ * Note: This was previously the "init" command. It was renamed to "new" to
+ * make room for "thinkwell init" which adds dependencies to existing projects.
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -96,17 +99,17 @@ function createProject(options: InitOptions): void {
 
 function showHelp(): void {
   console.log(`
-${cyanBold("thinkwell init")} - ${whiteBold("Initialize a new thinkwell project")}
+${cyanBold("thinkwell new")} - ${whiteBold("Create a new thinkwell project")}
 
 ${greenBold("Usage:")}
-  ${cyanBold("thinkwell init")} ${cyan("[project-name]")}
+  ${cyanBold("thinkwell new")} ${cyan("[project-name]")}
 
 ${greenBold("Arguments:")}
   ${cyan("project-name")}    Name of the project directory ${dim("(default: current directory)")}
 
 ${greenBold("Examples:")}
-  ${cyanBold("thinkwell init")} ${cyan("my-agent")}      Create a new project in ./my-agent
-  ${cyanBold("thinkwell init")}               Initialize in the current directory
+  ${cyanBold("thinkwell new")} ${cyan("my-agent")}      Create a new project in ./my-agent
+  ${cyanBold("thinkwell new")}               Create project in the current directory
 
 ${greenBold("This command creates:")}
   - package.json with thinkwell dependency
@@ -114,10 +117,13 @@ ${greenBold("This command creates:")}
   - src/main.ts with example agent code
   - .gitignore
   - .env.example
+
+${greenBold("To add dependencies to an existing project:")}
+  ${cyanBold("thinkwell init")}
 `);
 }
 
-export async function runInit(args: string[]): Promise<void> {
+export async function runNew(args: string[]): Promise<void> {
   // Check for help flag
   if (args.includes("--help") || args.includes("-h")) {
     showHelp();

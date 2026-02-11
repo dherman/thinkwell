@@ -56,7 +56,11 @@ const { showMainHelp, showNoScriptError, hasHelpFlag, fmtError } = await import(
 // ============================================================================
 
 function getInitCommandPath() {
-  return resolve(__dirname, "../dist/cli/init-command.js");
+  return resolve(__dirname, "../dist/cli/init.js");
+}
+
+function getNewCommandPath() {
+  return resolve(__dirname, "../dist/cli/new-command.js");
 }
 
 function getBuildCommandPath() {
@@ -193,13 +197,36 @@ async function registerBundledModules() {
 // ============================================================================
 
 /**
- * Run the init command to scaffold a new project.
+ * Run the init command to add dependencies to an existing project.
  */
 async function runInitCommand(args) {
   validateInitCommand();
   const initCommandPath = getInitCommandPath();
-  const { runInit } = await import(initCommandPath);
-  await runInit(args);
+  const { parseInitArgs, runInit, showInitHelp } = await import(initCommandPath);
+
+  if (hasHelpFlag(args)) {
+    showInitHelp();
+    return;
+  }
+
+  const options = parseInitArgs(args);
+  await runInit(options);
+}
+
+/**
+ * Run the new command to scaffold a new project.
+ */
+async function runNewCommand(args) {
+  const newCommandPath = getNewCommandPath();
+  if (!existsSync(newCommandPath)) {
+    console.error(fmtError("thinkwell installation appears to be corrupted."));
+    console.error(`  - New command not found: ${newCommandPath}`);
+    console.error("\nTry reinstalling with: npm install thinkwell");
+    process.exit(1);
+  }
+
+  const { runNew } = await import(newCommandPath);
+  await runNew(args);
 }
 
 /**
@@ -318,9 +345,15 @@ async function runUserScript(scriptPath, args) {
 async function main() {
   const args = process.argv.slice(2);
 
-  // Handle "init" subcommand - does NOT require bundled modules
+  // Handle "init" subcommand - adds dependencies to existing project
   if (args[0] === "init") {
     await runInitCommand(args.slice(1));
+    process.exit(0);
+  }
+
+  // Handle "new" subcommand - scaffolds a new project
+  if (args[0] === "new") {
+    await runNewCommand(args.slice(1));
     process.exit(0);
   }
 
