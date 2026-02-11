@@ -4,11 +4,11 @@ Implementation plan for [RFD: Explicit Configuration Experience](rfd/explicit-co
 
 ## Phase 1: Package Manager Detection
 
-- [ ] Create `src/cli/package-manager.ts` module
-- [ ] Implement lockfile detection (pnpm-lock.yaml, yarn.lock, package-lock.json)
-- [ ] Implement `packageManager` field parsing as fallback
-- [ ] Export `detectPackageManager()` function
-- [ ] Add unit tests for detection logic
+- [x] Create `src/cli/package-manager.ts` module
+- [x] Implement lockfile detection (pnpm-lock.yaml, yarn.lock, package-lock.json)
+- [x] Implement `packageManager` field parsing as fallback
+- [x] Export `detectPackageManager()` function
+- [x] Add unit tests for detection logic
 
 ## Phase 2: Dependency Check
 
