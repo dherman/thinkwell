@@ -44,7 +44,14 @@ function createPlainProject(prefix: string): string {
 
   writeFileSync(
     join(dir, "package.json"),
-    JSON.stringify({ name: "plain-project", version: "0.0.0", private: true, type: "module" }, null, 2),
+    JSON.stringify({
+      name: "plain-project",
+      version: "0.0.0",
+      private: true,
+      type: "module",
+      dependencies: { thinkwell: "^0.5.0" },
+      devDependencies: { typescript: "^5.7.0" },
+    }, null, 2),
   );
 
   writeFileSync(
@@ -278,7 +285,65 @@ describe("thinkwell check", { skip: SKIP }, () => {
   });
 
   // =========================================================================
-  // 4. Missing tsconfig.json — exit code 2
+  // 4. Missing dependencies — exit code 2
+  // =========================================================================
+
+  describe("dependency checking", () => {
+    it("should exit with code 2 when dependencies are missing", async () => {
+      // Create a project with package.json but no thinkwell/typescript deps
+      const projectDir = join(tmpdir(), `thinkwell-check-test-deps-${Date.now()}`);
+      mkdirSync(join(projectDir, "src"), { recursive: true });
+      writeFileSync(
+        join(projectDir, "package.json"),
+        JSON.stringify({ name: "test-project", dependencies: { lodash: "^4.0.0" } }),
+      );
+      writeFileSync(
+        join(projectDir, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: { target: "ES2022", outDir: "dist", rootDir: "src" },
+          include: ["src/**/*"],
+        }),
+      );
+      writeFileSync(join(projectDir, "src/index.ts"), "export const x = 1;\n");
+
+      try {
+        const { exitCode, stderr } = await runCheckInDir(
+          projectDir,
+          { pretty: false },
+          runCheck,
+        );
+
+        assert.strictEqual(exitCode, 2, "Should exit with code 2 for missing dependencies");
+        assert.ok(stderr.includes("thinkwell"), "Error should mention thinkwell");
+        assert.ok(stderr.includes("typescript"), "Error should mention typescript");
+      } finally {
+        cleanup(projectDir);
+      }
+    });
+
+    it("should proceed when dependencies are declared", async () => {
+      const projectDir = createPlainProject("deps-ok");
+
+      try {
+        const { exitCode } = await runCheckInDir(
+          projectDir,
+          { pretty: false },
+          runCheck,
+        );
+
+        // Should succeed (no exit code) or fail with type errors (code 1), but NOT code 2
+        assert.ok(
+          exitCode === undefined,
+          `Should not exit with code 2; got ${exitCode}`,
+        );
+      } finally {
+        cleanup(projectDir);
+      }
+    });
+  });
+
+  // =========================================================================
+  // 5. Missing tsconfig.json — exit code 2
   // =========================================================================
 
   describe("missing tsconfig.json", () => {
@@ -306,7 +371,7 @@ describe("thinkwell check", { skip: SKIP }, () => {
   });
 
   // =========================================================================
-  // 5. Workspace mode — multiple packages
+  // 6. Workspace mode — multiple packages
   // =========================================================================
 
   describe("workspace mode", () => {
@@ -320,7 +385,13 @@ describe("thinkwell check", { skip: SKIP }, () => {
       writeFileSync(
         join(workspaceDir, "package.json"),
         JSON.stringify(
-          { name: "test-workspace", private: true, workspaces: ["packages/*"] },
+          {
+            name: "test-workspace",
+            private: true,
+            workspaces: ["packages/*"],
+            dependencies: { thinkwell: "^0.5.0" },
+            devDependencies: { typescript: "^5.7.0" },
+          },
           null,
           2,
         ),

@@ -15,6 +15,8 @@ import { createThinkwellProgram } from "./compiler-host.js";
 import { cyan, cyanBold, greenBold, whiteBold, dim } from "./fmt.js";
 import { detectWorkspace, resolvePackageName } from "./workspace.js";
 import type { WorkspaceMember } from "./workspace.js";
+import { checkDependencies, hasPackageJson } from "./dependency-check.js";
+import { formatMissingDependencyError, hasMissingDependencies } from "./dependency-errors.js";
 
 // ============================================================================
 // Types
@@ -110,6 +112,15 @@ export async function runCheck(options: CheckOptions): Promise<void> {
 
   // Single-package mode (no workspace detected)
   if (!workspace) {
+    // Check for required dependencies when a package.json exists
+    if (hasPackageJson(cwd)) {
+      const depCheck = await checkDependencies(cwd);
+      if (hasMissingDependencies(depCheck)) {
+        process.stderr.write(formatMissingDependencyError(depCheck) + "\n");
+        process.exit(2);
+      }
+    }
+
     const configPath = resolve(cwd, "tsconfig.json");
     if (!existsSync(configPath)) {
       process.stderr.write("Error: Cannot find tsconfig.json\n");
@@ -143,6 +154,15 @@ export async function runCheck(options: CheckOptions): Promise<void> {
 
     process.stderr.write("  No type errors found.\n");
     return;
+  }
+
+  // Workspace mode: check dependencies at workspace root
+  if (hasPackageJson(workspace.rootDir)) {
+    const depCheck = await checkDependencies(workspace.rootDir);
+    if (hasMissingDependencies(depCheck)) {
+      process.stderr.write(formatMissingDependencyError(depCheck) + "\n");
+      process.exit(2);
+    }
   }
 
   // Workspace mode: determine which packages to check

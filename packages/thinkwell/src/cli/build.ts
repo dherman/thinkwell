@@ -16,6 +16,8 @@ import { styleText } from "node:util";
 import { createThinkwellProgram, createThinkwellWatchHost } from "./compiler-host.js";
 import { cyan, cyanBold, greenBold, whiteBold, dim } from "./fmt.js";
 import { fmtError } from "./commands.js";
+import { checkDependencies, hasPackageJson } from "./dependency-check.js";
+import { formatMissingDependencyError, hasMissingDependencies } from "./dependency-errors.js";
 
 // ============================================================================
 // Types
@@ -143,6 +145,16 @@ function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
 
 export async function runBuild(options: BuildOptions): Promise<void> {
   const cwd = process.cwd();
+
+  // Check for required dependencies when a package.json exists
+  if (hasPackageJson(cwd)) {
+    const depCheck = await checkDependencies(cwd);
+    if (hasMissingDependencies(depCheck)) {
+      console.error(formatMissingDependencyError(depCheck));
+      process.exit(2);
+    }
+  }
+
   const configPath = options.project
     ? resolve(cwd, options.project)
     : resolve(cwd, "tsconfig.json");

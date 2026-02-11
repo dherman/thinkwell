@@ -22,10 +22,10 @@ Implementation plan for [RFD: Explicit Configuration Experience](rfd/explicit-co
 
 ## Phase 3: Error Messages
 
-- [ ] Create error message templates with package-manager-specific commands
-- [ ] Integrate dependency check into `thinkwell build`
-- [ ] Integrate dependency check into `thinkwell check`
-- [ ] Add integration tests for error scenarios
+- [x] Create error message templates with package-manager-specific commands
+- [x] Integrate dependency check into `thinkwell build`
+- [x] Integrate dependency check into `thinkwell check`
+- [x] Add integration tests for error scenarios
 
 ## Phase 4: `thinkwell init` Command
 
@@ -38,6 +38,6 @@ Implementation plan for [RFD: Explicit Configuration Experience](rfd/explicit-co
 
 ## Phase 5: Test Fixture Updates
 
-- [ ] Update `test-fixtures/node-ux-project` to have explicit dependencies
-- [ ] Update test setup to use proper dependency resolution
-- [ ] Verify all existing tests pass with new behavior
+- [x] Update `test-fixtures/node-ux-project` to have explicit dependencies
+- [x] Update test setup to use proper dependency resolution
+- [x] Verify all existing tests pass with new behavior

@@ -194,6 +194,87 @@ describe("thinkwell build", { skip: SKIP }, () => {
     });
   });
 
+  describe("dependency checking", () => {
+    /** Sentinel thrown to halt execution after an intercepted process.exit(). */
+    class ExitSentinel extends Error {
+      code: number;
+      constructor(code: number) {
+        super(`process.exit(${code})`);
+        this.code = code;
+      }
+    }
+
+    it("should exit with code 2 when dependencies are missing", async () => {
+      // Create a project with package.json but no thinkwell/typescript deps
+      const projectDir = join(tmpdir(), `thinkwell-build-test-deps-${Date.now()}`);
+      mkdirSync(projectDir, { recursive: true });
+      writeFileSync(
+        join(projectDir, "package.json"),
+        JSON.stringify({ name: "test-project", dependencies: { lodash: "^4.0.0" } }),
+      );
+      writeFileSync(
+        join(projectDir, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { outDir: "dist" } }),
+      );
+
+      const originalExit = process.exit;
+      let exitCode: number | undefined;
+      process.exit = ((code?: number) => {
+        exitCode = code;
+        throw new ExitSentinel(code ?? 0);
+      }) as never;
+      const originalCwd = process.cwd();
+
+      // Capture stderr to verify error message
+      let stderrOutput = "";
+      const originalStderrWrite = process.stderr.write.bind(process.stderr);
+      process.stderr.write = ((chunk: string | Uint8Array) => {
+        if (typeof chunk === "string") stderrOutput += chunk;
+        return true;
+      }) as typeof process.stderr.write;
+
+      try {
+        process.chdir(projectDir);
+        await runBuild({ quiet: true });
+      } catch (err) {
+        if (!(err instanceof ExitSentinel)) throw err;
+      } finally {
+        process.chdir(originalCwd);
+        process.exit = originalExit;
+        process.stderr.write = originalStderrWrite;
+        cleanup(projectDir);
+      }
+
+      assert.strictEqual(exitCode, 2, "Should exit with code 2 for missing dependencies");
+      assert.ok(stderrOutput.includes("thinkwell"), "Error should mention thinkwell");
+    });
+
+    it("should proceed when dependencies are declared in package.json", async () => {
+      // The fixture has deps declared, so it should not fail on dependency check
+      const projectDir = copyFixture("deps-ok");
+
+      const originalExit = process.exit;
+      let exitCode: number | undefined;
+      process.exit = ((code?: number) => { exitCode = code; }) as never;
+      const originalCwd = process.cwd();
+
+      try {
+        process.chdir(projectDir);
+        await runBuild({ quiet: true });
+      } finally {
+        process.chdir(originalCwd);
+        process.exit = originalExit;
+        cleanup(projectDir);
+      }
+
+      // Should succeed (no exit code) or fail with type errors (code 1), but NOT code 2
+      assert.ok(
+        exitCode === undefined || exitCode === 1,
+        `Should not exit with code 2; got ${exitCode}`,
+      );
+    });
+  });
+
   describe("error reporting", () => {
     let projectDir: string;
 

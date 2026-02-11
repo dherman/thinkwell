@@ -2,5 +2,11 @@
   "name": "node-ux-test-project",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "thinkwell": "^0.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
 }
