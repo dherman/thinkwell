@@ -18,7 +18,7 @@ const { resolve, isAbsolute } = require("node:path");
 const { showMainHelp, showNoScriptError, hasHelpFlag, fmtError } = require("../../dist/cli/commands.js");
 
 // Version must be updated manually to match package.json
-const VERSION = "0.4.5";
+const VERSION = "0.5.0-alpha.1";
 
 // ============================================================================
 // Bundled Module Registration
