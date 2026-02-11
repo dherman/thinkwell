@@ -745,7 +745,18 @@ function createMinimalProject(prefix: string): string {
 
   writeFileSync(
     join(dir, "package.json"),
-    JSON.stringify({ name: "test-project", version: "0.0.0", private: true, type: "module" }, null, 2),
+    JSON.stringify({
+      name: "test-project",
+      version: "0.0.0",
+      private: true,
+      type: "module",
+      dependencies: {
+        thinkwell: "^0.5.0",
+      },
+      devDependencies: {
+        typescript: "^5.7.0",
+      },
+    }, null, 2),
   );
 
   writeFileSync(
