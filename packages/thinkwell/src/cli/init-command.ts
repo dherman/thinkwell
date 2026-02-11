@@ -7,6 +7,7 @@
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { cyan, cyanBold, greenBold, whiteBold, dim } from "./fmt.js";
 
 interface InitOptions {
   name: string;
@@ -95,19 +96,19 @@ function createProject(options: InitOptions): void {
 
 function showHelp(): void {
   console.log(`
-thinkwell init - Initialize a new thinkwell project
+${cyanBold("thinkwell init")} - ${whiteBold("Initialize a new thinkwell project")}
 
-Usage:
-  thinkwell init [project-name]
+${greenBold("Usage:")}
+  ${cyanBold("thinkwell init")} ${cyan("[project-name]")}
 
-Arguments:
-  project-name    Name of the project directory (default: current directory)
+${greenBold("Arguments:")}
+  ${cyan("project-name")}    Name of the project directory ${dim("(default: current directory)")}
 
-Examples:
-  thinkwell init my-agent      Create a new project in ./my-agent
-  thinkwell init               Initialize in the current directory
+${greenBold("Examples:")}
+  ${cyanBold("thinkwell init")} ${cyan("my-agent")}      Create a new project in ./my-agent
+  ${cyanBold("thinkwell init")}               Initialize in the current directory
 
-This command creates:
+${greenBold("This command creates:")}
   - package.json with thinkwell dependency
   - tsconfig.json for TypeScript
   - src/main.ts with example agent code

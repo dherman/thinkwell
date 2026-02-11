@@ -25,6 +25,7 @@ import { dirname, resolve, basename, join, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { styleText } from "node:util";
 import { homedir, tmpdir } from "node:os";
+import { cyan, cyanBold, greenBold, whiteBold, dim } from "./fmt.js";
 import { createHash } from "node:crypto";
 import { spawn, execSync } from "node:child_process";
 import * as esbuild from "esbuild";
@@ -1531,49 +1532,49 @@ async function runWatchMode(options: BundleOptions): Promise<void> {
  */
 export function showBundleHelp(): void {
   console.log(`
-thinkwell bundle - Compile TypeScript scripts into standalone executables
+${cyanBold("thinkwell bundle")} - ${whiteBold("Compile TypeScript scripts into standalone executables")}
 
-Usage:
-  thinkwell bundle [options] <entry>
+${greenBold("Usage:")}
+  ${cyanBold("thinkwell bundle")} ${cyan("[options] <entry>")}
 
-Arguments:
-  entry                  TypeScript or JavaScript entry point
+${greenBold("Arguments:")}
+  ${cyan("entry")}                  TypeScript or JavaScript entry point
 
-Options:
-  -o, --output <path>    Output file path (default: ./<name>-<target>)
-  -t, --target <target>  Target platform (can be specified multiple times)
-  --include <glob>       Additional files to embed as assets
-  -e, --external <pkg>   Exclude package from bundling (can be repeated)
-  -m, --minify           Minify the bundled code for smaller output
-  -w, --watch            Watch for changes and rebuild automatically
-  -n, --dry-run          Show what would be built without building
-  -q, --quiet            Suppress all output except errors (for CI)
-  -v, --verbose          Show detailed build output
-  -h, --help             Show this help message
+${greenBold("Options:")}
+  ${cyan("-o, --output")} ${dim("<path>")}    Output file path ${dim("(default: ./<name>-<target>)")}
+  ${cyan("-t, --target")} ${dim("<target>")}  Target platform ${dim("(can be specified multiple times)")}
+  ${cyan("--include")} ${dim("<glob>")}       Additional files to embed as assets
+  ${cyan("-e, --external")} ${dim("<pkg>")}   Exclude package from bundling ${dim("(can be repeated)")}
+  ${cyan("-m, --minify")}           Minify the bundled code for smaller output
+  ${cyan("-w, --watch")}            Watch for changes and rebuild automatically
+  ${cyan("-n, --dry-run")}          Show what would be built without building
+  ${cyan("-q, --quiet")}            Suppress all output except errors ${dim("(for CI)")}
+  ${cyan("-v, --verbose")}          Show detailed build output
+  ${cyan("-h, --help")}             Show this help message
 
-Targets:
-  host                   Current platform (default)
-  darwin-arm64           macOS on Apple Silicon
-  darwin-x64             macOS on Intel
-  linux-x64              Linux on x64
-  linux-arm64            Linux on ARM64
+${greenBold("Targets:")}
+  ${cyan("host")}                   Current platform ${dim("(default)")}
+  ${cyan("darwin-arm64")}           macOS on Apple Silicon
+  ${cyan("darwin-x64")}             macOS on Intel
+  ${cyan("linux-x64")}              Linux on x64
+  ${cyan("linux-arm64")}            Linux on ARM64
 
-Examples:
-  thinkwell bundle src/agent.ts                     Bundle for current platform
-  thinkwell bundle src/agent.ts -o dist/my-agent    Specify output path
-  thinkwell bundle src/agent.ts --target linux-x64  Bundle for Linux
-  thinkwell bundle src/agent.ts -t darwin-arm64 -t linux-x64  Multi-platform
-  thinkwell bundle src/agent.ts --dry-run           Preview bundle without executing
-  thinkwell bundle src/agent.ts -e sqlite3          Keep sqlite3 as external
-  thinkwell bundle src/agent.ts --minify            Minify for smaller binary
-  thinkwell bundle src/agent.ts --watch             Rebuild on file changes
+${greenBold("Examples:")}
+  ${cyanBold("thinkwell bundle")} ${cyan("src/agent.ts")}                     Bundle for current platform
+  ${cyanBold("thinkwell bundle")} ${cyan("src/agent.ts -o dist/my-agent")}    Specify output path
+  ${cyanBold("thinkwell bundle")} ${cyan("src/agent.ts --target linux-x64")}  Bundle for Linux
+  ${cyanBold("thinkwell bundle")} ${cyan("src/agent.ts -t darwin-arm64 -t linux-x64")}  Multi-platform
+  ${cyanBold("thinkwell bundle")} ${cyan("src/agent.ts --dry-run")}           Preview bundle without executing
+  ${cyanBold("thinkwell bundle")} ${cyan("src/agent.ts -e sqlite3")}          Keep sqlite3 as external
+  ${cyanBold("thinkwell bundle")} ${cyan("src/agent.ts --minify")}            Minify for smaller binary
+  ${cyanBold("thinkwell bundle")} ${cyan("src/agent.ts --watch")}             Rebuild on file changes
 
 The resulting binary is self-contained and includes:
   - Node.js 24 runtime with TypeScript support
   - All thinkwell packages
   - Your bundled application code
 
-Configuration via package.json:
+${greenBold("Configuration via package.json:")}
   Add a "thinkwell" key to your package.json to set defaults:
 
     {
@@ -1589,7 +1590,7 @@ Configuration via package.json:
 
   CLI options override package.json settings.
 
-Note: Binaries are ~70-90 MB due to the embedded Node.js runtime.
-      Use --minify to reduce bundle size (though Node.js runtime dominates).
-`);
+${dim("Note: Binaries are ~70-90 MB due to the embedded Node.js runtime.")}
+${dim("      Use --minify to reduce bundle size (though Node.js runtime dominates).")}
+`.trim() + "\n");
 }

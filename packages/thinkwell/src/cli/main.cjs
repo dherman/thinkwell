@@ -15,7 +15,7 @@
 
 const { existsSync } = require("node:fs");
 const { resolve, isAbsolute } = require("node:path");
-const { styleText } = require('node:util');
+const { showMainHelp, showNoScriptError, hasHelpFlag, fmtError } = require("../../dist/cli/commands.js");
 
 // Version must be updated manually to match package.json
 const VERSION = "0.4.5";
@@ -55,7 +55,7 @@ function registerBundledModules() {
     };
   } catch (error) {
     // This error occurs when pkg bundling didn't include all required modules.
-    console.error("Error: Failed to load bundled modules.");
+    console.error(fmtError("Failed to load bundled modules."));
     console.error("");
     console.error("This may indicate a build issue with the compiled binary.");
     console.error("Please report this at: https://github.com/dherman/thinkwell/issues");
@@ -73,33 +73,7 @@ function registerBundledModules() {
 // CLI Commands
 // ============================================================================
 
-function fmt(s) {
-  return (t) => styleText(s, t);
-}
-
-const cyan = fmt("cyan");
-const cyanBold = fmt(["cyan", "bold"]);
-const greenBold = fmt(["green", "bold"]);
-const whiteBold = fmt(["white", "bold"]);
-
-function showHelp() {
-  console.log(`
-${cyanBold("thinkwell")} - ${whiteBold("agent scripting made easy 🖋️")}
-
-${greenBold("Usage:")}
-  ${cyanBold("thinkwell")} ${cyan("<script.ts> [args...]")}     Run a TypeScript script
-  ${cyanBold("thinkwell run")} ${cyan("<script.ts> [args...]")} Explicit run command
-  ${cyanBold("thinkwell build")}                         Compile project with @JSONSchema support
-  ${cyanBold("thinkwell bundle")} ${cyan("<script.ts>")}        Compile to standalone executable
-  ${cyanBold("thinkwell")} ${cyan("--help")}                    Show this help message
-  ${cyanBold("thinkwell")} ${cyan("--version")}                 Show version
-
-${greenBold("Example:")}
-  ${cyanBold("thinkwell")} ${cyan("my-agent.ts")}
-
-For more information, visit: ${cyanBold("https://thinkwell.sh")}
-`.trim() + "\n");
-}
+// showMainHelp() is imported from commands.ts
 
 /**
  * Run the init command to scaffold a new project.
@@ -115,8 +89,7 @@ async function runInitCommand(args) {
  * Run the build command (tsc-based compilation with @JSONSchema transformation).
  */
 async function runBuildCommand(args) {
-  // Check for help flag
-  if (args.includes("--help") || args.includes("-h")) {
+  if (hasHelpFlag(args)) {
     const { showBuildHelp } = require("../../dist/cli/build.js");
     showBuildHelp();
     return;
@@ -130,7 +103,30 @@ async function runBuildCommand(args) {
     const options = parseBuildArgs(args);
     await runBuild(options);
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    console.error(fmtError(error.message));
+    process.exit(1);
+  }
+}
+
+/**
+ * Run the check command (type-check with @JSONSchema transformation, no emit).
+ */
+async function runCheckCommand(args) {
+  if (hasHelpFlag(args)) {
+    const { showCheckHelp } = require("../../dist/cli/check.js");
+    showCheckHelp();
+    return;
+  }
+
+  // Import and run the check command
+  // Path: src/cli/ -> ../../dist/cli/check.js
+  const { parseCheckArgs, runCheck } = require("../../dist/cli/check.js");
+
+  try {
+    const options = parseCheckArgs(args);
+    await runCheck(options);
+  } catch (error) {
+    console.error(fmtError(error.message));
     process.exit(1);
   }
 }
@@ -187,7 +183,7 @@ function setupEsbuildForBuild(verbose) {
   const esbuildSrc = `/snapshot/thinkwell/packages/thinkwell/dist-pkg/esbuild-bin/${platformDir}/esbuild`;
 
   if (!fs.existsSync(esbuildSrc)) {
-    console.error(`Error: Could not find esbuild binary for ${platformDir}`);
+    console.error(fmtError(`Could not find esbuild binary for ${platformDir}`));
     console.error(`  Expected at: ${esbuildSrc}`);
     console.error("  The build command is not available in this binary.");
     process.exit(1);
@@ -218,8 +214,7 @@ async function runBundleCommand(args) {
   // initializes when the module is loaded.
   setupEsbuildForBuild(verbose);
 
-  // Check for help flag
-  if (args.includes("--help") || args.includes("-h")) {
+  if (hasHelpFlag(args)) {
     const { showBundleHelp } = require("../../dist-pkg/cli-bundle.cjs");
     showBundleHelp();
     return;
@@ -233,7 +228,7 @@ async function runBundleCommand(args) {
     const options = parseBundleArgs(args);
     await runBundle(options);
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    console.error(fmtError(error.message));
     process.exit(1);
   }
 }
@@ -261,7 +256,7 @@ async function runUserScript(scriptPath, args) {
 
   // Check if the script file exists
   if (!existsSync(resolvedPath)) {
-    console.error(`Error: Script not found: ${scriptPath}`);
+    console.error(fmtError(`Script not found: ${scriptPath}`));
     console.error("");
     console.error("Make sure the file exists and the path is correct.");
     process.exit(1);
@@ -276,14 +271,14 @@ async function runUserScript(scriptPath, args) {
   } catch (error) {
     // Handle common error cases with helpful messages
     if (error.message && error.message.includes("Cannot find module")) {
-      console.error(`Error: ${error.message}`);
+      console.error(fmtError(error.message));
       console.error("");
       console.error("Make sure the module is installed in your project's node_modules.");
       process.exit(1);
     }
 
     if (error.message && error.message.includes("Cannot find package")) {
-      console.error(`Error: ${error.message}`);
+      console.error(fmtError(error.message));
       console.error("");
       console.error("Run 'npm install' or 'pnpm install' to install dependencies.");
       process.exit(1);
@@ -321,6 +316,12 @@ async function main() {
     process.exit(0);
   }
 
+  // Handle "check" subcommand — type-check with @JSONSchema transformation (no emit)
+  if (args[0] === "check") {
+    await runCheckCommand(args.slice(1));
+    process.exit(0);
+  }
+
   // Handle "types" subcommand - placeholder for Phase 5
   // Must come before global --help check so "types --help" works
   if (args[0] === "types") {
@@ -329,8 +330,8 @@ async function main() {
   }
 
   // Handle --help (global) - after subcommand checks
-  if (args.includes("--help") || args.includes("-h") || args.length === 0) {
-    showHelp();
+  if (hasHelpFlag(args) || args.length === 0) {
+    showMainHelp();
     process.exit(0);
   }
 
@@ -345,10 +346,7 @@ async function main() {
 
   // If no script provided after "run", show help
   if (runArgs.length === 0) {
-    console.error("Error: No script provided.");
-    console.error("");
-    console.error("Usage: thinkwell <script.ts> [args...]");
-    process.exit(1);
+    showNoScriptError();
   }
 
   // Register bundled modules before loading user scripts
@@ -363,8 +361,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("Unexpected error:");
-  console.error(`  ${error.message || error}`);
+  console.error(fmtError(`Unexpected error: ${error.message || error}`));
   if (process.env.DEBUG) {
     console.error(error.stack);
   }

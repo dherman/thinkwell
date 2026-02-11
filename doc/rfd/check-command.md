@@ -1,6 +1,7 @@
 # RFD: `thinkwell check` Command
 
-**Depends on:** [remove-uri-scheme](remove-uri-scheme.md)
+- **Depends on:** [remove-uri-scheme](remove-uri-scheme.md)
+- **Implementation:** [PR #30](https://github.com/dherman/thinkwell/pull/30)
 
 ## Summary
 

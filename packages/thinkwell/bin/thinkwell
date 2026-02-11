@@ -7,11 +7,11 @@
  * It uses Node.js with the pkg-style loader for script execution, requiring
  * Node 24+ for native TypeScript support via --experimental-transform-types.
  *
- * The pkg binary distribution uses a separate entry point (main-pkg.cjs)
+ * The pkg binary distribution uses a separate entry point (main.cjs)
  * which is compiled directly into the binary.
  */
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { dirname, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
@@ -45,30 +45,36 @@ if (!process.env[REEXEC_FLAG]) {
 const MIN_NODE_VERSION = 24;
 
 // ============================================================================
+// Shared Imports (from compiled TypeScript)
+// ============================================================================
+
+const commandsPath = resolve(__dirname, "../dist/cli/commands.js");
+const { showMainHelp, showNoScriptError, hasHelpFlag, fmtError } = await import(commandsPath);
+
+// ============================================================================
 // Path Helpers
 // ============================================================================
 
-// Get the path to the init command script
 function getInitCommandPath() {
   return resolve(__dirname, "../dist/cli/init-command.js");
 }
 
-// Get the path to the types command script
-function getTypesCommandPath() {
-  return resolve(__dirname, "../dist/cli/types-command.js");
+function getBuildCommandPath() {
+  return resolve(__dirname, "../dist/cli/build.js");
 }
 
-// Get the path to the bundle command script
+function getCheckCommandPath() {
+  return resolve(__dirname, "../dist/cli/check.js");
+}
+
 function getBundleCommandPath() {
   return resolve(__dirname, "../dist/cli/bundle.js");
 }
 
-// Get the path to the bundled CLI loader
 function getLoaderPath() {
   return resolve(__dirname, "../dist-pkg/cli-loader.cjs");
 }
 
-// Get paths to the bundled thinkwell packages
 function getBundledPackagesPath() {
   return {
     thinkwell: resolve(__dirname, "../dist-pkg/thinkwell.cjs"),
@@ -81,7 +87,6 @@ function getBundledPackagesPath() {
 // Runtime Detection
 // ============================================================================
 
-// Get Node.js major version
 function getNodeMajorVersion() {
   const match = process.version.match(/^v(\d+)/);
   return match ? parseInt(match[1], 10) : 0;
@@ -91,11 +96,10 @@ function getNodeMajorVersion() {
 // Validation
 // ============================================================================
 
-// Validate Node.js version
 function validateNodeVersion() {
   const nodeMajor = getNodeMajorVersion();
   if (nodeMajor < MIN_NODE_VERSION) {
-    console.error(`Error: thinkwell requires Node.js ${MIN_NODE_VERSION} or later.`);
+    console.error(fmtError(`thinkwell requires Node.js ${MIN_NODE_VERSION} or later.`));
     console.error(`Current version: ${process.version}`);
     console.error("");
     console.error("Node.js 24+ is required for native TypeScript support.");
@@ -104,7 +108,6 @@ function validateNodeVersion() {
   }
 }
 
-// Validate that required files exist for script execution
 function validateInstallation() {
   const loaderPath = getLoaderPath();
   const bundledPaths = getBundledPackagesPath();
@@ -121,7 +124,7 @@ function validateInstallation() {
   }
 
   if (errors.length > 0) {
-    console.error("Error: thinkwell installation appears to be corrupted.");
+    console.error(fmtError("thinkwell installation appears to be corrupted."));
     for (const error of errors) {
       console.error(`  - ${error}`);
     }
@@ -130,23 +133,11 @@ function validateInstallation() {
   }
 }
 
-// Validate init command is available
 function validateInitCommand() {
   const initCommandPath = getInitCommandPath();
   if (!existsSync(initCommandPath)) {
-    console.error("Error: thinkwell installation appears to be corrupted.");
+    console.error(fmtError("thinkwell installation appears to be corrupted."));
     console.error(`  - Init command not found: ${initCommandPath}`);
-    console.error("\nTry reinstalling with: npm install thinkwell");
-    process.exit(1);
-  }
-}
-
-// Validate types command is available
-function validateTypesCommand() {
-  const typesCommandPath = getTypesCommandPath();
-  if (!existsSync(typesCommandPath)) {
-    console.error("Error: thinkwell installation appears to be corrupted.");
-    console.error(`  - Types command not found: ${typesCommandPath}`);
     console.error("\nTry reinstalling with: npm install thinkwell");
     process.exit(1);
   }
@@ -160,43 +151,6 @@ async function getVersion() {
 }
 
 // ============================================================================
-// Help
-// ============================================================================
-
-function showHelp() {
-  console.log(`
-thinkwell - Run TypeScript scripts with automatic schema generation
-
-Usage:
-  thinkwell <script.ts> [args...]     Run a TypeScript script
-  thinkwell run <script.ts> [args...] Explicit run command
-  thinkwell bundle <script.ts>        Compile to standalone executable
-  thinkwell init [project-name]       Initialize a new project
-  thinkwell types [dir]               Generate .d.ts files for IDE support
-  thinkwell types --watch [dir]       Watch and regenerate .d.ts files
-  thinkwell --help                    Show this help message
-  thinkwell --version                 Show version
-
-Examples:
-  thinkwell hello.ts                 Run hello.ts
-  thinkwell run hello.ts --verbose   Run with arguments
-  thinkwell bundle src/agent.ts      Compile to binary
-  thinkwell init my-agent            Create a new project
-  ./script.ts                        Via shebang: #!/usr/bin/env thinkwell
-  thinkwell types                    Generate declarations in current dir
-  thinkwell types src                Generate declarations in src/
-  thinkwell types --watch            Watch for changes and regenerate
-
-The thinkwell CLI automatically:
-  - Generates JSON Schema for types marked with @JSONSchema
-  - Resolves thinkwell:* imports to built-in modules
-  - Creates .thinkwell.d.ts files for IDE autocomplete (types command)
-
-For more information, visit: https://github.com/dherman/thinkwell
-`);
-}
-
-// ============================================================================
 // Bundled Module Registration
 // ============================================================================
 
@@ -204,7 +158,7 @@ For more information, visit: https://github.com/dherman/thinkwell
  * Register bundled thinkwell packages to global.__bundled__.
  *
  * For the npm distribution, we load the pre-bundled CJS packages from dist-pkg/.
- * This mirrors what main-pkg.cjs does for the pkg binary distribution.
+ * This mirrors what main.cjs does for the pkg binary distribution.
  */
 async function registerBundledModules() {
   const bundledPaths = getBundledPackagesPath();
@@ -222,7 +176,7 @@ async function registerBundledModules() {
       "@thinkwell/protocol": protocolModule.default || protocolModule,
     };
   } catch (error) {
-    console.error("Error: Failed to load bundled modules.");
+    console.error(fmtError("Failed to load bundled modules."));
     console.error("");
     if (process.env.DEBUG) {
       console.error("Debug info:");
@@ -235,50 +189,58 @@ async function registerBundledModules() {
 }
 
 // ============================================================================
-// Script Execution
+// CLI Commands
 // ============================================================================
 
 /**
- * Run a user script using the CLI loader.
+ * Run the init command to scaffold a new project.
  */
-async function runUserScript(scriptPath, args) {
-  // Resolve the script path
-  const resolvedPath = isAbsolute(scriptPath)
-    ? scriptPath
-    : resolve(process.cwd(), scriptPath);
+async function runInitCommand(args) {
+  validateInitCommand();
+  const initCommandPath = getInitCommandPath();
+  const { runInit } = await import(initCommandPath);
+  await runInit(args);
+}
 
-  // Check if the script file exists
-  if (!existsSync(resolvedPath)) {
-    console.error(`Error: Script not found: ${scriptPath}`);
-    console.error("");
-    console.error("Make sure the file exists and the path is correct.");
-    process.exit(1);
+/**
+ * Run the build command (tsc-based compilation with @JSONSchema transformation).
+ */
+async function runBuildCommand(args) {
+  const buildCommandPath = getBuildCommandPath();
+  const { parseBuildArgs, runBuild, showBuildHelp } = await import(buildCommandPath);
+
+  if (hasHelpFlag(args)) {
+    showBuildHelp();
+    return;
   }
 
-  // Import the loader
-  const loaderPath = getLoaderPath();
-  const { runScript } = await import(loaderPath);
+  try {
+    const options = parseBuildArgs(args);
+    await runBuild(options);
+  } catch (error) {
+    console.error(fmtError(error.message));
+    process.exit(1);
+  }
+}
+
+/**
+ * Run the check command (type-check with @JSONSchema transformation, no emit).
+ */
+async function runCheckCommand(args) {
+  const checkCommandPath = getCheckCommandPath();
+  const { parseCheckArgs, runCheck, showCheckHelp } = await import(checkCommandPath);
+
+  if (hasHelpFlag(args)) {
+    showCheckHelp();
+    return;
+  }
 
   try {
-    await runScript(resolvedPath, args);
+    const options = parseCheckArgs(args);
+    await runCheck(options);
   } catch (error) {
-    // Handle common error cases with helpful messages
-    if (error.message && error.message.includes("Cannot find module")) {
-      console.error(`Error: ${error.message}`);
-      console.error("");
-      console.error("Make sure the module is installed in your project's node_modules.");
-      process.exit(1);
-    }
-
-    if (error.message && error.message.includes("Cannot find package")) {
-      console.error(`Error: ${error.message}`);
-      console.error("");
-      console.error("Run 'npm install' or 'pnpm install' to install dependencies.");
-      process.exit(1);
-    }
-
-    // Re-throw other errors
-    throw error;
+    console.error(fmtError(error.message));
+    process.exit(1);
   }
 }
 
@@ -288,61 +250,65 @@ async function runUserScript(scriptPath, args) {
 async function runBundleCommand(args) {
   const bundleCommandPath = getBundleCommandPath();
   if (!existsSync(bundleCommandPath)) {
-    console.error("Error: thinkwell installation appears to be corrupted.");
+    console.error(fmtError("thinkwell installation appears to be corrupted."));
     console.error(`  - Bundle command not found: ${bundleCommandPath}`);
     console.error("\nTry reinstalling with: npm install thinkwell");
     process.exit(1);
   }
 
-  // Import and run the bundle command
   const { parseBundleArgs, runBundle, showBundleHelp } = await import(bundleCommandPath);
 
-  // Check for help flag
-  if (args.includes("--help") || args.includes("-h")) {
+  if (hasHelpFlag(args)) {
     showBundleHelp();
-    process.exit(0);
+    return;
   }
 
   try {
     const options = parseBundleArgs(args);
     await runBundle(options);
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    console.error(fmtError(error.message));
     process.exit(1);
   }
-  process.exit(0);
 }
 
 /**
- * Run the types command.
- *
- * The types command uses the same loader infrastructure to process
- * TypeScript files and generate .d.ts declarations.
+ * Run a user script using the CLI loader.
  */
-async function runTypesCommand(args) {
-  validateTypesCommand();
-  const typesCommandPath = getTypesCommandPath();
+async function runUserScript(scriptPath, args) {
+  const resolvedPath = isAbsolute(scriptPath)
+    ? scriptPath
+    : resolve(process.cwd(), scriptPath);
 
-  // Spawn Node.js with the types command
-  const child = spawn(process.execPath, [
-    "--experimental-transform-types",
-    "--disable-warning=ExperimentalWarning",
-    typesCommandPath,
-    ...args,
-  ], {
-    stdio: "inherit",
-    env: process.env,
-  });
-
-  child.on("error", (err) => {
-    console.error(`Error: Failed to run types command.`);
-    console.error(`  ${err.message}`);
+  if (!existsSync(resolvedPath)) {
+    console.error(fmtError(`Script not found: ${scriptPath}`));
+    console.error("");
+    console.error("Make sure the file exists and the path is correct.");
     process.exit(1);
-  });
+  }
 
-  child.on("exit", (code) => {
-    process.exit(code ?? 0);
-  });
+  const loaderPath = getLoaderPath();
+  const { runScript } = await import(loaderPath);
+
+  try {
+    await runScript(resolvedPath, args);
+  } catch (error) {
+    if (error.message && error.message.includes("Cannot find module")) {
+      console.error(fmtError(error.message));
+      console.error("");
+      console.error("Make sure the module is installed in your project's node_modules.");
+      process.exit(1);
+    }
+
+    if (error.message && error.message.includes("Cannot find package")) {
+      console.error(fmtError(error.message));
+      console.error("");
+      console.error("Run 'npm install' or 'pnpm install' to install dependencies.");
+      process.exit(1);
+    }
+
+    throw error;
+  }
 }
 
 // ============================================================================
@@ -352,26 +318,33 @@ async function runTypesCommand(args) {
 async function main() {
   const args = process.argv.slice(2);
 
-  // Handle "init" subcommand first - does NOT require bundled modules
-  // Must be before global --help so "init --help" shows init-specific help
+  // Handle "init" subcommand - does NOT require bundled modules
   if (args[0] === "init") {
-    validateInitCommand();
-    const initArgs = args.slice(1);
-    const initCommandPath = getInitCommandPath();
-
-    // Import and run the init command
-    const { runInit } = await import(initCommandPath);
-    await runInit(initArgs);
+    await runInitCommand(args.slice(1));
     process.exit(0);
   }
 
-  // Handle --help (global) - but not if it's a subcommand's help
-  // e.g., "thinkwell bundle --help" should show bundle help, not global help
-  const subcommands = ["init", "bundle", "build", "types", "run"];
-  const firstArg = args[0];
-  const isSubcommandHelp = subcommands.includes(firstArg) && (args.includes("--help") || args.includes("-h"));
-  if (!isSubcommandHelp && (args.includes("--help") || args.includes("-h") || args.length === 0)) {
-    showHelp();
+  // Handle "bundle" subcommand
+  if (args[0] === "bundle") {
+    await runBundleCommand(args.slice(1));
+    process.exit(0);
+  }
+
+  // Handle "build" subcommand — tsc-based build with @JSONSchema transformation
+  if (args[0] === "build") {
+    await runBuildCommand(args.slice(1));
+    process.exit(0);
+  }
+
+  // Handle "check" subcommand — type-check with @JSONSchema transformation (no emit)
+  if (args[0] === "check") {
+    await runCheckCommand(args.slice(1));
+    process.exit(0);
+  }
+
+  // Handle --help (global) - after subcommand checks
+  if (hasHelpFlag(args) || args.length === 0) {
+    showMainHelp();
     process.exit(0);
   }
 
@@ -382,28 +355,6 @@ async function main() {
     process.exit(0);
   }
 
-  // Handle "types" subcommand
-  if (args[0] === "types") {
-    await runTypesCommand(args.slice(1));
-    return;
-  }
-
-  // Handle "bundle" subcommand
-  if (args[0] === "bundle") {
-    await runBundleCommand(args.slice(1));
-    return;
-  }
-
-  // Handle "build" subcommand — reserved for future tsc-based build (node-ux RFD)
-  if (args[0] === "build") {
-    console.error('Error: "thinkwell build" has been renamed to "thinkwell bundle".');
-    console.error('');
-    console.error('  thinkwell bundle <script.ts>    Compile to standalone executable');
-    console.error('');
-    console.error('"thinkwell build" will be reclaimed for tsc-based builds in a future release.');
-    process.exit(1);
-  }
-
   // All script execution requires Node 24+ and proper installation
   validateNodeVersion();
   validateInstallation();
@@ -411,12 +362,8 @@ async function main() {
   // Handle "run" subcommand - just strip it
   const runArgs = args[0] === "run" ? args.slice(1) : args;
 
-  // If no script provided after "run", show help
   if (runArgs.length === 0) {
-    console.error("Error: No script provided.");
-    console.error("");
-    console.error("Usage: thinkwell <script.ts> [args...]");
-    process.exit(1);
+    showNoScriptError();
   }
 
   // Register bundled modules before loading user scripts
@@ -429,8 +376,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("Unexpected error:");
-  console.error(`  ${error.message || error}`);
+  console.error(fmtError(`Unexpected error: ${error.message || error}`));
   if (process.env.DEBUG) {
     console.error(error.stack);
   }
