@@ -10,8 +10,30 @@
  */
 
 import ts from "typescript";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, join } from "node:path";
+import { existsSync } from "node:fs";
 import { transformJsonSchemas, hasJsonSchemaMarkers } from "./schema.js";
+
+/**
+ * Get the TypeScript lib directory path.
+ *
+ * When running from the compiled binary (pkg snapshot), TypeScript's lib files
+ * are bundled at dist-pkg/typescript-lib/. When running normally, use the
+ * default TypeScript lib path.
+ */
+function getTypeScriptLibDir(): string {
+  // Check if we're running from a compiled binary (pkg sets process.pkg)
+  if (typeof (process as any).pkg !== "undefined") {
+    // In the snapshot, the lib files are at /snapshot/.../dist-pkg/typescript-lib/
+    const snapshotLibDir = "/snapshot/thinkwell/packages/thinkwell/dist-pkg/typescript-lib";
+    if (existsSync(snapshotLibDir)) {
+      return snapshotLibDir;
+    }
+  }
+
+  // Default: use TypeScript's own lib directory
+  return dirname(ts.getDefaultLibFilePath({}));
+}
 
 /**
  * Result of parsing and validating a tsconfig.json file.
@@ -114,9 +136,21 @@ export function createThinkwellHost(options: ts.CompilerOptions | ThinkwellHostO
     fileFilter = undefined;
   }
   const defaultHost = ts.createCompilerHost(compilerOptions);
+  const tsLibDir = getTypeScriptLibDir();
 
   return {
     ...defaultHost,
+
+    // Override getDefaultLibLocation to point to our bundled TypeScript lib files
+    // when running from the compiled binary. This is necessary because bundled
+    // TypeScript code can't find its .d.ts files in the pkg snapshot.
+    getDefaultLibLocation() {
+      return tsLibDir;
+    },
+
+    getDefaultLibFileName(options) {
+      return join(tsLibDir, ts.getDefaultLibFileName(options));
+    },
 
     getSourceFile(fileName, languageVersionOrOptions) {
       const source = ts.sys.readFile(fileName);
@@ -224,16 +258,21 @@ export interface CreateWatchHostOptions {
 }
 
 /**
- * Patch a CompilerHost's getSourceFile to apply @JSONSchema transformation.
+ * Patch a CompilerHost to apply @JSONSchema transformation and use bundled lib files.
  *
  * This is used by watch mode to wrap the host that TypeScript's watch system
  * provides, preserving its internal state while intercepting file reads.
  */
-function patchHostGetSourceFile(
+function patchHost(
   host: ts.CompilerHost,
   fileFilter?: (fileName: string) => boolean,
 ): void {
   const originalGetSourceFile = host.getSourceFile.bind(host);
+  const tsLibDir = getTypeScriptLibDir();
+
+  // Override lib location for compiled binary
+  host.getDefaultLibLocation = () => tsLibDir;
+  host.getDefaultLibFileName = (options) => join(tsLibDir, ts.getDefaultLibFileName(options));
 
   host.getSourceFile = (fileName, languageVersionOrOptions, onError?, shouldCreateNewSourceFile?) => {
     const source = ts.sys.readFile(fileName);
@@ -279,7 +318,7 @@ export function createThinkwellWatchHost(
     // Patch the host that TypeScript's watch system created, rather than
     // replacing it entirely. This preserves watch-specific internal state.
     if (host) {
-      patchHostGetSourceFile(host, fileFilter);
+      patchHost(host, fileFilter);
     }
 
     return ts.createEmitAndSemanticDiagnosticsBuilderProgram(

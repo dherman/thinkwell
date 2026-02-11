@@ -90,14 +90,14 @@ async function runInitCommand(args) {
  */
 async function runBuildCommand(args) {
   if (hasHelpFlag(args)) {
-    const { showBuildHelp } = require("../../dist/cli/build.js");
+    const { showBuildHelp } = require("../../dist-pkg/cli-build.cjs");
     showBuildHelp();
     return;
   }
 
-  // Import and run the build command
-  // Path: src/cli/ -> ../../dist/cli/build.js
-  const { parseBuildArgs, runBuild } = require("../../dist/cli/build.js");
+  // Import and run the build command from pre-bundled CJS
+  // Path: src/cli/ -> ../../dist-pkg/cli-build.cjs
+  const { parseBuildArgs, runBuild } = require("../../dist-pkg/cli-build.cjs");
 
   try {
     const options = parseBuildArgs(args);
@@ -113,14 +113,14 @@ async function runBuildCommand(args) {
  */
 async function runCheckCommand(args) {
   if (hasHelpFlag(args)) {
-    const { showCheckHelp } = require("../../dist/cli/check.js");
+    const { showCheckHelp } = require("../../dist-pkg/cli-check.cjs");
     showCheckHelp();
     return;
   }
 
-  // Import and run the check command
-  // Path: src/cli/ -> ../../dist/cli/check.js
-  const { parseCheckArgs, runCheck } = require("../../dist/cli/check.js");
+  // Import and run the check command from pre-bundled CJS
+  // Path: src/cli/ -> ../../dist-pkg/cli-check.cjs
+  const { parseCheckArgs, runCheck } = require("../../dist-pkg/cli-check.cjs");
 
   try {
     const options = parseCheckArgs(args);

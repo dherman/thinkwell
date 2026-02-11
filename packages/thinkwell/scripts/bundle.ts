@@ -20,7 +20,7 @@
  */
 
 import { build } from "esbuild";
-import { mkdirSync, existsSync, copyFileSync, chmodSync } from "node:fs";
+import { mkdirSync, existsSync, copyFileSync, chmodSync, readdirSync, cpSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -60,6 +60,16 @@ const PACKAGES: PackageConfig[] = [
     name: "cli-loader",
     entryPoint: resolve(ROOT_DIR, "dist/cli/loader.js"),
     output: "cli-loader.cjs",
+  },
+  {
+    name: "cli-build",
+    entryPoint: resolve(ROOT_DIR, "dist/cli/build.js"),
+    output: "cli-build.cjs",
+  },
+  {
+    name: "cli-check",
+    entryPoint: resolve(ROOT_DIR, "dist/cli/check.js"),
+    output: "cli-check.cjs",
   },
   {
     name: "cli-bundle",
@@ -146,6 +156,43 @@ function copyEsbuildBinaries(): void {
   }
 }
 
+/**
+ * Copy TypeScript lib .d.ts files to dist-pkg for embedding in the pkg binary.
+ *
+ * TypeScript's type checker needs these lib files (lib.es2022.full.d.ts, etc.)
+ * to provide built-in type definitions. When bundled with esbuild, only the JS
+ * code is included - the .d.ts files must be copied separately.
+ */
+function copyTypeScriptLibFiles(): void {
+  console.log("Copying TypeScript lib files...");
+
+  const require = createRequire(import.meta.url);
+
+  try {
+    // Find TypeScript's lib directory
+    // require.resolve("typescript") -> .../typescript/lib/typescript.js
+    // So dirname gives us the lib directory directly
+    const tsPath = require.resolve("typescript");
+    const tsLibDir = dirname(tsPath);
+
+    if (!existsSync(tsLibDir)) {
+      console.error(`  Error: TypeScript lib directory not found: ${tsLibDir}`);
+      process.exit(1);
+    }
+
+    // Copy the entire lib directory to dist-pkg/typescript-lib
+    const destDir = join(OUTPUT_DIR, "typescript-lib");
+    cpSync(tsLibDir, destDir, { recursive: true });
+
+    // Count .d.ts files copied
+    const dtsFiles = readdirSync(destDir).filter(f => f.endsWith(".d.ts"));
+    console.log(`  ✓ Copied ${dtsFiles.length} .d.ts files to typescript-lib/`);
+  } catch (error) {
+    console.error("  Error copying TypeScript lib files:", error);
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   console.log("Pre-bundling thinkwell packages for compiled binary\n");
 
@@ -170,6 +217,9 @@ async function main(): Promise<void> {
 
   // Copy esbuild binaries
   copyEsbuildBinaries();
+
+  // Copy TypeScript lib files for type checking
+  copyTypeScriptLibFiles();
 
   // Bundle pkg CLI for subprocess execution from compiled binary
   await bundlePkgCli();

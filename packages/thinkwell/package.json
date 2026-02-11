@@ -63,7 +63,8 @@
       "dist-pkg/package.json",
       "dist-pkg/esbuild-bin/**/*",
       "dist-pkg/pkg-prelude/**/*",
-      "dist-pkg/pkg-dictionary/**/*"
+      "dist-pkg/pkg-dictionary/**/*",
+      "dist-pkg/typescript-lib/**/*"
     ],
     "scripts": [
       "dist/**/*.js",

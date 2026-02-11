@@ -17,8 +17,8 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
-import { execSync, spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { execSync, spawnSync, spawn, type ChildProcess } from "node:child_process";
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, cpSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -70,7 +70,7 @@ function stripAnsi(str: string): string {
   return str.replace(/\x1b\[\d+m/g, "");
 }
 
-// Helper to run a command and capture output
+// Helper to run a command and capture output (both stdout and stderr)
 function run(
   command: string,
   args: string[],
@@ -78,23 +78,19 @@ function run(
 ): { stdout: string; stderr: string; code: number } {
   const { cwd = process.cwd(), env = process.env, timeout = 30000 } = options;
 
-  try {
-    const result = execSync([command, ...args].join(" "), {
-      cwd,
-      env: { ...env, NO_COLOR: "1", FORCE_COLOR: "0", NODE_DISABLE_COLORS: "1" },
-      timeout,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    return { stdout: stripAnsi(result), stderr: "", code: 0 };
-  } catch (error: unknown) {
-    const execError = error as { stdout?: string; stderr?: string; status?: number };
-    return {
-      stdout: stripAnsi(execError.stdout ?? ""),
-      stderr: stripAnsi(execError.stderr ?? ""),
-      code: execError.status ?? 1,
-    };
-  }
+  const result = spawnSync(command, args, {
+    cwd,
+    env: { ...env, NO_COLOR: "1", FORCE_COLOR: "0", NODE_DISABLE_COLORS: "1" },
+    timeout,
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  return {
+    stdout: stripAnsi(result.stdout ?? ""),
+    stderr: stripAnsi(result.stderr ?? ""),
+    code: result.status ?? 1,
+  };
 }
 
 // Helper to run thinkwell via npm distribution with transform-types flag
@@ -719,5 +715,260 @@ console.log("Schema type:", schema.type);
     const result = run(binaryPath, [scriptPath]);
     assert.strictEqual(result.code, 0, `Exit code should be 0: ${result.stderr}`);
     assert.ok(result.stdout.includes("Schema type: object"), "Should generate schema");
+  });
+});
+
+// =============================================================================
+// Binary tests for thinkwell check command
+// =============================================================================
+
+const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test-fixtures/node-ux-project");
+
+/**
+ * Copy the node-ux-project fixture into a temp directory.
+ * Also copies type-stubs/ into node_modules/ so TypeScript can resolve
+ * the @thinkwell/acp type-only import that @JSONSchema transformation injects.
+ */
+function copyFixture(prefix: string): string {
+  const dest = join(tmpdir(), `thinkwell-cli-test-${prefix}-${Date.now()}`);
+  cpSync(FIXTURE_DIR, dest, { recursive: true });
+  cpSync(join(dest, "type-stubs"), join(dest, "node_modules"), { recursive: true });
+  return dest;
+}
+
+/**
+ * Create a minimal TypeScript project for testing.
+ */
+function createMinimalProject(prefix: string): string {
+  const dir = join(tmpdir(), `thinkwell-cli-test-${prefix}-${Date.now()}`);
+  mkdirSync(join(dir, "src"), { recursive: true });
+
+  writeFileSync(
+    join(dir, "package.json"),
+    JSON.stringify({ name: "test-project", version: "0.0.0", private: true, type: "module" }, null, 2),
+  );
+
+  writeFileSync(
+    join(dir, "tsconfig.json"),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: "ES2022",
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          strict: true,
+          outDir: "./dist",
+          rootDir: "./src",
+          skipLibCheck: true,
+        },
+        include: ["src/**/*"],
+      },
+      null,
+      2,
+    ),
+  );
+
+  writeFileSync(
+    join(dir, "src/index.ts"),
+    `export function add(a: number, b: number): number {\n  return a + b;\n}\n`,
+  );
+
+  return dir;
+}
+
+describe("thinkwell check (binary)", { skip: SKIP_CLI || SKIP_BINARY }, () => {
+  const binaryPath = getBinaryPath();
+
+  it("should show help with check --help", () => {
+    const result = run(binaryPath, ["check", "--help"]);
+    assert.strictEqual(result.code, 0, `Expected exit code 0, got ${result.code}`);
+    assert.ok(result.stdout.includes("thinkwell check"), "Help should mention check command");
+    assert.ok(result.stdout.includes("Type-check"), "Help should describe type-checking");
+  });
+
+  describe("clean TypeScript project", () => {
+    let projectDir: string;
+
+    before(() => {
+      projectDir = createMinimalProject("check-clean");
+    });
+
+    after(() => {
+      cleanupTestDir(projectDir);
+    });
+
+    it("should pass type-checking with exit code 0", () => {
+      const result = run(binaryPath, ["check"], { cwd: projectDir });
+      assert.strictEqual(result.code, 0, `Expected clean check but got exit code ${result.code}: ${result.stderr}`);
+      assert.ok(
+        result.stderr.includes("No type errors") || result.stderr.includes("Checking"),
+        "Should report checking status",
+      );
+    });
+  });
+
+  describe("@JSONSchema project", () => {
+    let projectDir: string;
+
+    before(() => {
+      projectDir = copyFixture("check-jsonschema");
+    });
+
+    after(() => {
+      cleanupTestDir(projectDir);
+    });
+
+    it("should pass type-checking with @JSONSchema types", () => {
+      const result = run(binaryPath, ["check"], { cwd: projectDir });
+      assert.strictEqual(result.code, 0, `Expected clean check but got exit code ${result.code}: ${result.stderr}`);
+      assert.ok(
+        result.stderr.includes("No type errors") || result.stderr.includes("Checking"),
+        "Should report checking status",
+      );
+    });
+  });
+
+  describe("project with type errors", () => {
+    let projectDir: string;
+
+    before(() => {
+      projectDir = createMinimalProject("check-errors");
+      // Inject a file with a type error
+      writeFileSync(
+        join(projectDir, "src/bad.ts"),
+        `export const x: number = "not a number";\n`,
+      );
+    });
+
+    after(() => {
+      cleanupTestDir(projectDir);
+    });
+
+    it("should exit with code 1 when type errors are present", () => {
+      const result = run(binaryPath, ["check"], { cwd: projectDir });
+      assert.strictEqual(result.code, 1, "Should exit with code 1 for type errors");
+      assert.ok(
+        result.stderr.includes("TS2322") || result.stderr.includes("not assignable"),
+        "Should include the type error diagnostic",
+      );
+    });
+  });
+
+  describe("missing tsconfig.json", () => {
+    let emptyDir: string;
+
+    before(() => {
+      emptyDir = join(tmpdir(), `thinkwell-cli-test-check-no-config-${Date.now()}`);
+      mkdirSync(emptyDir, { recursive: true });
+    });
+
+    after(() => {
+      cleanupTestDir(emptyDir);
+    });
+
+    it("should exit with code 2 when tsconfig.json is missing", () => {
+      const result = run(binaryPath, ["check"], { cwd: emptyDir });
+      assert.strictEqual(result.code, 2, "Should exit with code 2 for config error");
+      assert.ok(result.stderr.includes("Cannot find tsconfig.json"), "Should report missing config");
+    });
+  });
+});
+
+// =============================================================================
+// Binary tests for thinkwell build command
+// =============================================================================
+
+describe("thinkwell build (binary)", { skip: SKIP_CLI || SKIP_BINARY }, () => {
+  const binaryPath = getBinaryPath();
+
+  it("should show help with build --help", () => {
+    const result = run(binaryPath, ["build", "--help"]);
+    assert.strictEqual(result.code, 0, `Expected exit code 0, got ${result.code}`);
+    assert.ok(result.stdout.includes("thinkwell build"), "Help should mention build command");
+    assert.ok(result.stdout.includes("Compile"), "Help should describe compilation");
+  });
+
+  describe("compile @JSONSchema project", () => {
+    let projectDir: string;
+
+    before(() => {
+      projectDir = copyFixture("build-jsonschema");
+    });
+
+    after(() => {
+      cleanupTestDir(projectDir);
+    });
+
+    it("should compile project with @JSONSchema types", () => {
+      const result = run(binaryPath, ["build"], { cwd: projectDir, timeout: 60000 });
+      assert.strictEqual(result.code, 0, `Build failed with exit code ${result.code}: ${result.stderr}`);
+
+      // Verify output files were created
+      const distDir = join(projectDir, "dist");
+      assert.ok(existsSync(distDir), "dist/ directory should exist");
+      assert.ok(existsSync(join(distDir, "types.js")), "types.js should be emitted");
+      assert.ok(existsSync(join(distDir, "types.d.ts")), "types.d.ts should be emitted");
+      assert.ok(existsSync(join(distDir, "main.js")), "main.js should be emitted");
+    });
+
+    it("should inject @JSONSchema namespace declarations in emitted JS", () => {
+      const typesJs = readFileSync(join(projectDir, "dist/types.js"), "utf-8");
+
+      // The transformation should have injected namespace declarations
+      assert.ok(
+        typesJs.includes("Greeting.Schema") || typesJs.includes("Greeting["),
+        "Emitted types.js should contain Greeting schema namespace",
+      );
+    });
+
+    it("should emit declaration files with namespace merging", () => {
+      const typesDts = readFileSync(join(projectDir, "dist/types.d.ts"), "utf-8");
+
+      assert.ok(
+        typesDts.includes("namespace Greeting"),
+        "Declaration file should contain Greeting namespace",
+      );
+    });
+  });
+
+  describe("project with type errors", () => {
+    let projectDir: string;
+
+    before(() => {
+      projectDir = createMinimalProject("build-errors");
+      // Inject a file with a type error
+      writeFileSync(
+        join(projectDir, "src/bad.ts"),
+        `export const x: number = "not a number";\n`,
+      );
+    });
+
+    after(() => {
+      cleanupTestDir(projectDir);
+    });
+
+    it("should exit with code 1 when type errors are present", () => {
+      const result = run(binaryPath, ["build"], { cwd: projectDir, timeout: 60000 });
+      assert.strictEqual(result.code, 1, "Should exit with code 1 for type errors");
+    });
+  });
+
+  describe("missing tsconfig.json", () => {
+    let emptyDir: string;
+
+    before(() => {
+      emptyDir = join(tmpdir(), `thinkwell-cli-test-build-no-config-${Date.now()}`);
+      mkdirSync(emptyDir, { recursive: true });
+    });
+
+    after(() => {
+      cleanupTestDir(emptyDir);
+    });
+
+    it("should exit with code 1 when tsconfig.json is missing", () => {
+      const result = run(binaryPath, ["build"], { cwd: emptyDir, timeout: 60000 });
+      assert.strictEqual(result.code, 1, "Should exit with code 1 for missing config");
+      assert.ok(result.stderr.includes("Cannot find"), "Should report missing config");
+    });
   });
 });
