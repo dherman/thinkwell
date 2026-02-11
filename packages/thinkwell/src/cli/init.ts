@@ -1,18 +1,21 @@
 /**
- * CLI command for initializing thinkwell dependencies in an existing project.
+ * CLI command for initializing thinkwell in the current directory.
  *
- * When a project has a package.json but is missing required dependencies
- * (thinkwell, typescript), this command adds them using the detected
- * package manager.
+ * This command initializes a project for thinkwell development:
+ * - Creates package.json if none exists
+ * - Adds missing dependencies (thinkwell, typescript)
+ *
+ * Following Cargo's design: "init" modifies existing state in the current
+ * directory, while "new" creates a new directory.
  *
  * @see doc/rfd/explicit-config.md for the design
  */
 
 import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import {
   checkDependencies,
   hasPackageJson,
@@ -159,6 +162,24 @@ async function installPackage(
 }
 
 // ============================================================================
+// Package.json Creation
+// ============================================================================
+
+/**
+ * Create a minimal package.json for a new project.
+ */
+function createPackageJson(projectDir: string): void {
+  const name = basename(projectDir);
+  const content = {
+    name,
+    version: "0.1.0",
+    type: "module",
+  };
+  const pkgPath = join(projectDir, "package.json");
+  writeFileSync(pkgPath, JSON.stringify(content, null, 2) + "\n");
+}
+
+// ============================================================================
 // Main Init Logic
 // ============================================================================
 
@@ -188,14 +209,12 @@ function getMissingDependencies(result: DependencyCheckResult): MissingDependenc
 export async function runInit(options: InitOptions): Promise<void> {
   const { yes, projectDir } = options;
 
-  // Check if project has a package.json
+  // Create package.json if it doesn't exist
   if (!hasPackageJson(projectDir)) {
-    console.error(`${redBold("Error:")} No package.json found in ${projectDir}`);
-    console.error("");
-    console.error("This command adds dependencies to an existing project.");
-    console.error("To create a new project, run:");
-    console.error(`  ${cyanBold("thinkwell new")} ${cyan("<project-name>")}`);
-    process.exit(2);
+    console.log("No package.json found. Creating one...");
+    createPackageJson(projectDir);
+    console.log(`Created ${cyanBold("package.json")}`);
+    console.log("");
   }
 
   // Detect package manager
@@ -282,31 +301,29 @@ export function parseInitArgs(args: string[]): InitOptions {
  */
 export function showInitHelp(): void {
   console.log(`
-${cyanBold("thinkwell init")} - ${whiteBold("Add thinkwell dependencies to an existing project")}
+${cyanBold("thinkwell init")} - ${whiteBold("Initialize thinkwell in the current directory")}
 
 ${greenBold("Usage:")}
-  ${cyanBold("thinkwell init")} ${dim("[options] [directory]")}
+  ${cyanBold("thinkwell init")} ${dim("[options]")}
 
 ${greenBold("Options:")}
-  ${cyan("--yes, -y")}    Add dependencies without prompting for confirmation
+  ${cyan("--yes, -y")}    Proceed without prompting for confirmation
   ${cyan("--help, -h")}   Show this help message
 
-${greenBold("Arguments:")}
-  ${cyan("directory")}    Project directory ${dim("(default: current directory)")}
-
 ${greenBold("Description:")}
-  When a project has a package.json but is missing required dependencies
-  (thinkwell, typescript), this command adds them using the detected
-  package manager (pnpm, yarn, or npm).
+  Initializes the current directory for thinkwell development:
+
+  1. Creates package.json if none exists
+  2. Adds thinkwell and typescript dependencies using the detected
+     package manager (pnpm, yarn, or npm)
 
   The versions added match the CLI binary versions to ensure compatibility.
 
 ${greenBold("Examples:")}
-  ${cyanBold("thinkwell init")}           Add dependencies interactively
-  ${cyanBold("thinkwell init --yes")}     Add dependencies without prompting (CI-friendly)
-  ${cyanBold("thinkwell init ./my-app")}  Add dependencies to ./my-app
+  ${cyanBold("thinkwell init")}           Initialize interactively
+  ${cyanBold("thinkwell init --yes")}     Initialize without prompting (CI-friendly)
 
-${greenBold("To create a new project instead:")}
+${greenBold("To create a new project in a new directory:")}
   ${cyanBold("thinkwell new")} ${cyan("<project-name>")}
 `.trim() + "\n");
 }

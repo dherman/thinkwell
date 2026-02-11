@@ -30,8 +30,8 @@ ${cyanBold("thinkwell")} - ${whiteBold("agent scripting made easy ✨🖋️")}
 ${greenBold("Usage:")}
   ${cyanBold("thinkwell")} ${dim("<script.ts> [args...]")}     Run a TypeScript script
   ${cyanBold("thinkwell run")} ${dim("<script.ts> [args...]")} Explicit run command
-  ${cyanBold("thinkwell init")}                      Add thinkwell dependencies to project
-  ${cyanBold("thinkwell new")} ${dim("[project-name]")}        Create a new thinkwell project
+  ${cyanBold("thinkwell init")}                      Initialize thinkwell in current directory
+  ${cyanBold("thinkwell new")} ${dim("<project-name>")}        Create a new project in a new directory
   ${cyanBold("thinkwell check")}                     Type-check project ${dim("(no output files)")}
   ${cyanBold("thinkwell build")}                     Compile project with @JSONSchema support
   ${cyanBold("thinkwell bundle")} ${dim("<script.ts>")}        Compile to standalone executable

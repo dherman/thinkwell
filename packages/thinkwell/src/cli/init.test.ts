@@ -63,7 +63,7 @@ describe("thinkwell init", () => {
       const { status, stdout } = runThinkwellInit(tempDir, ["--help"]);
       assert.strictEqual(status, 0);
       assert.match(stdout, /thinkwell init/);
-      assert.match(stdout, /Add thinkwell dependencies/);
+      assert.match(stdout, /Initialize thinkwell/);
       assert.match(stdout, /--yes/);
     });
 
@@ -75,11 +75,18 @@ describe("thinkwell init", () => {
   });
 
   describe("no package.json", () => {
-    it("should exit with code 2 when no package.json exists", () => {
-      const { status, stderr } = runThinkwellInit(tempDir);
-      assert.strictEqual(status, 2);
-      assert.match(stderr, /No package\.json found/);
-      assert.match(stderr, /thinkwell new/);
+    it("should create package.json when none exists", () => {
+      const { status, stdout } = runThinkwellInit(tempDir, ["--yes"]);
+      assert.strictEqual(status, 0);
+      assert.match(stdout, /No package\.json found\. Creating one/);
+      assert.match(stdout, /Created package\.json/);
+
+      // Verify package.json was created
+      const pkgPath = join(tempDir, "package.json");
+      assert.ok(existsSync(pkgPath), "package.json should be created");
+
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+      assert.strictEqual(pkg.type, "module");
     });
   });
 
@@ -234,6 +241,13 @@ describe("thinkwell new", () => {
     assert.strictEqual(status, 0);
     assert.match(stdout, /thinkwell new/);
     assert.match(stdout, /Create a new thinkwell project/);
+  });
+
+  it("should require project name argument", () => {
+    const { status, stderr } = runThinkwellNew(tempDir, []);
+    assert.strictEqual(status, 1);
+    assert.match(stderr, /Project name is required/);
+    assert.match(stderr, /thinkwell init/);
   });
 
   it("should create project files", () => {
