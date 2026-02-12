@@ -1,6 +1,6 @@
 {
   "name": "thinkwell",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "TypeScript library for blending deterministic code with LLM-powered reasoning",
   "type": "module",
   "main": "./dist/index.js",
