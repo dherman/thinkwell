@@ -1,6 +1,6 @@
 # RFD: Migrate to `tsgo` IPC API
 
-**Depends on:** [vscode-ts-plugin](vscode-ts-plugin.md), [node-ux](node-ux.md), [check-command](check-command.md)
+**Depends on:** [vscode-ts-plugin](vscode-ts-plugin.md), [node-ux](completed/node-ux.md), [check-command](completed/check-command.md)
 
 ## Summary
 
@@ -21,7 +21,7 @@ TypeScript is being rewritten in Go (codename "Corsa"). TypeScript 7.0 ships mid
 
 The existing TS plugin API is fundamentally incompatible with the Go binary — there is no way to load JavaScript plugin code into a compiled Go process. This affects every framework that extends TypeScript: Vue/Volar, Svelte, Angular, and Thinkwell.
 
-Similarly, the `CompilerHost` interface used by `thinkwell check` and `thinkwell build` to serve `@JSONSchema`-transformed source from memory (see [node-ux](node-ux.md), [check-command](check-command.md)) is a TypeScript JavaScript API that does not exist in `tsgo`. The `callbackfs` mechanism replaces both the plugin API and `CompilerHost` with the same IPC-based virtual filesystem abstraction.
+Similarly, the `CompilerHost` interface used by `thinkwell check` and `thinkwell build` to serve `@JSONSchema`-transformed source from memory (see [node-ux](completed/node-ux.md), [check-command](completed/check-command.md)) is a TypeScript JavaScript API that does not exist in `tsgo`. The `callbackfs` mechanism replaces both the plugin API and `CompilerHost` with the same IPC-based virtual filesystem abstraction.
 
 ### The Coexistence Window
 
@@ -163,7 +163,7 @@ The extension detects which TypeScript version is active and uses the appropriat
 
 #### Migration from CompilerHost
 
-Today, `thinkwell check` and `thinkwell build` use TypeScript's `CompilerHost` interface to intercept `getSourceFile()` and serve `@JSONSchema`-transformed source in memory (see [node-ux](node-ux.md), [check-command](check-command.md)). The migration replaces this with `callbackfs`:
+Today, `thinkwell check` and `thinkwell build` use TypeScript's `CompilerHost` interface to intercept `getSourceFile()` and serve `@JSONSchema`-transformed source in memory (see [node-ux](completed/node-ux.md), [check-command](completed/check-command.md)). The migration replaces this with `callbackfs`:
 
 | CompilerHost method | `callbackfs` equivalent |
 |---|---|
@@ -265,10 +265,10 @@ The TS 6.x plugin and `CompilerHost` approach provide working solutions during t
 
 ## References
 
-- [RFD: Node-Native Developer Experience](node-ux.md) — `thinkwell build` CompilerHost architecture
-- [RFD: `thinkwell check` Command](check-command.md) — `thinkwell check` CompilerHost architecture
+- [RFD: Node-Native Developer Experience](completed/node-ux.md) — `thinkwell build` CompilerHost architecture
+- [RFD: `thinkwell check` Command](completed/check-command.md) — `thinkwell check` CompilerHost architecture
 - [RFD: VSCode Extension with TypeScript Plugin](vscode-ts-plugin.md) — the TS 5.x/6.x IDE approach this migrates from
-- [RFD: Remove `thinkwell:*` URI Scheme](remove-uri-scheme.md) — prerequisite for all approaches
+- [RFD: Remove `thinkwell:*` URI Scheme](completed/remove-uri-scheme.md) — prerequisite for all approaches
 - [PR #711: Scaffold IPC-based API](https://github.com/microsoft/typescript-go/pull/711)
 - [PR #2620: Async API and LSP integration](https://github.com/microsoft/typescript-go/pull/2620)
 - [Discussion #455: What is the API story?](https://github.com/microsoft/typescript-go/discussions/455)

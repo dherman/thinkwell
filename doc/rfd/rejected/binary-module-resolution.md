@@ -2,7 +2,7 @@
 
 > **⚠️ ARCHIVED**: This RFD describes Bun's binary module resolution challenges and a
 > proposed solution using virtual modules. This approach was ultimately not viable due to
-> Bun's inability to resolve user node_modules at runtime. See [pkg-migration.md](../pkg-migration.md)
+> Bun's inability to resolve user node_modules at runtime. See [pkg-migration.md](../completed/pkg-migration.md)
 > for the solution that was adopted.
 
 ## Summary
@@ -287,5 +287,5 @@ Bun may add a `--packages=bundle` flag for `--compile` that bundles all packages
 ## References
 
 - [Bun Plugin Documentation](https://bun.com/docs/bundler/plugins)
-- [RFD: CLI Distribution](./cli-distribution.md)
+- [RFD: CLI Distribution](../completed/cli-distribution.md)
 - [RFD: Bun Schema Plugin](./bun-schema-plugin.md)

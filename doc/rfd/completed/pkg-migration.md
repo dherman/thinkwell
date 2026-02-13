@@ -349,5 +349,5 @@ The schema module is pre-bundled into `dist-pkg/cli-loader.cjs` along with ts-js
 - [Bun Issue #13405: resolveSync bug](https://github.com/oven-sh/bun/issues/13405)
 - [pkg Issue #16: ESM support](https://github.com/yao-pkg/pkg/issues/16)
 - [Proof-of-concept: experiments/pkg-poc/](../experiments/pkg-poc/)
-- [RFD: Binary Distribution Module Resolution](./archive/binary-module-resolution.md)
+- [RFD: Binary Distribution Module Resolution](../rejected/binary-module-resolution.md)
 - [RFD: CLI Distribution](./cli-distribution.md)

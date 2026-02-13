@@ -2,7 +2,7 @@
 
 > **⚠️ ARCHIVED**: This RFD describes the original Bun plugin architecture for @JSONSchema
 > processing. The concepts remain valid, but the implementation has moved to a Node.js-based
-> approach. See [pkg-migration.md](../pkg-migration.md) for the current architecture.
+> approach. See [pkg-migration.md](../completed/pkg-migration.md) for the current architecture.
 
 ## Summary
 
@@ -719,4 +719,4 @@ Implement Node.js runtime support in a follow-up PR with:
 - [ts-json-schema-generator](https://github.com/vega/ts-json-schema-generator)
 - [TypeScript Compiler API](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API)
 - [TypeScript-Go Issue #516: Transformer Plugin Support](https://github.com/microsoft/typescript-go/issues/516)
-- [RFD: Schema Provider Interface](./schema-providers.md)
+- [RFD: Schema Provider Interface](../completed/schema-providers.md)

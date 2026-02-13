@@ -328,9 +328,9 @@ All standard TypeScript features are supported via `--experimental-transform-typ
 This architecture replaced an earlier Bun-based implementation. The migration was necessary because Bun's compiled binaries have a fundamental limitation: they cannot resolve npm packages from a user's `node_modules` directory at runtime. See [RFD: Migrate Binary Distribution from Bun to pkg](./pkg-migration.md) for the full analysis.
 
 For historical reference, the original Bun-based architecture is documented in:
-- [archive/cli-distribution-bun.md](./archive/cli-distribution-bun.md) — Original distribution strategy
-- [archive/bun-schema-plugin.md](./archive/bun-schema-plugin.md) — Original Bun plugin design
-- [archive/binary-module-resolution.md](./archive/binary-module-resolution.md) — Bun binary resolution challenges
+- [cli-distribution-bun.md](../rejected/cli-distribution-bun.md) — Original distribution strategy
+- [bun-schema-plugin.md](../rejected/bun-schema-plugin.md) — Original Bun plugin design
+- [binary-module-resolution.md](../rejected/binary-module-resolution.md) — Bun binary resolution challenges
 
 ## References
 

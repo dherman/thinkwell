@@ -1,8 +1,8 @@
 # RFD: Thinkwell CLI Installation and Distribution (Bun-based)
 
 > **⚠️ ARCHIVED**: This RFD describes the original Bun-based distribution architecture.
-> It has been superseded by [cli-distribution.md](../cli-distribution.md) which documents
-> the current Node.js/pkg-based architecture. See [pkg-migration.md](../pkg-migration.md)
+> It has been superseded by [cli-distribution.md](../completed/cli-distribution.md) which documents
+> the current Node.js/pkg-based architecture. See [pkg-migration.md](../completed/pkg-migration.md)
 > for the rationale behind this change.
 
 ## Summary

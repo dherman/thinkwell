@@ -69,9 +69,9 @@ Line 32 lists `@thinkwell/bun-plugin` in the monorepo packages list.
 Lines 7-18 contain warnings about not using Bun. After removal, these warnings can be simplified or converted to historical context.
 
 ### Archived RFDs (keep for historical reference)
-- `doc/rfd/archive/bun-schema-plugin.md`
-- `doc/rfd/archive/cli-distribution-bun.md`
-- `doc/rfd/archive/binary-module-resolution.md`
+- `doc/rfd/rejected/bun-schema-plugin.md`
+- `doc/rfd/rejected/cli-distribution-bun.md`
+- `doc/rfd/rejected/binary-module-resolution.md`
 
 These should remain in the archive as they document the decision-making process.
 
@@ -168,5 +168,5 @@ console.log("This feature will be available in a future release.");
 ## References
 
 - [RFD: pkg Migration](./pkg-migration.md) - Documents the migration from Bun to pkg
-- [RFD: Bun Schema Plugin](./archive/bun-schema-plugin.md) - Original Bun plugin design
-- [RFD: CLI Distribution (Bun)](./archive/cli-distribution-bun.md) - Original Bun distribution approach
+- [RFD: Bun Schema Plugin](../rejected/bun-schema-plugin.md) - Original Bun plugin design
+- [RFD: CLI Distribution (Bun)](../rejected/cli-distribution-bun.md) - Original Bun distribution approach
