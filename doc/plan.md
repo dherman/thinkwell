@@ -4,13 +4,13 @@ RFD: [vscode-ts-plugin](rfd/vscode-ts-plugin.md)
 
 ## Phase 1: TypeScript Plugin Core
 
-- [ ] Scaffold `packages/vscode-ts-plugin` with `package.json`, `tsconfig.json`
-- [ ] Implement plugin entry point (`create` function from `ts.server.PluginModule`)
-- [ ] Scan project source files for `@JSONSchema`-marked interfaces (regex pre-filter + AST confirmation)
-- [ ] Generate virtual `__thinkwell_augmentations__.d.ts` content from discovered types
-- [ ] Register virtual file via `getExternalFiles()` and serve its content by monkey-patching `getScriptSnapshot()`
-- [ ] Invalidate and regenerate virtual declarations on file changes
-- [ ] Add diagnostic filter for residual "Property does not exist" errors (code 2339) on known augmented types
+- [x] Scaffold `packages/vscode-ts-plugin` with `package.json`, `tsconfig.json`
+- [x] Implement plugin entry point (`create` function from `ts.server.PluginModule`)
+- [x] Scan project source files for `@JSONSchema`-marked interfaces (regex pre-filter + AST confirmation)
+- [x] Generate virtual `__thinkwell_augmentations__.d.ts` content from discovered types
+- [x] Register virtual file via `getExternalFiles()` and serve its content by monkey-patching `getScriptSnapshot()`
+- [x] Invalidate and regenerate virtual declarations on file changes
+- [x] Add diagnostic filter for residual "Property does not exist" errors (code 2339) on known augmented types
 
 ## Phase 2: Standalone Script Module Resolution
 

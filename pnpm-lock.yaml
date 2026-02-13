@@ -130,6 +130,19 @@ importers:
         specifier: ^4.19.2
         version: 4.21.0
 
+  packages/vscode-ts-plugin:
+    dependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+
 packages:
 
   '@agentclientprotocol/sdk@0.12.0':

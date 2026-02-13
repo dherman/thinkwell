@@ -1,0 +1,30 @@
+{
+  "name": "@thinkwell/vscode-ts-plugin",
+  "version": "0.5.1",
+  "description": "TypeScript Language Service plugin for @JSONSchema augmentations",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "keywords": [
+    "thinkwell",
+    "typescript",
+    "plugin",
+    "vscode"
+  ],
+  "author": "David Herman",
+  "license": "MIT",
+  "dependencies": {
+    "typescript": "^5.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.4",
+    "tsx": "^4.19.2"
+  }
+}
