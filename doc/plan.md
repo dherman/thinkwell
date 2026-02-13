@@ -28,7 +28,7 @@ RFD: [vscode-ts-plugin](rfd/vscode-ts-plugin.md)
 
 ## Phase 4: Testing and Packaging
 
-- [ ] Write integration tests: completions, diagnostics, hover for `.Schema` on `@JSONSchema` types
-- [ ] Test standalone script module resolution (no `node_modules`)
-- [ ] Test incremental updates (add/remove `@JSONSchema` marker, see diagnostics update)
-- [ ] Package the extension as `.vsix` for local install and marketplace publishing
+- [x] Write integration tests: completions, diagnostics, hover for `.Schema` on `@JSONSchema` types
+- [x] Test standalone script module resolution (no `node_modules`)
+- [x] Test incremental updates (add/remove `@JSONSchema` marker, see diagnostics update)
+- [x] Package the extension as `.vsix` for local install and marketplace publishing

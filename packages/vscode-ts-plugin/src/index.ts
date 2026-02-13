@@ -26,6 +26,8 @@ interface PluginState {
   virtualFilePath: string;
   /** Set of type names known to be augmented (for diagnostic filtering). */
   augmentedTypeNames: Set<string>;
+  /** Version counter for the virtual file (bumped on content changes). */
+  virtualFileVersion: number;
 }
 
 /**
@@ -93,6 +95,7 @@ function rescanFile(
       state.typesByFile.delete(fileName);
     }
     regenerateVirtualFile(state);
+    state.virtualFileVersion++;
 
     // Tell tsserver the virtual file changed so it re-checks
     info.project.refreshDiagnostics();
@@ -138,6 +141,7 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
       virtualContent: "",
       virtualFilePath,
       augmentedTypeNames: new Set(),
+      virtualFileVersion: 0,
     };
 
     info.project.log("[thinkwell] Plugin loaded for project: " + projectDir);
@@ -161,11 +165,10 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
     const originalGetScriptVersion = info.languageServiceHost.getScriptVersion.bind(
       info.languageServiceHost,
     );
-    let virtualFileVersion = 0;
 
     info.languageServiceHost.getScriptVersion = (fileName: string) => {
       if (fileName === state.virtualFilePath) {
-        return String(virtualFileVersion);
+        return String(state.virtualFileVersion);
       }
       return originalGetScriptVersion(fileName);
     };
@@ -240,7 +243,7 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
     // Defer the initial scan slightly so the project is fully initialized
     setTimeout(() => {
       fullScan(info, state);
-      virtualFileVersion++;
+      state.virtualFileVersion++;
       info.project.refreshDiagnostics();
       info.project.log(
         `[thinkwell] Initial scan complete. Found ${state.augmentedTypeNames.size} augmented type(s).`,

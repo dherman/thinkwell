@@ -17,11 +17,14 @@ import type { MarkedType } from "./scanner";
  *   export const Schema: import("thinkwell").SchemaProvider<Greeting>;
  * }
  * ```
+ *
+ * The virtual file must be an ambient script (no top-level `export`), so
+ * namespace declarations never use an `export` prefix. TypeScript merges
+ * ambient namespaces with imported types regardless of the type's export status.
  */
 function generateNamespaceDeclaration(type: MarkedType): string {
-  const exportPrefix = type.isExported ? "export " : "";
   return [
-    `${exportPrefix}declare namespace ${type.name} {`,
+    `declare namespace ${type.name} {`,
     `  export const Schema: import("thinkwell").SchemaProvider<${type.name}>;`,
     `}`,
   ].join("\n");

@@ -32,12 +32,15 @@ const THINKWELL_MODULES = new Set([
 ]);
 
 /** Cached result of locating the thinkwell installation. */
-interface ThinkwellInstallation {
+export interface ThinkwellInstallation {
   /** Root directory of the thinkwell npm package. */
   packageRoot: string;
   /** The node_modules directory containing the thinkwell package. */
   nodeModulesDir: string;
 }
+
+/** Function type for locating the thinkwell installation. */
+export type InstallationLocator = (log: (msg: string) => void) => ThinkwellInstallation | null;
 
 /**
  * Check whether a file is a standalone thinkwell script by looking for
@@ -120,7 +123,7 @@ function locateInstallation(log: (msg: string) => void): ThinkwellInstallation |
  * Resolve a thinkwell module specifier to its .d.ts file path within
  * the CLI installation.
  */
-function resolveModulePath(
+export function resolveModulePath(
   specifier: string,
   installation: ThinkwellInstallation,
 ): string | null {
@@ -163,15 +166,17 @@ function resolveModulePath(
  */
 export function patchModuleResolution(
   info: ts.server.PluginCreateInfo,
+  locator?: InstallationLocator,
 ): void {
   const log = (msg: string) => info.project.log(msg);
+  const locate = locator ?? locateInstallation;
 
   // Cache the installation lookup (null means "not yet attempted")
   let installation: ThinkwellInstallation | null | undefined;
 
   function getInstallation(): ThinkwellInstallation | null {
     if (installation === undefined) {
-      installation = locateInstallation(log);
+      installation = locate(log);
     }
     return installation;
   }

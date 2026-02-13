@@ -20,12 +20,13 @@ describe("generateVirtualDeclarations", () => {
     assert.ok(!result.includes("export declare namespace"));
   });
 
-  it("generates exported namespace for exported type", () => {
+  it("uses ambient namespace (no export) even for exported types", () => {
     const types = new Map<string, MarkedType[]>([
       ["src/types.ts", [{ name: "Greeting", isExported: true }]],
     ]);
     const result = generateVirtualDeclarations(types);
-    assert.ok(result.includes("export declare namespace Greeting {"));
+    assert.ok(result.includes("declare namespace Greeting {"));
+    assert.ok(!result.includes("export declare namespace"));
   });
 
   it("generates declarations for multiple types across files", () => {
