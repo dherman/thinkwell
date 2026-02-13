@@ -1,0 +1,41 @@
+{
+  "name": "thinkwell-vscode",
+  "displayName": "Thinkwell",
+  "description": "IDE support for Thinkwell's @JSONSchema type augmentations and standalone scripts",
+  "version": "0.5.1",
+  "publisher": "thinkwell",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/package.json",
+    "onLanguage:typescript",
+    "onLanguage:javascript"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "typescriptServerPlugins": [
+      {
+        "name": "@thinkwell/vscode-ts-plugin",
+        "enableForWorkspaceTypeScriptVersions": true
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@thinkwell/vscode-ts-plugin": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^24.10.4",
+    "typescript": "^5.7.2"
+  }
+}

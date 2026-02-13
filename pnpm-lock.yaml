@@ -130,6 +130,22 @@ importers:
         specifier: ^4.19.2
         version: 4.21.0
 
+  packages/vscode-extension:
+    dependencies:
+      '@thinkwell/vscode-ts-plugin':
+        specifier: workspace:*
+        version: link:../vscode-ts-plugin
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      '@types/vscode':
+        specifier: ^1.85.0
+        version: 1.109.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/vscode-ts-plugin:
     dependencies:
       typescript:
@@ -373,6 +389,9 @@ packages:
 
   '@types/uuid@10.0.0':
     resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
+
+  '@types/vscode@1.109.0':
+    resolution: {integrity: sha512-0Pf95rnwEIwDbmXGC08r0B4TQhAbsHQ5UyTIgVgoieDe4cOnf92usuR5dEczb6bTKEp7ziZH4TV1TRGPPCExtw==}
 
   '@yao-pkg/pkg-fetch@3.5.32':
     resolution: {integrity: sha512-hS8zzze5VVyVAciZoNX4q3ZmCdn0gi34P2SElk4PFbzkA4LPs7qBJ3LhUKb4d4KGw1HVkFJJOMgGomH7cMqQ5Q==}
@@ -1114,6 +1133,8 @@ snapshots:
   '@types/sentiment@5.0.4': {}
 
   '@types/uuid@10.0.0': {}
+
+  '@types/vscode@1.109.0': {}
 
   '@yao-pkg/pkg-fetch@3.5.32':
     dependencies:

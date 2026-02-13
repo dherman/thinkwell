@@ -21,10 +21,10 @@ RFD: [vscode-ts-plugin](rfd/vscode-ts-plugin.md)
 
 ## Phase 3: VSCode Extension Wrapper
 
-- [ ] Scaffold `packages/vscode-extension` with `package.json` and extension manifest (`contributes.typescriptServerPlugins`)
-- [ ] Implement activation logic: detect `thinkwell` in `package.json` deps or `#!/usr/bin/env thinkwell` shebangs
-- [ ] Auto-inject TS plugin via `typescript.tsserver.pluginPaths`
-- [ ] Add status bar indicator when the plugin is active
+- [x] Scaffold `packages/vscode-extension` with `package.json` and extension manifest (`contributes.typescriptServerPlugins`)
+- [x] Implement activation logic: detect `thinkwell` in `package.json` deps or `#!/usr/bin/env thinkwell` shebangs
+- [x] Auto-inject TS plugin via `typescript.tsserver.pluginPaths`
+- [x] Add status bar indicator when the plugin is active
 
 ## Phase 4: Testing and Packaging
 
