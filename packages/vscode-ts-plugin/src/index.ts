@@ -6,12 +6,14 @@
  * 2. Generating a virtual .d.ts with namespace merge declarations
  * 3. Serving the virtual file to TypeScript via monkey-patched getScriptSnapshot()
  * 4. Filtering residual "Property does not exist" diagnostics on augmented types
+ * 5. Resolving thinkwell imports in standalone scripts (no node_modules)
  */
 
 import ts from "typescript";
 import path from "node:path";
 import { type MarkedType, findMarkedTypes, hasJsonSchemaMarkers } from "./scanner";
 import { generateVirtualDeclarations } from "./virtual-declarations";
+import { patchModuleResolution } from "./standalone-resolver";
 
 const VIRTUAL_FILE_NAME = "__thinkwell_augmentations__.d.ts";
 
@@ -180,6 +182,12 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
       }
       return names;
     };
+
+    // ---------------------------------------------------------------
+    // Monkey-patch resolveModuleNameLiterals for standalone scripts
+    // that import thinkwell without node_modules.
+    // ---------------------------------------------------------------
+    patchModuleResolution(info);
 
     // ---------------------------------------------------------------
     // Wrap the language service proxy to intercept diagnostics and

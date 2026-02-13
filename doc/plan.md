@@ -14,10 +14,10 @@ RFD: [vscode-ts-plugin](rfd/vscode-ts-plugin.md)
 
 ## Phase 2: Standalone Script Module Resolution
 
-- [ ] Monkey-patch `resolveModuleNameLiterals` on the `LanguageServiceHost`
-- [ ] Detect standalone scripts (shebang or missing `node_modules` resolution for `thinkwell`)
-- [ ] Locate the `thinkwell` CLI binary and resolve its bundled `.d.ts` files
-- [ ] Resolve `thinkwell`, `@thinkwell/acp`, and `@thinkwell/protocol` imports to bundled declarations
+- [x] Monkey-patch `resolveModuleNameLiterals` on the `LanguageServiceHost`
+- [x] Detect standalone scripts (shebang or missing `node_modules` resolution for `thinkwell`)
+- [x] Locate the `thinkwell` CLI binary and resolve its bundled `.d.ts` files
+- [x] Resolve `thinkwell`, `@thinkwell/acp`, and `@thinkwell/protocol` imports to bundled declarations
 
 ## Phase 3: VSCode Extension Wrapper
 
