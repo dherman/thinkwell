@@ -19,7 +19,7 @@
  *     dist/index.d.ts        (protocol types)
  */
 
-import ts from "typescript";
+import type ts from "typescript";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
@@ -166,6 +166,7 @@ export function resolveModulePath(
  */
 export function patchModuleResolution(
   info: ts.server.PluginCreateInfo,
+  tsModule: typeof ts,
   locator?: InstallationLocator,
 ): void {
   const log = (msg: string) => info.project.log(msg);
@@ -252,7 +253,7 @@ export function patchModuleResolution(
           resolvedModule: {
             resolvedFileName: resolvedPath,
             isExternalLibraryImport: true,
-            extension: ts.Extension.Dts,
+            extension: tsModule.Extension.Dts,
           },
         } as ts.ResolvedModuleWithFailedLookupLocations;
       }

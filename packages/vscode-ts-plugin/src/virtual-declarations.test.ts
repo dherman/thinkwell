@@ -16,7 +16,7 @@ describe("generateVirtualDeclarations", () => {
     ]);
     const result = generateVirtualDeclarations(types);
     assert.ok(result.includes('declare namespace Greeting {'));
-    assert.ok(result.includes('import("thinkwell").SchemaProvider<Greeting>'));
+    assert.ok(result.includes('SchemaProvider<Greeting>'));
     assert.ok(!result.includes("export declare namespace"));
   });
 

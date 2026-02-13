@@ -5,7 +5,7 @@
  * contain the marker, followed by AST traversal for precise detection.
  */
 
-import ts from "typescript";
+import type ts from "typescript";
 
 const JSONSCHEMA_TAG = "JSONSchema";
 
@@ -30,43 +30,43 @@ export function hasJsonSchemaMarkers(source: string): boolean {
 /**
  * Check if a node has a JSDoc comment with the specified tag.
  */
-function hasJsDocTag(node: ts.Node, tagName: string): boolean {
-  const tags = ts.getJSDocTags(node);
+function hasJsDocTag(tsModule: typeof ts, node: ts.Node, tagName: string): boolean {
+  const tags = tsModule.getJSDocTags(node);
   return tags.some((tag) => tag.tagName.text === tagName);
 }
 
 /**
  * Find all types marked with @JSONSchema in the given source.
  */
-export function findMarkedTypes(fileName: string, source: string): MarkedType[] {
-  const sourceFile = ts.createSourceFile(
+export function findMarkedTypes(tsModule: typeof ts, fileName: string, source: string): MarkedType[] {
+  const sourceFile = tsModule.createSourceFile(
     fileName,
     source,
-    ts.ScriptTarget.Latest,
+    tsModule.ScriptTarget.Latest,
     true, // setParentNodes — needed for JSDoc traversal
   );
 
   const results: MarkedType[] = [];
 
-  ts.forEachChild(sourceFile, function visit(node) {
+  tsModule.forEachChild(sourceFile, function visit(node) {
     if (
-      ts.isInterfaceDeclaration(node) ||
-      ts.isTypeAliasDeclaration(node) ||
-      ts.isEnumDeclaration(node) ||
-      ts.isClassDeclaration(node)
+      tsModule.isInterfaceDeclaration(node) ||
+      tsModule.isTypeAliasDeclaration(node) ||
+      tsModule.isEnumDeclaration(node) ||
+      tsModule.isClassDeclaration(node)
     ) {
-      if (hasJsDocTag(node, JSONSCHEMA_TAG)) {
+      if (hasJsDocTag(tsModule, node, JSONSCHEMA_TAG)) {
         const name = node.name?.text;
         if (name) {
           const isExported = node.modifiers?.some(
-            (m) => m.kind === ts.SyntaxKind.ExportKeyword,
+            (m) => m.kind === tsModule.SyntaxKind.ExportKeyword,
           ) ?? false;
 
           results.push({ name, isExported });
         }
       }
     }
-    ts.forEachChild(node, visit);
+    tsModule.forEachChild(node, visit);
   });
 
   return results;

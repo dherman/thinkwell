@@ -7,6 +7,9 @@ dist-pkg/
 .DS_Store
 **/*.log
 
+# Thinkwell plugin generated augmentations
+.thinkwell/
+
 # VSCode extension packaging artifacts
 *.vsix
 packages/vscode-extension/package-lock.json

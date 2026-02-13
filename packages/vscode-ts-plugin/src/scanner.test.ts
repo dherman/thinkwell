@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import ts from "typescript";
 import { hasJsonSchemaMarkers, findMarkedTypes } from "./scanner";
 
 describe("hasJsonSchemaMarkers", () => {
@@ -23,7 +24,7 @@ describe("findMarkedTypes", () => {
 interface Greeting {
   message: string;
 }`;
-    const types = findMarkedTypes("test.ts", source);
+    const types = findMarkedTypes(ts, "test.ts", source);
     assert.equal(types.length, 1);
     assert.equal(types[0].name, "Greeting");
     assert.equal(types[0].isExported, false);
@@ -35,7 +36,7 @@ interface Greeting {
 export interface Greeting {
   message: string;
 }`;
-    const types = findMarkedTypes("test.ts", source);
+    const types = findMarkedTypes(ts, "test.ts", source);
     assert.equal(types.length, 1);
     assert.equal(types[0].name, "Greeting");
     assert.equal(types[0].isExported, true);
@@ -56,7 +57,7 @@ interface Sentiment {
 interface Unrelated {
   foo: string;
 }`;
-    const types = findMarkedTypes("test.ts", source);
+    const types = findMarkedTypes(ts, "test.ts", source);
     assert.equal(types.length, 2);
     assert.equal(types[0].name, "Greeting");
     assert.equal(types[0].isExported, true);
@@ -71,7 +72,7 @@ export type Config = {
   host: string;
   port: number;
 };`;
-    const types = findMarkedTypes("test.ts", source);
+    const types = findMarkedTypes(ts, "test.ts", source);
     assert.equal(types.length, 1);
     assert.equal(types[0].name, "Config");
     assert.equal(types[0].isExported, true);
@@ -84,7 +85,7 @@ export enum Color {
   Red = "red",
   Blue = "blue",
 }`;
-    const types = findMarkedTypes("test.ts", source);
+    const types = findMarkedTypes(ts, "test.ts", source);
     assert.equal(types.length, 1);
     assert.equal(types[0].name, "Color");
   });
@@ -95,7 +96,7 @@ export enum Color {
 export class Person {
   name: string = "";
 }`;
-    const types = findMarkedTypes("test.ts", source);
+    const types = findMarkedTypes(ts, "test.ts", source);
     assert.equal(types.length, 1);
     assert.equal(types[0].name, "Person");
   });
@@ -106,13 +107,13 @@ export class Person {
 export interface Greeting {
   message: string;
 }`;
-    const types = findMarkedTypes("test.ts", source);
+    const types = findMarkedTypes(ts, "test.ts", source);
     assert.equal(types.length, 0);
   });
 
   it("returns empty array for files with no type declarations", () => {
     const source = `const x = 42;\nfunction foo() { return x; }`;
-    const types = findMarkedTypes("test.ts", source);
+    const types = findMarkedTypes(ts, "test.ts", source);
     assert.equal(types.length, 0);
   });
 });

@@ -1,9 +1,7 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { createTestProject } from "./test-harness";
-
-const PROJECT_DIR = "/test-project";
+import { createTestProject, type TestProject } from "./test-harness";
 
 /**
  * Error codes produced when accessing .Schema on a type without a namespace merge:
@@ -15,7 +13,7 @@ const SCHEMA_ERROR_CODES = new Set([2339, 2693]);
 /** Standard test files for a project with @JSONSchema types. */
 function standardFiles() {
   return {
-    [path.join(PROJECT_DIR, "src/types.ts")]: [
+    "src/types.ts": [
       '/** @JSONSchema */',
       'export interface Greeting {',
       '  message: string;',
@@ -26,7 +24,7 @@ function standardFiles() {
       '}',
     ].join("\n"),
 
-    [path.join(PROJECT_DIR, "src/main.ts")]: [
+    "src/main.ts": [
       'import { Greeting, Unrelated } from "./types";',
       '',
       'const schema = Greeting.Schema;',
@@ -36,13 +34,18 @@ function standardFiles() {
 }
 
 describe("integration: @JSONSchema augmentations", () => {
+  let project: TestProject;
+
+  afterEach(() => {
+    project?.cleanup();
+  });
+
   describe("completions", () => {
     it("provides Schema completion on @JSONSchema-marked interface", async () => {
-      const project = createTestProject(standardFiles(), { projectDir: PROJECT_DIR });
+      project = createTestProject(standardFiles());
       await project.waitForInitialScan();
 
-      const mainFile = path.join(PROJECT_DIR, "src/main.ts");
-      const completions = project.getCompletionsAt(mainFile, "Greeting.");
+      const completions = project.getCompletionsAt("src/main.ts", "Greeting.");
 
       assert.ok(completions, "Should return completions");
       const names = completions.entries.map((e) => e.name);
@@ -50,11 +53,10 @@ describe("integration: @JSONSchema augmentations", () => {
     });
 
     it("does not provide Schema completion on unmarked interface", async () => {
-      const project = createTestProject(standardFiles(), { projectDir: PROJECT_DIR });
+      project = createTestProject(standardFiles());
       await project.waitForInitialScan();
 
-      const mainFile = path.join(PROJECT_DIR, "src/main.ts");
-      const completions = project.getCompletionsAt(mainFile, "Unrelated.");
+      const completions = project.getCompletionsAt("src/main.ts", "Unrelated.");
 
       // Unrelated has no @JSONSchema marker, so Schema should not appear
       if (completions) {
@@ -65,25 +67,24 @@ describe("integration: @JSONSchema augmentations", () => {
 
     it("provides Schema completion on @JSONSchema-marked type alias", async () => {
       const files = {
-        [path.join(PROJECT_DIR, "src/config.ts")]: [
+        "src/config.ts": [
           '/** @JSONSchema */',
           'export type Config = {',
           '  host: string;',
           '  port: number;',
           '};',
         ].join("\n"),
-        [path.join(PROJECT_DIR, "src/use-config.ts")]: [
+        "src/use-config.ts": [
           'import { Config } from "./config";',
           '',
           'const schema = Config.Schema;',
         ].join("\n"),
       };
 
-      const project = createTestProject(files, { projectDir: PROJECT_DIR });
+      project = createTestProject(files);
       await project.waitForInitialScan();
 
-      const useFile = path.join(PROJECT_DIR, "src/use-config.ts");
-      const completions = project.getCompletionsAt(useFile, "Config.");
+      const completions = project.getCompletionsAt("src/use-config.ts", "Config.");
 
       assert.ok(completions, "Should return completions");
       const names = completions.entries.map((e) => e.name);
@@ -93,11 +94,10 @@ describe("integration: @JSONSchema augmentations", () => {
 
   describe("diagnostics", () => {
     it("produces no errors for Greeting.Schema on a marked type", async () => {
-      const project = createTestProject(standardFiles(), { projectDir: PROJECT_DIR });
+      project = createTestProject(standardFiles());
       await project.waitForInitialScan();
 
-      const mainFile = path.join(PROJECT_DIR, "src/main.ts");
-      const diagnostics = project.getDiagnostics(mainFile);
+      const diagnostics = project.getDiagnostics("src/main.ts");
 
       const greetingErrors = diagnostics.filter((d) => {
         const msg = typeof d.messageText === "string" ? d.messageText : d.messageText.messageText;
@@ -107,11 +107,10 @@ describe("integration: @JSONSchema augmentations", () => {
     });
 
     it("produces errors for Unrelated.Schema on an unmarked type", async () => {
-      const project = createTestProject(standardFiles(), { projectDir: PROJECT_DIR });
+      project = createTestProject(standardFiles());
       await project.waitForInitialScan();
 
-      const mainFile = path.join(PROJECT_DIR, "src/main.ts");
-      const diagnostics = project.getDiagnostics(mainFile);
+      const diagnostics = project.getDiagnostics("src/main.ts");
 
       const unrelatedErrors = diagnostics.filter((d) => {
         const msg = typeof d.messageText === "string" ? d.messageText : d.messageText.messageText;
@@ -122,24 +121,23 @@ describe("integration: @JSONSchema augmentations", () => {
 
     it("reports no semantic errors for correct usage of Greeting.Schema", async () => {
       const files = {
-        [path.join(PROJECT_DIR, "src/types.ts")]: [
+        "src/types.ts": [
           '/** @JSONSchema */',
           'export interface Greeting {',
           '  message: string;',
           '}',
         ].join("\n"),
-        [path.join(PROJECT_DIR, "src/main.ts")]: [
+        "src/main.ts": [
           'import { Greeting } from "./types";',
           '',
           'const schema = Greeting.Schema;',
         ].join("\n"),
       };
 
-      const project = createTestProject(files, { projectDir: PROJECT_DIR });
+      project = createTestProject(files);
       await project.waitForInitialScan();
 
-      const mainFile = path.join(PROJECT_DIR, "src/main.ts");
-      const diagnostics = project.getDiagnostics(mainFile);
+      const diagnostics = project.getDiagnostics("src/main.ts");
 
       const relevantErrors = diagnostics.filter((d) => SCHEMA_ERROR_CODES.has(d.code));
       assert.equal(
@@ -152,25 +150,25 @@ describe("integration: @JSONSchema augmentations", () => {
   describe("hover", () => {
     it("shows SchemaProvider type info on hover over Greeting.Schema", async () => {
       const files = {
-        [path.join(PROJECT_DIR, "src/types.ts")]: [
+        "src/types.ts": [
           '/** @JSONSchema */',
           'export interface Greeting {',
           '  message: string;',
           '}',
         ].join("\n"),
-        [path.join(PROJECT_DIR, "src/main.ts")]: [
+        "src/main.ts": [
           'import { Greeting } from "./types";',
           '',
           'const schema = Greeting.Schema;',
         ].join("\n"),
       };
 
-      const project = createTestProject(files, { projectDir: PROJECT_DIR });
+      project = createTestProject(files);
       await project.waitForInitialScan();
 
-      const mainFile = path.join(PROJECT_DIR, "src/main.ts");
+      const mainFile = path.join(project.projectDir, "src/main.ts");
       // Hover over "Schema" in "Greeting.Schema"
-      const hoverPos = project.findPosition(mainFile, "Greeting.Schema") + "Greeting.".length;
+      const hoverPos = project.findPosition("src/main.ts", "Greeting.Schema") + "Greeting.".length;
       const info = project.ls.getQuickInfoAtPosition(mainFile, hoverPos);
 
       assert.ok(info, "Should return hover info for Schema");
@@ -184,33 +182,30 @@ describe("integration: @JSONSchema augmentations", () => {
 
   describe("incremental updates", () => {
     it("adds Schema support when @JSONSchema marker is added", async () => {
-      const typesFile = path.join(PROJECT_DIR, "src/types.ts");
-      const mainFile = path.join(PROJECT_DIR, "src/main.ts");
-
       // Start with NO @JSONSchema marker
       const files = {
-        [typesFile]: [
+        "src/types.ts": [
           'export interface Greeting {',
           '  message: string;',
           '}',
         ].join("\n"),
-        [mainFile]: [
+        "src/main.ts": [
           'import { Greeting } from "./types";',
           '',
           'const schema = Greeting.Schema;',
         ].join("\n"),
       };
 
-      const project = createTestProject(files, { projectDir: PROJECT_DIR });
+      project = createTestProject(files);
       await project.waitForInitialScan();
 
       // Before: Greeting.Schema should produce an error (2693 for interface without value)
-      let diagnostics = project.getDiagnostics(mainFile);
+      let diagnostics = project.getDiagnostics("src/main.ts");
       let schemaErrors = diagnostics.filter((d) => SCHEMA_ERROR_CODES.has(d.code));
       assert.ok(schemaErrors.length > 0, "Should error before adding @JSONSchema");
 
       // Add the @JSONSchema marker
-      project.updateFile(typesFile, [
+      project.updateFile("src/types.ts", [
         '/** @JSONSchema */',
         'export interface Greeting {',
         '  message: string;',
@@ -218,10 +213,10 @@ describe("integration: @JSONSchema augmentations", () => {
       ].join("\n"));
 
       // Trigger rescan by requesting diagnostics on the types file first
-      project.getDiagnostics(typesFile);
+      project.getDiagnostics("src/types.ts");
 
       // After: Greeting.Schema should no longer error
-      diagnostics = project.getDiagnostics(mainFile);
+      diagnostics = project.getDiagnostics("src/main.ts");
       schemaErrors = diagnostics.filter((d) => {
         const msg = typeof d.messageText === "string" ? d.messageText : d.messageText.messageText;
         return msg.includes("Greeting") && SCHEMA_ERROR_CODES.has(d.code);
@@ -230,53 +225,47 @@ describe("integration: @JSONSchema augmentations", () => {
     });
 
     it("removes Schema support when @JSONSchema marker is removed", async () => {
-      const typesFile = path.join(PROJECT_DIR, "src/types.ts");
-      const mainFile = path.join(PROJECT_DIR, "src/main.ts");
-
       const files = {
-        [typesFile]: [
+        "src/types.ts": [
           '/** @JSONSchema */',
           'export interface Greeting {',
           '  message: string;',
           '}',
         ].join("\n"),
-        [mainFile]: [
+        "src/main.ts": [
           'import { Greeting } from "./types";',
           '',
           'const schema = Greeting.Schema;',
         ].join("\n"),
       };
 
-      const project = createTestProject(files, { projectDir: PROJECT_DIR });
+      project = createTestProject(files);
       await project.waitForInitialScan();
 
       // Before: no errors
-      let diagnostics = project.getDiagnostics(mainFile);
+      let diagnostics = project.getDiagnostics("src/main.ts");
       let schemaErrors = diagnostics.filter((d) => SCHEMA_ERROR_CODES.has(d.code));
       assert.equal(schemaErrors.length, 0, "Should not error with @JSONSchema marker");
 
       // Remove the @JSONSchema marker
-      project.updateFile(typesFile, [
+      project.updateFile("src/types.ts", [
         'export interface Greeting {',
         '  message: string;',
         '}',
       ].join("\n"));
 
       // Trigger rescan
-      project.getDiagnostics(typesFile);
+      project.getDiagnostics("src/types.ts");
 
       // After: Greeting.Schema should produce an error
-      diagnostics = project.getDiagnostics(mainFile);
+      diagnostics = project.getDiagnostics("src/main.ts");
       schemaErrors = diagnostics.filter((d) => SCHEMA_ERROR_CODES.has(d.code));
       assert.ok(schemaErrors.length > 0, "Should error after removing @JSONSchema");
     });
 
     it("handles adding a second @JSONSchema type to the same file", async () => {
-      const typesFile = path.join(PROJECT_DIR, "src/types.ts");
-      const mainFile = path.join(PROJECT_DIR, "src/main.ts");
-
       const files = {
-        [typesFile]: [
+        "src/types.ts": [
           '/** @JSONSchema */',
           'export interface Greeting {',
           '  message: string;',
@@ -286,7 +275,7 @@ describe("integration: @JSONSchema augmentations", () => {
           '  score: number;',
           '}',
         ].join("\n"),
-        [mainFile]: [
+        "src/main.ts": [
           'import { Greeting, Sentiment } from "./types";',
           '',
           'const g = Greeting.Schema;',
@@ -294,11 +283,11 @@ describe("integration: @JSONSchema augmentations", () => {
         ].join("\n"),
       };
 
-      const project = createTestProject(files, { projectDir: PROJECT_DIR });
+      project = createTestProject(files);
       await project.waitForInitialScan();
 
       // Sentiment.Schema should error (not marked yet — produces 2693 for interface)
-      let diagnostics = project.getDiagnostics(mainFile);
+      let diagnostics = project.getDiagnostics("src/main.ts");
       let sentimentErrors = diagnostics.filter((d) => {
         const msg = typeof d.messageText === "string" ? d.messageText : d.messageText.messageText;
         return msg.includes("Sentiment") && SCHEMA_ERROR_CODES.has(d.code);
@@ -306,7 +295,7 @@ describe("integration: @JSONSchema augmentations", () => {
       assert.ok(sentimentErrors.length > 0, "Should error for unmarked Sentiment");
 
       // Add @JSONSchema to Sentiment
-      project.updateFile(typesFile, [
+      project.updateFile("src/types.ts", [
         '/** @JSONSchema */',
         'export interface Greeting {',
         '  message: string;',
@@ -319,10 +308,10 @@ describe("integration: @JSONSchema augmentations", () => {
       ].join("\n"));
 
       // Trigger rescan
-      project.getDiagnostics(typesFile);
+      project.getDiagnostics("src/types.ts");
 
       // Both should now work
-      diagnostics = project.getDiagnostics(mainFile);
+      diagnostics = project.getDiagnostics("src/main.ts");
       sentimentErrors = diagnostics.filter((d) => {
         const msg = typeof d.messageText === "string" ? d.messageText : d.messageText.messageText;
         return msg.includes("Sentiment") && SCHEMA_ERROR_CODES.has(d.code);
