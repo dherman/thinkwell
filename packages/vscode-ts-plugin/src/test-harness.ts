@@ -34,6 +34,7 @@ function thinkwellStubFiles(): Record<string, string> {
       "export interface SchemaProvider<T> {",
       "  toJsonSchema(): object;",
       "}",
+      "export declare function think<Output>(schema: SchemaProvider<Output>): Promise<Output>;",
     ].join("\n"),
   };
 }

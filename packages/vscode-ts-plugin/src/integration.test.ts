@@ -331,4 +331,48 @@ describe("integration: @JSONSchema augmentations", () => {
       assert.equal(sentimentErrors.length, 0, "Should not error after marking Sentiment with @JSONSchema");
     });
   });
+
+  describe("type inference", () => {
+    it("correctly infers properties that reference other @JSONSchema types", async () => {
+      const files = {
+        "src/types.ts": [
+          '/** @JSONSchema */',
+          'export interface FunctionInfo {',
+          '  name: string;',
+          '  signature: string;',
+          '}',
+          '',
+          '/** @JSONSchema */',
+          'export interface FunctionList {',
+          '  functions: FunctionInfo[];',
+          '}',
+        ].join("\n"),
+        "src/main.ts": [
+          'import { think } from "thinkwell";',
+          'import { FunctionList } from "./types";',
+          '',
+          'async function main() {',
+          '  const result = await think(FunctionList.Schema);',
+          '  const names: string[] = result.functions.map((f: any) => f.name);',
+          '}',
+        ].join("\n"),
+      };
+
+      project = createTestProject(files);
+      await project.waitForInitialScan();
+
+      const diagnostics = project.getDiagnostics("src/main.ts");
+
+      // Should have no schema errors and no type errors
+      const relevantErrors = diagnostics.filter((d) => {
+        // Ignore errors about missing return values, unused variables, etc.
+        // Focus on schema-related (2339, 2693) and type inference (7006, 18046) errors
+        return SCHEMA_ERROR_CODES.has(d.code) || d.code === 7006 || d.code === 18046;
+      });
+      assert.equal(
+        relevantErrors.length, 0,
+        `Expected no type inference errors, got: ${relevantErrors.map(d => `[${d.code}] ${typeof d.messageText === "string" ? d.messageText : d.messageText.messageText}`).join("; ")}`,
+      );
+    });
+  });
 });

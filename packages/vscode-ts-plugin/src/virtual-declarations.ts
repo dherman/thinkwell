@@ -5,6 +5,7 @@
  */
 
 import type { MarkedType } from "./scanner";
+import path from "node:path";
 
 /**
  * Generate a namespace merge declaration for a single marked type.
@@ -12,7 +13,7 @@ import type { MarkedType } from "./scanner";
  * Produces a declaration like:
  * ```
  * declare namespace Greeting {
- *   export const Schema: import("thinkwell").SchemaProvider<Greeting>;
+ *   export const Schema: import("thinkwell").SchemaProvider<import("../src/types").Greeting>;
  * }
  * ```
  *
@@ -23,15 +24,51 @@ import type { MarkedType } from "./scanner";
  * infer it across two different generic interfaces and falls back to
  * `unknown`.
  *
- * The `import()` type reference keeps the file as an ambient script
+ * The type parameter also uses `import()` to reference the type from its
+ * source module. A bare `<Greeting>` would resolve to the namespace being
+ * declared (a global ambient symbol), not the interface exported from the
+ * source module. This causes properties that reference other @JSONSchema
+ * types (e.g., `functions: FunctionInfo[]`) to resolve to `any`.
+ *
+ * The `import()` type references keep the file as an ambient script
  * (no top-level import/export) so namespace declarations merge globally.
  */
-function generateNamespaceDeclaration(type: MarkedType): string {
+function generateNamespaceDeclaration(
+  type: MarkedType,
+  sourceModulePath: string,
+): string {
   return [
     `declare namespace ${type.name} {`,
-    `  export const Schema: import("thinkwell").SchemaProvider<${type.name}>;`,
+    `  export const Schema: import("thinkwell").SchemaProvider<import("${sourceModulePath}").${type.name}>;`,
     `}`,
   ].join("\n");
+}
+
+/**
+ * Compute the relative module specifier from the augmentations file to a
+ * source file, suitable for use in `import("...")` type references.
+ *
+ * Strips the `.ts` / `.tsx` extension and ensures a leading `./` or `../`.
+ */
+function relativeModulePath(
+  augmentationsFilePath: string,
+  sourceFilePath: string,
+): string {
+  const augDir = path.dirname(augmentationsFilePath);
+  let rel = path.relative(augDir, sourceFilePath);
+
+  // Replace .ts/.tsx with .js/.jsx for module specifiers.
+  // This is required for Node16 moduleResolution (which requires
+  // explicit extensions) and also works fine under Node10.
+  rel = rel.replace(/\.tsx$/, ".jsx").replace(/\.ts$/, ".js");
+
+  // Ensure a leading ./ for same-directory or child paths
+  if (!rel.startsWith(".")) {
+    rel = "./" + rel;
+  }
+
+  // Normalize to forward slashes (for Windows compatibility)
+  return rel.split(path.sep).join("/");
 }
 
 /**
@@ -39,10 +76,13 @@ function generateNamespaceDeclaration(type: MarkedType): string {
  * across the project.
  *
  * @param typesByFile - Map from file path to the marked types found in that file.
+ * @param augmentationsFilePath - Absolute path to the augmentations .d.ts file,
+ *   used to compute relative import paths for type references.
  * @returns The complete `.d.ts` content for the virtual augmentations file.
  */
 export function generateVirtualDeclarations(
   typesByFile: Map<string, MarkedType[]>,
+  augmentationsFilePath: string,
 ): string {
   // Collect all types first — return empty string if there are none.
   // Writing an empty or header-only .d.ts causes TS 5.9's setDocument
@@ -67,7 +107,8 @@ export function generateVirtualDeclarations(
       declarations.push(`// From ${fileName}`);
       currentFile = fileName;
     }
-    declarations.push(generateNamespaceDeclaration(type));
+    const modulePath = relativeModulePath(augmentationsFilePath, fileName);
+    declarations.push(generateNamespaceDeclaration(type, modulePath));
     declarations.push("");
   }
 

@@ -120,7 +120,7 @@ function writeVirtualFile(
   state: PluginState,
   info: ts.server.PluginCreateInfo,
 ): void {
-  const newContent = generateVirtualDeclarations(state.typesByFile);
+  const newContent = generateVirtualDeclarations(state.typesByFile, state.virtualFilePath);
 
   state.augmentedTypeNames.clear();
   for (const types of state.typesByFile.values()) {
