@@ -1,5 +1,5 @@
 <p>
-  <img src="packages/thinkwell/assets/logo.jpg" alt="Thinkwell Logo" width="200">
+  <img src="packages/thinkwell/assets/wordmark.png" alt="Thinkwell Logo" width="200">
 </p>
 
 A TypeScript library for easy scripting of AI agents. Thinkwell provides a fluent API for blending deterministic code with LLM-powered reasoning.
