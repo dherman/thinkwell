@@ -6,8 +6,7 @@ import type { MarkedType } from "./scanner";
 describe("generateVirtualDeclarations", () => {
   it("generates empty content for no types", () => {
     const result = generateVirtualDeclarations(new Map());
-    assert.ok(result.includes("Auto-generated"));
-    assert.ok(!result.includes("declare namespace"));
+    assert.strictEqual(result, "");
   });
 
   it("generates a namespace declaration for a single type", () => {

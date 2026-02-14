@@ -29,6 +29,8 @@ interface PluginState {
   virtualFilePath: string;
   /** Set of type names known to be augmented (for diagnostic filtering). */
   augmentedTypeNames: Set<string>;
+  /** Whether the initial full scan has been performed. */
+  initialScanDone: boolean;
 }
 
 /**
@@ -54,8 +56,7 @@ function scanFile(
  * with newly discovered types and regenerates the virtual file.
  *
  * Uses `getScriptFileNames()` from the host rather than `getProgram()`
- * so this can run synchronously during `create()` before the program
- * is built.
+ * so this can run synchronously before the program is built.
  */
 function fullScan(
   tsModule: typeof ts,
@@ -101,10 +102,8 @@ function rescanFile(
     } else {
       state.typesByFile.delete(fileName);
     }
-    writeVirtualFile(state, info, /* forceProjectUpdate */ true);
-
-    // Tell tsserver to recompute diagnostics
-    info.project.refreshDiagnostics();
+    writeVirtualFile(state, info);
+    // The file watcher will detect the change and trigger diagnostics refresh
   }
 }
 
@@ -112,13 +111,14 @@ function rescanFile(
  * Regenerate the virtual declaration file content, update the augmented
  * type names set, and write the file to disk.
  *
- * @param forceProjectUpdate - When true, reloads the ScriptInfo cache and
- *   rebuilds the project graph so tsserver picks up the new content.
+ * Does NOT call updateGraph() or markAsDirty() — instead relies on
+ * the host patches (getScriptVersion, getScriptFileNames) to let
+ * tsserver's natural program builder detect changes. This avoids
+ * disrupting tsserver's update cycle when called during diagnostics.
  */
 function writeVirtualFile(
   state: PluginState,
   info: ts.server.PluginCreateInfo,
-  forceProjectUpdate = false,
 ): void {
   const newContent = generateVirtualDeclarations(state.typesByFile);
 
@@ -129,9 +129,14 @@ function writeVirtualFile(
     }
   }
 
+  // If no types found, revert to the placeholder content (not empty)
+  // so tsserver keeps the file in the program.
+  const PLACEHOLDER = "// @thinkwell augmentations — will be populated on first scan\n";
+  const effectiveContent = newContent || PLACEHOLDER;
+
   // Only write if content actually changed
-  if (newContent === state.virtualContent) return;
-  state.virtualContent = newContent;
+  if (effectiveContent === state.virtualContent) return;
+  state.virtualContent = effectiveContent;
   state.virtualFileVersion++;
 
   try {
@@ -139,37 +144,10 @@ function writeVirtualFile(
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(state.virtualFilePath, newContent, "utf-8");
-    info.project.log(`[thinkwell] Wrote augmentations to ${state.virtualFilePath}`);
+    writeFileSync(state.virtualFilePath, effectiveContent, "utf-8");
+    info.project.log(`[thinkwell] Wrote augmentations to ${state.virtualFilePath} (version ${state.virtualFileVersion})`);
   } catch (e) {
     info.project.log(`[thinkwell] Failed to write augmentations: ${e}`);
-  }
-
-  if (forceProjectUpdate) {
-    // Force tsserver to re-read the augmentations file from disk.
-    // tsserver caches file content in ScriptInfo objects. Simply
-    // writing to disk doesn't make it notice the change. We must
-    // call reloadFromFile() on the ScriptInfo to bust the cache,
-    // then updateGraph() to rebuild the program with new content.
-    try {
-      const project = info.project as unknown as {
-        projectService: {
-          getScriptInfo(fileName: string): {
-            reloadFromFile(): boolean;
-          } | undefined;
-        };
-        updateGraph: () => boolean;
-      };
-      const scriptInfo = project.projectService?.getScriptInfo(state.virtualFilePath);
-      if (scriptInfo && typeof scriptInfo.reloadFromFile === "function") {
-        scriptInfo.reloadFromFile();
-      }
-      if (typeof project.updateGraph === "function") {
-        project.updateGraph();
-      }
-    } catch (e) {
-      info.project.log(`[thinkwell] Warning: could not update project graph: ${e}`);
-    }
   }
 }
 
@@ -190,17 +168,45 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
 
   function create(info: ts.server.PluginCreateInfo): ts.LanguageService {
     const projectDir = info.project.getCurrentDirectory();
+    info.project.log("[thinkwell] Plugin loaded for project: " + projectDir);
+
+    try {
+      return createPluginProxy(info, projectDir);
+    } catch (e) {
+      info.project.log(`[thinkwell] Plugin initialization failed, falling back to default language service: ${e}`);
+      return info.languageService;
+    }
+  }
+
+  function createPluginProxy(
+    info: ts.server.PluginCreateInfo,
+    projectDir: string,
+  ): ts.LanguageService {
     const virtualFilePath = path.join(projectDir, VIRTUAL_DIR, VIRTUAL_FILE_NAME);
+
+    // Write a minimal placeholder so the augmentations file exists on disk
+    // BEFORE tsserver's first updateGraph. This ensures tsserver can create
+    // a ScriptInfo for it (ScriptInfo creation for non-open files requires
+    // the file to exist on disk).
+    const PLACEHOLDER = "// @thinkwell augmentations — will be populated on first scan\n";
+    try {
+      const dir = path.dirname(virtualFilePath);
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+      writeFileSync(virtualFilePath, PLACEHOLDER, "utf-8");
+    } catch {
+      // Ignore — best effort
+    }
 
     const state: PluginState = {
       typesByFile: new Map(),
-      virtualContent: "",
+      virtualContent: PLACEHOLDER,
       virtualFileVersion: 0,
       virtualFilePath,
       augmentedTypeNames: new Set(),
+      initialScanDone: false,
     };
-
-    info.project.log("[thinkwell] Plugin loaded for project: " + projectDir);
 
     // ---------------------------------------------------------------
     // Monkey-patch resolveModuleNameLiterals for standalone scripts
@@ -209,12 +215,25 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
     patchModuleResolution(info, tsModule);
 
     // ---------------------------------------------------------------
-    // Patch getScriptSnapshot, getScriptVersion, and
-    // getScriptFileNames on the host so that:
+    // Patch getScriptSnapshot, getScriptVersion, getScriptFileNames,
+    // and getProjectVersion on the host so that:
+    //
     // - The augmentations file appears in root file names (making it
     //   part of the program, not just an external file)
-    // - TypeScript sees the latest in-memory content
+    // - TypeScript sees the latest in-memory content via snapshots
     // - TypeScript detects content changes via version bumps
+    // - The program builder re-evaluates when virtual content changes
+    //
+    // The getScriptSnapshot patch calls through to the original impl
+    // first to ensure ScriptInfo is created and attached to the project.
+    // This prevents the document registry's setDocument() crash.
+    //
+    // The getProjectVersion patch is critical: synchronizeHostDataWorker
+    // has an early exit that skips root file evaluation if the project
+    // version hasn't changed. By incorporating virtualFileVersion into
+    // the project version, we ensure that when virtual content changes,
+    // the program builder will re-run isProgramUptoDate() which checks
+    // individual file versions via getScriptVersion().
     // ---------------------------------------------------------------
     const origGetScriptFileNames = info.languageServiceHost.getScriptFileNames.bind(info.languageServiceHost);
     info.languageServiceHost.getScriptFileNames = () => {
@@ -228,6 +247,12 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
     const origGetScriptSnapshot = info.languageServiceHost.getScriptSnapshot.bind(info.languageServiceHost);
     info.languageServiceHost.getScriptSnapshot = (fileName: string) => {
       if (fileName === virtualFilePath && state.virtualContent) {
+        // Call original to ensure ScriptInfo is created and attached
+        // to the project. The Project's getScriptSnapshot creates the
+        // ScriptInfo via getOrCreateScriptInfoAndAttachToProject(),
+        // which is needed for the document registry's setDocument().
+        origGetScriptSnapshot(fileName);
+        // Return in-memory content (not the on-disk file)
         return tsModule.ScriptSnapshot.fromString(state.virtualContent);
       }
       return origGetScriptSnapshot(fileName);
@@ -240,6 +265,17 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
       }
       return origGetScriptVersion(fileName);
     };
+
+    // Patch getProjectVersion to incorporate virtual file changes.
+    // Without this, synchronizeHostDataWorker's early exit prevents
+    // the program from being rebuilt when only the virtual file changes.
+    const origGetProjectVersion = info.languageServiceHost.getProjectVersion?.bind(info.languageServiceHost);
+    if (origGetProjectVersion) {
+      info.languageServiceHost.getProjectVersion = () => {
+        const baseVersion = origGetProjectVersion();
+        return `${baseVersion}-thinkwell-${state.virtualFileVersion}`;
+      };
+    }
 
     // ---------------------------------------------------------------
     // Wrap the language service proxy to intercept diagnostics and
@@ -255,16 +291,32 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
 
     // On getSemanticDiagnostics: rescan the file first, then filter results
     proxy.getSemanticDiagnostics = (fileName: string): ts.Diagnostic[] => {
+      // Deferred initial scan — write augmentations file on first call
+      if (!state.initialScanDone) {
+        const fileNames = info.languageServiceHost.getScriptFileNames();
+        if (fileNames.length > 0) {
+          state.initialScanDone = true;
+          fullScan(tsModule, info, state);
+          info.project.log(
+            `[thinkwell] Initial scan complete. Found ${state.augmentedTypeNames.size} augmented type(s).`,
+          );
+
+        }
+      }
+
       // Trigger incremental rescan for the file being checked
       if (!fileName.includes("node_modules") && !fileName.endsWith(".d.ts")) {
         rescanFile(tsModule, fileName, info, state);
       }
 
       const diagnostics = info.languageService.getSemanticDiagnostics(fileName);
+      info.project.log(
+        `[thinkwell] getSemanticDiagnostics(${path.basename(fileName)}): ${diagnostics.length} diagnostics before filter`,
+      );
 
       // Filter out "Property 'X' does not exist on type 'typeof Y'" (code 2339)
       // for known augmented types
-      return diagnostics.filter((d) => {
+      const filtered = diagnostics.filter((d) => {
         if (d.code !== 2339) return true;
 
         const messageText = typeof d.messageText === "string"
@@ -284,31 +336,23 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
 
         return true;
       });
-    };
 
-    // ---------------------------------------------------------------
-    // Initial full scan — synchronous so augmentations.d.ts has real
-    // content before tsserver's updateGraphWorker reads it via
-    // getExternalFiles().
-    // ---------------------------------------------------------------
-    fullScan(tsModule, info, state);
-    info.project.log(
-      `[thinkwell] Initial scan complete. Found ${state.augmentedTypeNames.size} augmented type(s).`,
-    );
+      info.project.log(
+        `[thinkwell] getSemanticDiagnostics(${path.basename(fileName)}): ${filtered.length} diagnostics after filter`,
+      );
+      return filtered;
+    };
 
     return proxy;
   }
 
-  function getExternalFiles(project: ts.server.Project): string[] {
-    const projectDir = project.getCurrentDirectory();
-    const filePath = path.join(projectDir, VIRTUAL_DIR, VIRTUAL_FILE_NAME);
-    if (existsSync(filePath)) {
-      return [filePath];
-    }
-    return [];
-  }
+  // Note: we intentionally do NOT implement getExternalFiles().
+  // In TS 5.9.3 (bundled with VSCode), getExternalFiles triggers a
+  // setDocument Debug Failure crash during updateGraphWorker. The
+  // augmentations file is instead injected via getScriptFileNames()
+  // which safely includes it as a root file in the program.
 
-  return { create, getExternalFiles };
+  return { create };
 }
 
 export = init;
