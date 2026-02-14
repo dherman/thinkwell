@@ -5,7 +5,8 @@
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "clean": "pnpm -r clean"
+    "clean": "pnpm -r clean",
+    "package": "pnpm -r build && pnpm --filter thinkwell-vscode package"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

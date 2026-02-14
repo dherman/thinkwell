@@ -1,3 +1,5 @@
+#!/usr/bin/env thinkwell
+
 /**
  * Example: JavaScript Unminifier using LLM
  *

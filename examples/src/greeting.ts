@@ -1,3 +1,5 @@
+#!/usr/bin/env thinkwell
+
 /**
  * Example: Greeting with Custom Tool
  *
@@ -27,7 +29,7 @@ async function main() {
   try {
     const status = new Status('Thinking...');
 
-    const thoughts = await agent
+    const thoughts = agent
       .think(Greeting.Schema)
       .text(`
         Use the current_time tool to get the current time, and create a

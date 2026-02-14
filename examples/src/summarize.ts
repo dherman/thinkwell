@@ -1,3 +1,5 @@
+#!/usr/bin/env thinkwell
+
 /**
  * Example: Simple Summarization
  *

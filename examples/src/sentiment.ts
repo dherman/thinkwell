@@ -1,3 +1,5 @@
+#!/usr/bin/env thinkwell
+
 /**
  * Example: Document Analysis with Custom Tool
  *
