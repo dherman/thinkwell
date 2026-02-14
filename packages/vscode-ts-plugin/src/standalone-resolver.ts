@@ -1,11 +1,17 @@
 /**
- * Module resolution for standalone thinkwell scripts.
+ * Module resolution for standalone thinkwell scripts and the virtual
+ * augmentations file.
  *
  * Standalone scripts use `#!/usr/bin/env thinkwell` and don't have
  * node_modules — the CLI bundles all dependencies internally. This module
  * locates the thinkwell CLI installation and resolves `thinkwell`,
  * `@thinkwell/acp`, and `@thinkwell/protocol` imports to the .d.ts files
  * shipped with the npm package.
+ *
+ * The augmentations file (`.thinkwell/augmentations.d.ts`) also needs
+ * custom resolution because it uses `import("thinkwell").SchemaProvider`
+ * type references that must resolve to the same `SchemaProvider` generic
+ * interface used by `think()`.
  *
  * Layout of an npm-installed thinkwell package:
  *
@@ -162,7 +168,8 @@ export function resolveModulePath(
  * LanguageServiceHost.
  *
  * This intercepts module resolution for thinkwell imports in standalone
- * scripts and redirects them to the .d.ts files bundled with the CLI.
+ * scripts and in the virtual augmentations file, redirecting them to the
+ * .d.ts files bundled with the CLI.
  */
 export function patchModuleResolution(
   info: ts.server.PluginCreateInfo,
@@ -192,6 +199,11 @@ export function patchModuleResolution(
       standaloneCache.set(fileName, result);
     }
     return result;
+  }
+
+  /** Check if a file is the virtual augmentations file. */
+  function isAugmentationsFile(fileName: string): boolean {
+    return fileName.endsWith(".thinkwell/augmentations.d.ts");
   }
 
   const original = info.languageServiceHost.resolveModuleNameLiterals?.bind(
@@ -233,8 +245,11 @@ export function patchModuleResolution(
 
     if (!needsCustomResolution) return results;
 
-    // Only activate for standalone scripts
-    if (!isStandalone(containingFile)) return results;
+    // Activate for standalone scripts and for the augmentations file
+    // (which uses `import("thinkwell").SchemaProvider` type references)
+    if (!isStandalone(containingFile) && !isAugmentationsFile(containingFile)) {
+      return results;
+    }
 
     const inst = getInstallation();
     if (!inst) return results;
@@ -248,7 +263,7 @@ export function patchModuleResolution(
 
       const resolvedPath = resolveModulePath(specifier, inst);
       if (resolvedPath) {
-        log(`[thinkwell] Resolved standalone import '${specifier}' → ${resolvedPath}`);
+        log(`[thinkwell] Resolved import '${specifier}' in ${path.basename(containingFile)} → ${resolvedPath}`);
         results[i] = {
           resolvedModule: {
             resolvedFileName: resolvedPath,
@@ -262,5 +277,5 @@ export function patchModuleResolution(
     return results;
   };
 
-  log("[thinkwell] Module resolution patch installed for standalone scripts");
+  log("[thinkwell] Module resolution patch installed");
 }

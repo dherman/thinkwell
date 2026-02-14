@@ -45,6 +45,9 @@ describe("integration: @JSONSchema augmentations", () => {
       project = createTestProject(standardFiles());
       await project.waitForInitialScan();
 
+      // Trigger initial scan via diagnostics before requesting completions
+      project.getDiagnostics("src/main.ts");
+
       const completions = project.getCompletionsAt("src/main.ts", "Greeting.");
 
       assert.ok(completions, "Should return completions");
@@ -55,6 +58,9 @@ describe("integration: @JSONSchema augmentations", () => {
     it("does not provide Schema completion on unmarked interface", async () => {
       project = createTestProject(standardFiles());
       await project.waitForInitialScan();
+
+      // Trigger initial scan via diagnostics before requesting completions
+      project.getDiagnostics("src/main.ts");
 
       const completions = project.getCompletionsAt("src/main.ts", "Unrelated.");
 
@@ -83,6 +89,9 @@ describe("integration: @JSONSchema augmentations", () => {
 
       project = createTestProject(files);
       await project.waitForInitialScan();
+
+      // Trigger initial scan via diagnostics before requesting completions
+      project.getDiagnostics("src/use-config.ts");
 
       const completions = project.getCompletionsAt("src/use-config.ts", "Config.");
 
@@ -165,6 +174,9 @@ describe("integration: @JSONSchema augmentations", () => {
 
       project = createTestProject(files);
       await project.waitForInitialScan();
+
+      // Trigger initial scan via diagnostics before requesting hover
+      project.getDiagnostics("src/main.ts");
 
       const mainFile = path.join(project.projectDir, "src/main.ts");
       // Hover over "Schema" in "Greeting.Schema"
