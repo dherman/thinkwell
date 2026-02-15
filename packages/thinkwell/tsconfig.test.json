@@ -1,0 +1,9 @@
+//This is not extended by the test configs, this solely exists for IDEs like Webstorm.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "noEmit": true
+  },
+  "include": ["src/**/*"]
+}

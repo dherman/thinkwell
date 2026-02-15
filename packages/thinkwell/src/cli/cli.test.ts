@@ -419,6 +419,57 @@ console.log("Has tags:", "tags" in (schema.properties ?? {}));
       assert.ok(result.stdout.includes("Has address: true"), "Should have nested address");
       assert.ok(result.stdout.includes("Has tags: true"), "Should have tags array");
     });
+
+    it("should generate oneOf schema for inline discriminated union", () => {
+      const script = `
+/** @JSONSchema */
+export type Choice = { type: 'done'; result: string } | { type: 'rename'; newName: string } | { type: 'giveup' };
+
+const schema = Choice.Schema.toJsonSchema();
+console.log("SCHEMA:" + JSON.stringify(schema));
+`;
+      const scriptPath = join(testDir, "jsonschema-inline-union.ts");
+      writeFileSync(scriptPath, script);
+
+      const result = runThinkwellWithTransform(scriptPath);
+      assert.strictEqual(result.code, 0, `Exit code should be 0: ${result.stderr}`);
+
+      const schemaLine = result.stdout.split("\n").find(l => l.startsWith("SCHEMA:"));
+      assert.ok(schemaLine, "Should print schema JSON");
+      const schema = JSON.parse(schemaLine!.slice("SCHEMA:".length));
+      const variants = schema.oneOf ?? schema.anyOf;
+      assert.ok(Array.isArray(variants), "Should have oneOf/anyOf");
+      assert.strictEqual(variants.length, 3, "Should have 3 variants");
+    });
+
+    it("should generate oneOf schema for named-interface union", () => {
+      const script = `
+interface Done { type: 'done'; result: string }
+interface Rename { type: 'rename'; newName: string }
+
+/** @JSONSchema */
+export type Action = Done | Rename;
+
+const schema = Action.Schema.toJsonSchema();
+console.log("SCHEMA:" + JSON.stringify(schema));
+`;
+      const scriptPath = join(testDir, "jsonschema-named-union.ts");
+      writeFileSync(scriptPath, script);
+
+      const result = runThinkwellWithTransform(scriptPath);
+      assert.strictEqual(result.code, 0, `Exit code should be 0: ${result.stderr}`);
+
+      const schemaLine = result.stdout.split("\n").find(l => l.startsWith("SCHEMA:"));
+      assert.ok(schemaLine, "Should print schema JSON");
+      const schema = JSON.parse(schemaLine!.slice("SCHEMA:".length));
+      const variants = schema.oneOf ?? schema.anyOf;
+      assert.ok(Array.isArray(variants), "Should have oneOf/anyOf");
+      assert.strictEqual(variants.length, 2, "Should have 2 variants");
+      for (const v of variants) {
+        assert.ok(!("$ref" in v), "Variants should be inlined");
+        assert.ok(v.properties?.type, "Each variant should have a 'type' property");
+      }
+    });
   });
 
   describe("ESM script execution", { skip: SKIP_CLI }, () => {
