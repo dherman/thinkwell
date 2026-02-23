@@ -1,0 +1,50 @@
+{
+  "name": "thinkwell-vscode",
+  "displayName": "Thinkwell",
+  "description": "IDE support for the Thinkwell agent framework for TypeScript.",
+  "version": "0.5.1",
+  "private": true,
+  "publisher": "thinkwell",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dherman/thinkwell",
+    "directory": "packages/vscode-extension"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/package.json",
+    "onLanguage:typescript",
+    "onLanguage:javascript"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "typescriptServerPlugins": [
+      {
+        "name": "@thinkwell/vscode-ts-plugin",
+        "enableForWorkspaceTypeScriptVersions": true
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepackage": "node scripts/prepare-package.js",
+    "package": "npx @vscode/vsce package",
+    "postpackage": "node scripts/restore-package.js && cd ../.. && pnpm install"
+  },
+  "dependencies": {
+    "@thinkwell/vscode-ts-plugin": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^24.10.4",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.7.2"
+  }
+}

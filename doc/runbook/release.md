@@ -1,11 +1,12 @@
 # Release Runbook
 
-This runbook describes how to publish releases of thinkwell to npm and Homebrew.
+This runbook describes how to publish releases of thinkwell to npm, Homebrew, and the VSCode Marketplace.
 
 ## Prerequisites
 
 - You're working on the main branch
 - All changes for the release have been merged
+- You're logged in to `vsce` (`npx @vscode/vsce login thinkwell`) with a valid Azure DevOps PAT (Marketplace > Manage scope)
 
 ## Pre-release (Alpha)
 
@@ -47,7 +48,18 @@ pnpm -r publish --tag next --access public --no-git-checks
 
 This publishes all packages to the `next` tag (for pre-releases).
 
-### 4. Update Homebrew Formula
+### 4. Publish VSCode Extension
+
+Build the `.vsix` package and publish to the VSCode Marketplace:
+
+```bash
+pnpm --filter thinkwell-vscode package
+npx @vscode/vsce publish --pre-release --packagePath packages/vscode-extension/thinkwell-vscode-0.5.0-alpha.1.vsix
+```
+
+The `--packagePath` flag publishes the pre-built `.vsix` directly, bypassing `npm list` validation (which doesn't work with pnpm workspaces). The `--pre-release` flag marks it as a pre-release in the marketplace.
+
+### 5. Update Homebrew Formula
 
 After the GitHub Release is created (wait for the workflow to complete):
 
@@ -73,9 +85,9 @@ After the GitHub Release is created (wait for the workflow to complete):
    git push origin main
    ```
 
-### 5. Verify Installation
+### 6. Verify Installation
 
-Test both installation methods:
+Test all installation methods:
 
 ```bash
 # npm
@@ -86,13 +98,16 @@ brew update
 brew upgrade thinkwell-next
 # or for fresh install:
 brew install dherman/thinkwell/thinkwell-next
+
+# VSCode Extension
+# Search for "Thinkwell" in the Extensions panel and verify the pre-release version
 ```
 
 ---
 
 ## Stable Release
 
-Stable releases are published with the npm `latest` tag (default) and Homebrew `thinkwell` formula.
+Stable releases are published with the npm `latest` tag (default), Homebrew `thinkwell` formula, and as a stable VSCode Marketplace release.
 
 ### 1. Version Bump
 
@@ -130,7 +145,16 @@ pnpm -r publish --access public --no-git-checks
 
 This publishes all packages to the `latest` tag (default for stable releases).
 
-### 4. Update Homebrew Formula
+### 4. Publish VSCode Extension
+
+Build the `.vsix` package and publish to the VSCode Marketplace:
+
+```bash
+pnpm --filter thinkwell-vscode package
+npx @vscode/vsce publish --packagePath packages/vscode-extension/thinkwell-vscode-0.5.0.vsix
+```
+
+### 5. Update Homebrew Formula
 
 After the GitHub Release is created (wait for the workflow to complete):
 
@@ -156,9 +180,9 @@ After the GitHub Release is created (wait for the workflow to complete):
    git push origin main
    ```
 
-### 5. Verify Installation
+### 6. Verify Installation
 
-Test both installation methods:
+Test all installation methods:
 
 ```bash
 # npm
@@ -169,4 +193,7 @@ brew update
 brew upgrade thinkwell
 # or for fresh install:
 brew install dherman/thinkwell/thinkwell
+
+# VSCode Extension
+# Search for "Thinkwell" in the Extensions panel and verify the stable version
 ```
