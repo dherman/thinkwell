@@ -1,10 +1,16 @@
 {
   "name": "thinkwell-vscode",
   "displayName": "Thinkwell",
-  "description": "IDE support for Thinkwell's @JSONSchema type augmentations and standalone scripts",
+  "description": "IDE support for the Thinkwell agent framework for TypeScript.",
   "version": "0.5.1",
+  "private": true,
   "publisher": "thinkwell",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dherman/thinkwell",
+    "directory": "packages/vscode-extension"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
