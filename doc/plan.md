@@ -27,8 +27,8 @@
 
 ## Testing
 
-- [ ] Add test: `run` with no `package.json` uses bundled modules (zero-config unchanged)
-- [ ] Add test: `run` with `package.json` missing thinkwell dep errors with guidance
-- [ ] Add test: `run` with `package.json` and deps resolves from `node_modules`
-- [ ] Add test: `bundle` with `package.json` missing deps errors with guidance
-- [ ] Add test: `@JSONSchema` processing uses project-local TS when available
+- [x] Add test: `run` with no `package.json` uses bundled modules (zero-config unchanged)
+- [x] Add test: `run` with `package.json` missing thinkwell dep errors with guidance
+- [x] Add test: `run` with `package.json` and deps resolves from `node_modules`
+- [x] Add test: `bundle` with `package.json` missing deps errors with guidance
+- [x] Add test: `@JSONSchema` processing uses project-local TS when available

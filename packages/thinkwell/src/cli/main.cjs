@@ -280,8 +280,9 @@ async function runUserScript(scriptPath, args) {
   }
 
   // Check for project-level dependencies when a package.json exists
-  const { findProjectRoot, checkDependencies } = require("../../dist/cli/dependency-check.js");
-  const { hasMissingDeps, formatMissingDepsError } = require("../../dist/cli/dependency-errors.js");
+  // Use pre-bundled CJS versions since ESM sibling imports fail in pkg snapshot
+  const { findProjectRoot, checkDependencies } = require("../../dist-pkg/cli-dependency-check.cjs");
+  const { hasMissingDeps, formatMissingDepsError } = require("../../dist-pkg/cli-dependency-errors.cjs");
 
   const projectRoot = findProjectRoot(dirname(resolvedPath));
   if (projectRoot) {
@@ -398,7 +399,7 @@ async function main() {
     ? scriptPath
     : resolve(process.cwd(), scriptPath);
 
-  const { findProjectRoot } = require("../../dist/cli/dependency-check.js");
+  const { findProjectRoot } = require("../../dist-pkg/cli-dependency-check.cjs");
   const projectRoot = findProjectRoot(dirname(resolvedScriptPath));
   const explicitConfig = projectRoot !== undefined;
 
