@@ -69,22 +69,27 @@ export function initializeBundledRegistry(
 }
 
 /**
- * When true, thinkwell imports resolve from the project's node_modules
+ * When set, thinkwell imports resolve from the project's node_modules
  * instead of the bundled modules in global.__bundled__.
+ *
+ * Contains the project root directory path (for resolving project-local
+ * dependencies like ts-json-schema-generator), or undefined in zero-config mode.
  *
  * Set by main.cjs when a project has an explicit thinkwell dependency
  * in its package.json (i.e., it's not using the zero-config binary mode).
  */
-let __explicitConfig = false;
+let __projectDir: string | undefined = undefined;
 
 /**
  * Enable explicit config mode.
  *
- * When enabled, the loader skips bundled module lookups and virtual import
- * transforms, allowing thinkwell packages to resolve from node_modules.
+ * When called with a project directory, the loader skips bundled module lookups
+ * and virtual import transforms, allowing thinkwell packages to resolve from
+ * node_modules. The project directory is also used to resolve project-local
+ * ts-json-schema-generator for @JSONSchema processing.
  */
-export function setExplicitConfig(enabled: boolean): void {
-  __explicitConfig = enabled;
+export function setExplicitConfig(projectDir: string): void {
+  __projectDir = projectDir;
 }
 
 /**
@@ -194,7 +199,7 @@ export function createCustomRequire(
 
   function customRequire(moduleName: string): unknown {
     // In zero-config mode, resolve thinkwell packages from bundled modules
-    if (!__explicitConfig && global.__bundled__ && isBundledPackage(moduleName)) {
+    if (!__projectDir && global.__bundled__ && isBundledPackage(moduleName)) {
       const bundled = global.__bundled__[moduleName];
       if (bundled) {
         return bundled;
@@ -216,7 +221,7 @@ export function createCustomRequire(
   // Copy over require properties that modules might depend on
   customRequire.resolve = ((id: string, options?: { paths?: string[] }) => {
     // In zero-config mode, resolve thinkwell packages from bundled modules
-    if (!__explicitConfig && global.__bundled__ && isBundledPackage(id)) {
+    if (!__projectDir && global.__bundled__ && isBundledPackage(id)) {
       // Return a fake path for bundled modules
       return `/__bundled__/${id}`;
     }
@@ -258,7 +263,7 @@ function needsTransformation(source: string): boolean {
     return true;
   }
   // In zero-config mode, thinkwell imports need rewriting to global.__bundled__
-  if (!__explicitConfig && /from\s+['"](?:thinkwell|@thinkwell\/(?:acp|protocol))['"]/.test(source)) {
+  if (!__projectDir && /from\s+['"](?:thinkwell|@thinkwell\/(?:acp|protocol))['"]/.test(source)) {
     return true;
   }
   return false;
@@ -382,11 +387,11 @@ export function loadScript(scriptPath: string): unknown {
   // Source needs transformation - apply transforms and use a temp file
   // Process @JSONSchema types (must happen before import transformation
   // because it adds an import statement that also needs transformation)
-  let source = transformJsonSchemas(absolutePath, sourceWithoutShebang);
+  let source = transformJsonSchemas(absolutePath, sourceWithoutShebang, __projectDir);
 
   // In zero-config mode, rewrite thinkwell imports to use global.__bundled__.
   // In explicit-config mode, leave imports as-is so they resolve from node_modules.
-  if (!__explicitConfig) {
+  if (!__projectDir) {
     source = transformVirtualImports(source);
   }
 

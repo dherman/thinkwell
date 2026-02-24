@@ -62,9 +62,12 @@ function formatDiagnostics(
 function checkPackage(
   dir: string,
   pretty: boolean,
+  projectDir?: string,
 ): number {
   const configPath = resolve(dir, "tsconfig.json");
-  const { program, configErrors } = createThinkwellProgram(configPath);
+  const { program, configErrors } = projectDir
+    ? createThinkwellProgram({ configPath, projectDir })
+    : createThinkwellProgram(configPath);
 
   // Report config-level diagnostics
   if (configErrors.length > 0) {
@@ -146,7 +149,8 @@ export async function runCheck(options: CheckOptions): Promise<void> {
     }
 
     process.stderr.write(`  Checking ${pkgName}...\n`);
-    const errorCount = checkPackage(cwd, pretty);
+    const projectDir = hasPackageJson(cwd) ? cwd : undefined;
+    const errorCount = checkPackage(cwd, pretty, projectDir);
 
     if (errorCount > 0) {
       process.exit(1);
@@ -227,7 +231,7 @@ export async function runCheck(options: CheckOptions): Promise<void> {
     process.chdir(member.dir);
 
     try {
-      const errorCount = checkPackage(member.dir, pretty);
+      const errorCount = checkPackage(member.dir, pretty, member.dir);
       if (errorCount > 0) {
         totalErrors += errorCount;
         packagesWithErrors++;

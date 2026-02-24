@@ -404,8 +404,9 @@ async function main() {
 
   if (explicitConfig) {
     // Explicit config mode: tell the loader to resolve from node_modules
+    // and use project-local ts-json-schema-generator for @JSONSchema processing
     const { setExplicitConfig } = require("../../dist-pkg/cli-loader.cjs");
-    setExplicitConfig(true);
+    setExplicitConfig(projectRoot);
   } else {
     // Zero-config mode: populate global.__bundled__ for the loader
     registerBundledModules();

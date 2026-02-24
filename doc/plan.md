@@ -19,11 +19,11 @@
 
 ## Phase 3: Project-local `@JSONSchema` processing
 
-- [ ] In `createSchemaGenerator()` in `schema.ts`: accept an optional `projectDir` parameter for resolving `ts-json-schema-generator` from `node_modules`
-- [ ] When `explicitConfig` is true, use `require.resolve('ts-json-schema-generator', { paths: [projectDir] })` to load the project-local version
-- [ ] Fall back to bundled version if project-local resolution fails (transitive dep may not be directly resolvable)
-- [ ] Thread `projectDir` through `transformJsonSchemas()` → `generateSchemas()` → `createSchemaGenerator()`
-- [ ] Update callers in `loader.ts`, `compiler-host.ts`, and `bundle.ts` to pass project dir when in explicit-config mode
+- [x] In `createSchemaGenerator()` in `schema.ts`: accept an optional `projectDir` parameter for resolving `ts-json-schema-generator` from `node_modules`
+- [x] When `explicitConfig` is true, use `require.resolve('ts-json-schema-generator', { paths: [projectDir] })` to load the project-local version
+- [x] Fall back to bundled version if project-local resolution fails (transitive dep may not be directly resolvable)
+- [x] Thread `projectDir` through `transformJsonSchemas()` → `generateSchemas()` → `createSchemaGenerator()`
+- [x] Update callers in `loader.ts`, `compiler-host.ts`, and `bundle.ts` to pass project dir when in explicit-config mode
 
 ## Testing
 

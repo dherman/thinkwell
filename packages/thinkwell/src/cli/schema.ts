@@ -15,6 +15,7 @@ import ts from "typescript";
 import { dirname, join } from "node:path";
 import { existsSync, statSync } from "node:fs";
 import { createGenerator, type Config, type SchemaGenerator } from "ts-json-schema-generator";
+import { createRequire } from "node:module";
 
 // =============================================================================
 // Type Discovery
@@ -170,9 +171,37 @@ function inlineRefs(
 }
 
 /**
- * Create a schema generator for a single file.
+ * Resolve the `createGenerator` function from ts-json-schema-generator.
+ *
+ * When `projectDir` is provided (explicit-config mode), attempts to load
+ * ts-json-schema-generator from the project's node_modules so that schema
+ * generation uses the same TypeScript version as the rest of the project.
+ * Falls back to the bundled version if project-local resolution fails
+ * (the package may only be available as a transitive dependency).
  */
-function createSchemaGenerator(filePath: string): SchemaGenerator {
+function resolveCreateGenerator(projectDir?: string): typeof createGenerator {
+  if (projectDir) {
+    try {
+      const projectRequire = createRequire(join(projectDir, "package.json"));
+      const resolved = projectRequire.resolve("ts-json-schema-generator");
+      const mod = projectRequire(resolved);
+      if (typeof mod.createGenerator === "function") {
+        return mod.createGenerator;
+      }
+    } catch {
+      // Fall back to bundled version
+    }
+  }
+  return createGenerator;
+}
+
+/**
+ * Create a schema generator for a single file.
+ *
+ * @param filePath - The TypeScript file to generate schemas for
+ * @param projectDir - Optional project root for resolving project-local ts-json-schema-generator
+ */
+function createSchemaGenerator(filePath: string, projectDir?: string): SchemaGenerator {
   const configPath = findTsConfig(dirname(filePath));
 
   const config: Config = {
@@ -182,7 +211,8 @@ function createSchemaGenerator(filePath: string): SchemaGenerator {
     encodeRefs: false,
   };
 
-  return createGenerator(config);
+  const generator = resolveCreateGenerator(projectDir);
+  return generator(config);
 }
 
 /**
@@ -191,12 +221,14 @@ function createSchemaGenerator(filePath: string): SchemaGenerator {
  * @param path - The path to the TypeScript file
  * @param types - The types to generate schemas for
  * @param sourceCode - The source code (for error messages)
+ * @param projectDir - Optional project root for resolving project-local ts-json-schema-generator
  * @returns Map from type name to JSON schema object
  */
 export function generateSchemas(
   path: string,
   types: TypeInfo[],
-  sourceCode?: string
+  sourceCode?: string,
+  projectDir?: string,
 ): Map<string, object> {
   const schemas = new Map<string, object>();
 
@@ -204,7 +236,7 @@ export function generateSchemas(
     return schemas;
   }
 
-  const generator = createSchemaGenerator(path);
+  const generator = createSchemaGenerator(path, projectDir);
 
   for (const typeInfo of types) {
     const { name, line, column, declarationLength } = typeInfo;
@@ -367,9 +399,10 @@ export function hasJsonSchemaMarkers(source: string): boolean {
  *
  * @param path - The file path
  * @param source - The TypeScript source code
+ * @param projectDir - Optional project root for resolving project-local ts-json-schema-generator
  * @returns The transformed source code, or the original if no transforms needed
  */
-export function transformJsonSchemas(path: string, source: string): string {
+export function transformJsonSchemas(path: string, source: string, projectDir?: string): string {
   // Fast path: no @JSONSchema markers
   if (!hasJsonSchemaMarkers(source)) {
     return source;
@@ -382,7 +415,7 @@ export function transformJsonSchemas(path: string, source: string): string {
   }
 
   // Generate schemas
-  const schemas = generateSchemas(path, markedTypes, source);
+  const schemas = generateSchemas(path, markedTypes, source, projectDir);
 
   // Generate and apply insertions
   const insertions = generateInsertions(markedTypes, schemas);

@@ -315,6 +315,8 @@ interface BundleContext {
   resolvedTargets: Exclude<Target, "host">[];
   /** Build options */
   options: BundleOptions;
+  /** Project root directory (when package.json found), for resolving project-local deps */
+  projectDir?: string;
 }
 
 /**
@@ -588,7 +590,7 @@ require.main = __origRequire.main;
               }
 
               // Transform the source to inject schema namespaces
-              const transformed = transformJsonSchemas(args.path, source);
+              const transformed = transformJsonSchemas(args.path, source, ctx.projectDir);
 
               return {
                 contents: transformed,
@@ -1313,11 +1315,12 @@ export async function runBundle(options: BundleOptions): Promise<void> {
 
   // Handle watch mode separately
   if (options.watch) {
-    await runWatchMode(options);
+    await runWatchMode(options, projectRoot);
     return;
   }
 
   const ctx = initBundleContext(options);
+  ctx.projectDir = projectRoot;
 
   // Check for top-level await and warn
   const topLevelAwaits = detectTopLevelAwait(ctx.entryPath);
@@ -1405,8 +1408,9 @@ export async function runBundle(options: BundleOptions): Promise<void> {
 /**
  * Run the build in watch mode, rebuilding on file changes.
  */
-async function runWatchMode(options: BundleOptions): Promise<void> {
+async function runWatchMode(options: BundleOptions, projectDir?: string): Promise<void> {
   const ctx = initBundleContext(options);
+  ctx.projectDir = projectDir;
 
   console.log(styleText("bold", `Watching ${ctx.entryBasename} for changes...`));
   console.log(styleText("dim", "Press Ctrl+C to stop.\n"));
