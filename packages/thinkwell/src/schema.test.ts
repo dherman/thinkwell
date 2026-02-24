@@ -129,8 +129,8 @@ describe("SchemaProvider type inference", () => {
   });
 });
 
-describe("ThinkBuilder schema integration", () => {
-  // We can't test the full ThinkBuilder without a connection, but we can
+describe("Plan schema integration", () => {
+  // We can't test the full Plan without a connection, but we can
   // verify the schema handling logic using a mock
 
   it("should use schema from constructor via toJsonSchema()", () => {
@@ -146,7 +146,7 @@ describe("ThinkBuilder schema integration", () => {
 
     const provider = schemaOf<TestOutput>(schema);
 
-    // Simulate what ThinkBuilder does internally
+    // Simulate what Plan does internally
     const outputSchema = provider.toJsonSchema();
 
     assert.deepStrictEqual(outputSchema, schema);
@@ -238,7 +238,7 @@ describe("Tool schema integration", () => {
   });
 
   it("should allow default empty schema for tools without input", () => {
-    // Simulates what ThinkBuilder does when no inputSchema is provided
+    // Simulates what Plan does when no inputSchema is provided
     const defaultProvider: SchemaProvider<unknown> = {
       toJsonSchema: () => ({ type: "object" }),
     };

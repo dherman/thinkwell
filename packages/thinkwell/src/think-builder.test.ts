@@ -12,7 +12,7 @@ import type { SkillTool, VirtualSkill, StoredSkill } from "../../acp/src/skill.j
 import type { ResolvedSkill } from "../../acp/src/skill-server.js";
 
 /**
- * Since ThinkBuilder requires a live connection to run, we test
+ * Since Plan requires a live connection to run, we test
  * the prompt composition logic by extracting it into testable parts.
  *
  * These tests verify the builder pattern and prompt construction
@@ -26,7 +26,7 @@ interface VirtualSkillDefinition {
   tools?: SkillTool[];
 }
 
-describe("ThinkBuilder prompt composition", () => {
+describe("Plan prompt composition", () => {
   type DeferredSkill =
     | { type: "stored"; path: string }
     | { type: "virtual"; skill: { name: string; description: string; body: string; tools?: SkillTool[] } };

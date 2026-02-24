@@ -22,7 +22,7 @@ import {
   McpOverAcpHandler,
   type SchemaProvider,
 } from "@thinkwell/acp";
-import { ThinkBuilder } from "./think-builder.js";
+import { Plan } from "./think-builder.js";
 import { Session } from "./session.js";
 import type { ThoughtEvent, ToolContent, ContentBlock } from "./thought-event.js";
 import type {
@@ -166,7 +166,7 @@ export interface AgentConnection {
  */
 export interface Agent {
   /**
-   * Create a new think builder for constructing a prompt with tools.
+   * Create a new plan for constructing a prompt with tools.
    *
    * Each call to `think()` creates an ephemeral session that is automatically
    * closed when the prompt completes. For multi-turn conversations, use
@@ -185,7 +185,7 @@ export interface Agent {
    *   .run();
    * ```
    */
-  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output>;
+  think<Output>(schema: SchemaProvider<Output>): Plan<Output>;
 
   /**
    * Create a new session for multi-turn conversations.
@@ -235,8 +235,8 @@ class AgentImpl implements Agent {
     this._conn = conn;
   }
 
-  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output> {
-    return new ThinkBuilder<Output>(this._conn, schema);
+  think<Output>(schema: SchemaProvider<Output>): Plan<Output> {
+    return new Plan<Output>(this._conn, schema);
   }
 
   async createSession(options?: SessionOptions): Promise<Session> {

@@ -121,7 +121,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
 
   it("run() should return typed result for a discriminated union schema", async () => {
     // Union schemas (anyOf/oneOf) lack a top-level type: "object", so
-    // ThinkBuilder must wrap them for the Anthropic API and unwrap on return.
+    // Plan must wrap them for the Anthropic API and unwrap on return.
     type Action =
       | { type: "respond"; message: string }
       | { type: "escalate"; department: string };

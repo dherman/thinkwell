@@ -4,11 +4,11 @@ See [RFD](rfd/rename-thinkbuilder.md) for full design rationale.
 
 ## Core library (`packages/thinkwell`)
 
-- [ ] Rename class `ThinkBuilder` → `Plan` with deprecated alias (`src/think-builder.ts`)
-- [ ] Update `think()` return types on `Agent` interface (`src/agent.ts`)
-- [ ] Update `think()` return types on `Session` class (`src/session.ts`)
-- [ ] Update exports in `src/index.ts`
-- [ ] Update tests (`think-builder.test.ts`, `integration.test.ts`, `schema.test.ts`)
+- [x] Rename class `ThinkBuilder` → `Plan` with deprecated alias (`src/think-builder.ts`)
+- [x] Update `think()` return types on `Agent` interface (`src/agent.ts`)
+- [x] Update `think()` return types on `Session` class (`src/session.ts`)
+- [x] Update exports in `src/index.ts`
+- [x] Update tests (`think-builder.test.ts`, `integration.test.ts`, `schema.test.ts`)
 
 ## Website (`website/`)
 

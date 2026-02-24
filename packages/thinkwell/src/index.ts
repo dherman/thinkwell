@@ -3,8 +3,8 @@ export { open } from "./agent.js";
 export type { Agent, AgentName, AgentOptions, CustomAgentOptions, SessionOptions } from "./agent.js";
 export { Session } from "./session.js";
 
-// Think builder
-export { ThinkBuilder } from "./think-builder.js";
+// Plan (fluent prompt builder)
+export { Plan, ThinkBuilder } from "./think-builder.js";
 export type { VirtualSkillDefinition } from "./think-builder.js";
 
 // Thought streaming
