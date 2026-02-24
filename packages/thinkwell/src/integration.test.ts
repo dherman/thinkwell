@@ -178,7 +178,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
  * 3. Execute and get typed result
  *
  * Environment variables:
- * - AGENT_COMMAND: The agent command (default: "npx -y @zed-industries/claude-code-acp")
+ * - AGENT_COMMAND: The agent command (default: "npx -y @zed-industries/claude-agent-acp")
  */
 async function manualThinkwellTest() {
   console.log("Starting manual thinkwell integration test...\n");

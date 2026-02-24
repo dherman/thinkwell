@@ -39,7 +39,7 @@ export type AgentName = 'claude' | 'codex' | 'gemini' | 'kiro' | 'opencode' | 'a
  * Maps agent names to their spawn commands.
  */
 const AGENT_COMMANDS: Record<AgentName, string> = {
-  claude: "npx -y @zed-industries/claude-code-acp",
+  claude: "npx -y @zed-industries/claude-agent-acp",
   codex: "npx -y @zed-industries/codex-acp",
   gemini: "npx -y @google/gemini-cli --experimental-acp",
   kiro: "kiro-cli acp",
