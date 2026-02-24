@@ -5,10 +5,10 @@
 
 ## Phase 1: Dependency gating for `run` and `bundle`
 
-- [ ] Add `findProjectRoot(startDir)` utility that walks up from a directory to find the nearest `package.json` (reusable across `run` and `bundle`)
-- [ ] Add dependency checking to `runUserScript()` in `main.cjs` — when `package.json` found, call `checkDependencies()` and error if missing
-- [ ] Add dependency checking to `runBundle()` in `bundle.ts` — same pattern as `build`/`check`
-- [ ] For `run`, only require `typescript` if the script contains `@JSONSchema` markers (read + check before gating)
+- [x] Add `findProjectRoot(startDir)` utility that walks up from a directory to find the nearest `package.json` (reusable across `run` and `bundle`)
+- [x] Add dependency checking to `runUserScript()` in `main.cjs` — when `package.json` found, call `checkDependencies()` and error if missing
+- [x] Add dependency checking to `runBundle()` in `bundle.ts` — same pattern as `build`/`check`
+- [x] For `run`, only require `typescript` if the script contains `@JSONSchema` markers (read + check before gating)
 
 ## Phase 2: Conditional bundled module resolution in `run`
 

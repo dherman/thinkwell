@@ -9,7 +9,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 import {
   detectPackageManager,
@@ -364,4 +364,24 @@ export async function checkDependencies(
  */
 export function hasPackageJson(projectDir: string): boolean {
   return existsSync(join(projectDir, "package.json"));
+}
+
+/**
+ * Find the nearest project root by walking up from `startDir`.
+ *
+ * A project root is a directory containing a `package.json`.
+ * Returns the directory path, or undefined if none is found.
+ */
+export function findProjectRoot(startDir: string): string | undefined {
+  let dir = startDir;
+  while (true) {
+    if (existsSync(join(dir, "package.json"))) {
+      return dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) {
+      return undefined;
+    }
+    dir = parent;
+  }
 }

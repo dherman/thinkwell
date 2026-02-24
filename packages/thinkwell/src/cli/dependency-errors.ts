@@ -72,3 +72,40 @@ export function formatMissingDependencyError(
 export function hasMissingDependencies(result: DependencyCheckResult): boolean {
   return !result.thinkwell.found || !result.typescript.found;
 }
+
+/**
+ * Check if required dependencies are missing, with optional typescript check.
+ *
+ * For `run` and `bundle`, typescript is only required when the script
+ * uses `@JSONSchema` markers.
+ */
+export function hasMissingDeps(
+  result: DependencyCheckResult,
+  options: { requireTypescript: boolean },
+): boolean {
+  if (!result.thinkwell.found) return true;
+  if (options.requireTypescript && !result.typescript.found) return true;
+  return false;
+}
+
+/**
+ * Format an error message for missing dependencies, with optional typescript check.
+ *
+ * Like `formatMissingDependencyError` but respects whether typescript is required.
+ */
+export function formatMissingDepsError(
+  result: DependencyCheckResult,
+  options: { requireTypescript: boolean },
+): string {
+  if (!options.requireTypescript && result.thinkwell.found) {
+    return "";
+  }
+  // When typescript is not required, mask it as found to suppress its error line
+  if (!options.requireTypescript) {
+    return formatMissingDependencyError({
+      ...result,
+      typescript: { found: true },
+    });
+  }
+  return formatMissingDependencyError(result);
+}

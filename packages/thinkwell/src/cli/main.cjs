@@ -13,8 +13,8 @@
  * - Handle @JSONSchema type processing
  */
 
-const { existsSync } = require("node:fs");
-const { resolve, isAbsolute } = require("node:path");
+const { existsSync, readFileSync } = require("node:fs");
+const { resolve, isAbsolute, dirname } = require("node:path");
 const { showMainHelp, showNoScriptError, hasHelpFlag, fmtError } = require("../../dist/cli/commands.js");
 
 // Version must be updated manually to match package.json
@@ -277,6 +277,23 @@ async function runUserScript(scriptPath, args) {
     console.error("");
     console.error("Make sure the file exists and the path is correct.");
     process.exit(1);
+  }
+
+  // Check for project-level dependencies when a package.json exists
+  const { findProjectRoot, checkDependencies } = require("../../dist/cli/dependency-check.js");
+  const { hasMissingDeps, formatMissingDepsError } = require("../../dist/cli/dependency-errors.js");
+
+  const projectRoot = findProjectRoot(dirname(resolvedPath));
+  if (projectRoot) {
+    // Determine if typescript is required by checking for @JSONSchema markers
+    const source = readFileSync(resolvedPath, "utf-8");
+    const requireTypescript = source.includes("@JSONSchema");
+
+    const depCheck = await checkDependencies(projectRoot);
+    if (hasMissingDeps(depCheck, { requireTypescript })) {
+      process.stderr.write(formatMissingDepsError(depCheck, { requireTypescript }) + "\n");
+      process.exit(2);
+    }
   }
 
   // Import the loader from the pre-bundled CJS

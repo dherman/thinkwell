@@ -30,6 +30,8 @@ import { createHash } from "node:crypto";
 import { spawn, execSync } from "node:child_process";
 import * as esbuild from "esbuild";
 import { transformJsonSchemas, hasJsonSchemaMarkers } from "./schema.js";
+import { findProjectRoot, checkDependencies } from "./dependency-check.js";
+import { hasMissingDeps, formatMissingDepsError } from "./dependency-errors.js";
 
 // ============================================================================
 // Simple Spinner Implementation
@@ -1293,6 +1295,22 @@ function runDryRun(ctx: BundleContext): void {
  * Main build function.
  */
 export async function runBundle(options: BundleOptions): Promise<void> {
+  // Check for project-level dependencies when a package.json exists
+  const entryPath = isAbsolute(options.entry)
+    ? options.entry
+    : resolve(process.cwd(), options.entry);
+  const projectRoot = findProjectRoot(dirname(entryPath));
+  if (projectRoot) {
+    const source = readFileSync(entryPath, "utf-8");
+    const requireTypescript = hasJsonSchemaMarkers(source);
+
+    const depCheck = await checkDependencies(projectRoot);
+    if (hasMissingDeps(depCheck, { requireTypescript })) {
+      process.stderr.write(formatMissingDepsError(depCheck, { requireTypescript }) + "\n");
+      process.exit(2);
+    }
+  }
+
   // Handle watch mode separately
   if (options.watch) {
     await runWatchMode(options);
