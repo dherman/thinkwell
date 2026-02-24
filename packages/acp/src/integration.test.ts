@@ -260,7 +260,7 @@ async function manualIntegrationTest() {
   console.log("Starting manual integration test...");
 
   // The agent command - defaults to Claude Code ACP
-  const agentCommand = process.env.AGENT_COMMAND?.split(" ") ?? ["npx", "-y", "@zed-industries/claude-code-acp"];
+  const agentCommand = process.env.AGENT_COMMAND?.split(" ") ?? ["npx", "-y", "@zed-industries/claude-agent-acp"];
 
   console.log("Using agent command:", agentCommand.join(" "));
 
