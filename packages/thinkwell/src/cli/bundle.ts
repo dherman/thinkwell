@@ -1302,7 +1302,7 @@ export async function runBundle(options: BundleOptions): Promise<void> {
     ? options.entry
     : resolve(process.cwd(), options.entry);
   const projectRoot = findProjectRoot(dirname(entryPath));
-  if (projectRoot) {
+  if (projectRoot && existsSync(entryPath)) {
     const source = readFileSync(entryPath, "utf-8");
     const requireTypescript = hasJsonSchemaMarkers(source);
 
