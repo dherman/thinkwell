@@ -28,4 +28,4 @@ See [RFD](rfd/rename-thinkbuilder.md) for full design rationale.
 
 ## ACP comments (`packages/acp/`)
 
-- [ ] Update comments in `src/skill-server.ts` and `src/skill.ts`
+- [x] Update comments in `src/skill-server.ts` and `src/skill.ts`
