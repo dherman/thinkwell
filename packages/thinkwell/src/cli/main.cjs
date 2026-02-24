@@ -389,13 +389,29 @@ async function main() {
     showNoScriptError();
   }
 
-  // Register bundled modules before loading user scripts
-  // This populates global.__bundled__ which the loader uses to resolve
-  // thinkwell:* imports in user scripts.
-  registerBundledModules();
+  // Detect whether the user script lives in a project with explicit
+  // thinkwell dependencies (package.json present). When it does, we skip
+  // the bundled module registry and let the loader resolve thinkwell
+  // packages from the project's node_modules instead.
+  const scriptPath = runArgs[0];
+  const resolvedScriptPath = isAbsolute(scriptPath)
+    ? scriptPath
+    : resolve(process.cwd(), scriptPath);
+
+  const { findProjectRoot } = require("../../dist/cli/dependency-check.js");
+  const projectRoot = findProjectRoot(dirname(resolvedScriptPath));
+  const explicitConfig = projectRoot !== undefined;
+
+  if (explicitConfig) {
+    // Explicit config mode: tell the loader to resolve from node_modules
+    const { setExplicitConfig } = require("../../dist-pkg/cli-loader.cjs");
+    setExplicitConfig(true);
+  } else {
+    // Zero-config mode: populate global.__bundled__ for the loader
+    registerBundledModules();
+  }
 
   // Run the user script
-  const scriptPath = runArgs[0];
   const scriptArgs = runArgs.slice(1);
   await runUserScript(scriptPath, scriptArgs);
 }
