@@ -1,0 +1,6 @@
+[
+  { "name": "Alice", "availability": "Free Monday, Wednesday, and Friday mornings before noon" },
+  { "name": "Bob", "availability": "Available Tuesday through Thursday, any time after 10am" },
+  { "name": "Carol", "availability": "Only free Wednesday and Thursday, 10am to 2pm" },
+  { "name": "Dave", "availability": "Open Monday through Friday but not before 11am or after 3pm" }
+]

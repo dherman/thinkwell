@@ -9,13 +9,15 @@
     "sentiment": "thinkwell src/sentiment.ts",
     "greeting": "thinkwell src/greeting.ts",
     "unminify": "thinkwell src/unminify.ts",
-    "classify": "thinkwell src/classify.ts"
+    "classify": "thinkwell src/classify.ts",
+    "schedule": "thinkwell src/schedule.ts"
   },
   "dependencies": {
     "@types/lodash": "^4.17.23",
     "lodash": "^4.17.21",
     "p-limit": "^7.2.0",
-    "sentiment": "^5.0.2"
+    "sentiment": "^5.0.2",
+    "z3-solver": "^4.16.0"
   },
   "devDependencies": {
     "thinkwell": "workspace:*",
