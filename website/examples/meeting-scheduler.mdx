@@ -1,0 +1,472 @@
+---
+title: "Meeting Scheduler"
+description: "Let the AI understand language while a solver finds the answer."
+---
+
+Scheduling a meeting sounds simple until you try it. Each person describes their availability differently — "mornings work for me," "not before 11," "only Wednesday and Thursday." A human can read these and understand them, but finding a time that actually works for everyone is a separate problem: a search through all the possible combinations.
+
+This example splits that work between two systems that are each good at their part:
+
+1. **An AI agent** reads natural-language availability and translates it into structured data
+2. **A constraint solver** takes that structured data and finds a time slot that satisfies everyone — or reports that no such time exists
+
+The result is a script that takes something like this:
+
+```json
+[
+  { "name": "Alice", "availability": "Free Monday, Wednesday, and Friday mornings before noon" },
+  { "name": "Bob", "availability": "Available Tuesday through Thursday, any time after 10am" },
+  { "name": "Carol", "availability": "Only free Wednesday and Thursday, 10am to 2pm" },
+  { "name": "Dave", "availability": "Open Monday through Friday but not before 11am or after 3pm" }
+]
+```
+
+…and produces a meeting time that works for all four people, along with a friendly summary.
+
+## Why Two Systems?
+
+AI agents are great at understanding language. If someone says "mornings before noon," an agent can figure out that means 9am–12pm on business days. But agents aren't reliable at combinatorial search — finding the intersection of four people's overlapping windows across five days and eight hours. They might get it right, but they might not, and you'd have no way to be sure.
+
+Constraint solvers work the other way around. They're designed to search through combinations exhaustively and either find a valid solution or prove that none exists. But they need precise, structured input — they can't read "I'm free Tuesday afternoons."
+
+By combining both, you get the best of each: the agent handles language understanding, and the solver handles the search. The answer is guaranteed to be correct if the agent parsed the availability correctly.
+
+## The Data Types
+
+First, define the structured types that bridge the two systems. These use Thinkwell's `@JSONSchema` annotation so the AI agent's output is automatically validated against them.
+
+A `TimeWindow` represents a single block of availability:
+
+```typescript
+/**
+ * A time window when an attendee is available.
+ * @JSONSchema
+ */
+export interface TimeWindow {
+  /** Day of the week */
+  day: "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
+  /**
+   * Earliest hour (inclusive, 24-hour format, e.g. 9 = 9am)
+   * @minimum 0
+   * @maximum 23
+   */
+  earliestHour: number;
+  /**
+   * Latest hour (exclusive, 24-hour format, e.g. 17 = 5pm)
+   * @minimum 1
+   * @maximum 24
+   */
+  latestHour: number;
+}
+```
+
+`ParsedConstraints` collects each attendee's windows into a single structure:
+
+```typescript
+/**
+ * Parsed availability for one attendee.
+ * @JSONSchema
+ */
+export interface AttendeeConstraints {
+  /** The attendee's name */
+  name: string;
+  /** Time windows when this attendee is available to meet */
+  available: TimeWindow[];
+}
+
+/**
+ * All attendees' parsed availability constraints.
+ * @JSONSchema
+ */
+export interface ParsedConstraints {
+  /** Parsed constraints for each attendee */
+  attendees: AttendeeConstraints[];
+}
+```
+
+And a `ScheduleResult` for the final human-friendly output:
+
+```typescript
+/**
+ * The final scheduling result.
+ * @JSONSchema
+ */
+export interface ScheduleResult {
+  /** Whether a valid meeting time was found */
+  scheduled: boolean;
+  /** A friendly summary of the result */
+  summary: string;
+}
+```
+
+Notice how the `@minimum` and `@maximum` JSDoc tags on `TimeWindow` add numeric constraints to the schema. This helps the agent stay within valid ranges — hours should be between 0 and 24, not arbitrary numbers.
+
+## Step 1: Parse Availability with the Agent
+
+Load the attendee data and ask the agent to translate each person's natural-language availability into structured `TimeWindow` objects:
+
+```typescript
+const raw = await fs.readFile(
+  new URL("attendees.json", import.meta.url),
+  "utf-8",
+);
+const attendees: { name: string; availability: string }[] = JSON.parse(raw);
+
+const attendeeList = attendees
+  .map((a) => `- ${a.name}: ${a.availability}`)
+  .join("\n");
+
+const parsed = await agent
+  .think(ParsedConstraints.Schema)
+  .text(`
+    Parse each attendee's natural-language availability into structured
+    time windows. Each window specifies a day, earliest hour (inclusive),
+    and latest hour (exclusive) in 24-hour format.
+
+    Business hours are 9am (9) to 5pm (17). If someone says "mornings",
+    interpret that as 9-12. If they say "afternoons", interpret as 12-17.
+    If no time range is specified for a day, assume full business hours (9-17).
+
+    Attendees:
+
+  `)
+  .text(attendeeList)
+  .run();
+```
+
+The prompt provides clear rules for ambiguous terms — what "mornings" means, what the default hours are — so the agent produces consistent results. The `ParsedConstraints.Schema` ensures the output matches the expected shape exactly.
+
+For example, Alice's "Free Monday, Wednesday, and Friday mornings before noon" becomes:
+
+```json
+[
+  { "day": "monday", "earliestHour": 9, "latestHour": 12 },
+  { "day": "wednesday", "earliestHour": 9, "latestHour": 12 },
+  { "day": "friday", "earliestHour": 9, "latestHour": 12 }
+]
+```
+
+## Step 2: Find a Valid Time with the Solver
+
+Now comes the part where a solver really shines. We need to find a single `(day, hour)` pair that falls within at least one availability window for every attendee. With four people and multiple windows each, there are a lot of combinations to check.
+
+The [`z3-solver`](https://www.npmjs.com/package/z3-solver) npm package lets you describe what a valid answer looks like, and it searches for one automatically:
+
+```typescript
+import { init } from "z3-solver";
+
+async function solve(
+  constraints: ParsedConstraints
+): Promise<{ day: number; hour: number } | null> {
+  const { Context } = await init();
+  const { Solver, Int, And, Or, isIntVal } = new Context("main");
+
+  const day = Int.const("day");
+  const hour = Int.const("hour");
+
+  const solver = new Solver();
+  solver.set("timeout", 10000);
+
+  // The meeting must be on a weekday during business hours
+  solver.add(day.ge(0), day.le(4));
+  solver.add(hour.ge(9), hour.le(17));
+
+  // For each attendee, the meeting must fall in one of their windows
+  for (const attendee of constraints.attendees) {
+    if (attendee.available.length === 0) continue;
+
+    const windows = attendee.available.map((w) => {
+      const dayIndex = DAY_NAMES.indexOf(w.day);
+      return And(
+        day.eq(dayIndex),
+        hour.ge(w.earliestHour),
+        hour.lt(w.latestHour),
+      );
+    });
+
+    solver.add(windows.length === 1 ? windows[0] : Or(...windows));
+  }
+
+  const result = await solver.check();
+
+  if (result === "sat") {
+    const model = solver.model();
+    const dayVal = model.eval(day);
+    const hourVal = model.eval(hour);
+    if (isIntVal(dayVal) && isIntVal(hourVal)) {
+      return { day: Number(dayVal.value()), hour: Number(hourVal.value()) };
+    }
+  }
+
+  return null;
+}
+```
+
+Here's what's happening:
+
+- **`day` and `hour`** are variables — the solver will figure out their values
+- **`solver.add(...)`** tells the solver what has to be true: the day must be a weekday (0–4), the hour must be within business hours (9–17), and each attendee's windows must include the chosen time
+- **`solver.check()`** does the actual search — if it returns `"sat"` (satisfiable), a valid time exists and we can read it from the model
+
+The key idea is that you describe the *rules*, not the *search strategy*. The solver handles the search. And if no valid time exists — say Carol is only free Wednesday but Alice can't do Wednesdays — it tells you that too, rather than giving a wrong answer.
+
+## Step 3: Summarize the Result
+
+Finally, ask the agent to produce a friendly summary:
+
+```typescript
+const solverOutput = solution
+  ? `Found a valid time: ${DAY_LABELS[solution.day]} at ${solution.hour}:00`
+  : "No valid meeting time exists that satisfies all constraints.";
+
+const result = await agent
+  .think(ScheduleResult.Schema)
+  .text(`
+    Summarize this meeting scheduling result in a friendly, concise way.
+    Mention the attendees by name and the chosen time (or explain the conflict).
+
+    Attendees: ${attendees.map((a) => a.name).join(", ")}
+    Solver result: ${solverOutput}
+  `)
+  .run();
+
+console.log(result.summary);
+```
+
+This is a nice example of using the agent for what it's good at — turning structured data into natural language — while keeping it out of the parts that need to be exact.
+
+## The Full Script
+
+Here's everything together:
+
+```typescript
+#!/usr/bin/env thinkwell
+
+import { open } from "thinkwell";
+import { init } from "z3-solver";
+import * as fs from "fs/promises";
+
+// --- Type Definitions ---
+
+/**
+ * A time window when an attendee is available.
+ * @JSONSchema
+ */
+export interface TimeWindow {
+  /** Day of the week */
+  day: "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
+  /**
+   * Earliest hour (inclusive, 24-hour format, e.g. 9 = 9am)
+   * @minimum 0
+   * @maximum 23
+   */
+  earliestHour: number;
+  /**
+   * Latest hour (exclusive, 24-hour format, e.g. 17 = 5pm)
+   * @minimum 1
+   * @maximum 24
+   */
+  latestHour: number;
+}
+
+/**
+ * Parsed availability for one attendee.
+ * @JSONSchema
+ */
+export interface AttendeeConstraints {
+  /** The attendee's name */
+  name: string;
+  /** Time windows when this attendee is available to meet */
+  available: TimeWindow[];
+}
+
+/**
+ * All attendees' parsed availability constraints.
+ * @JSONSchema
+ */
+export interface ParsedConstraints {
+  /** Parsed constraints for each attendee */
+  attendees: AttendeeConstraints[];
+}
+
+/**
+ * The final scheduling result.
+ * @JSONSchema
+ */
+export interface ScheduleResult {
+  /** Whether a valid meeting time was found */
+  scheduled: boolean;
+  /** A friendly summary of the result */
+  summary: string;
+}
+
+// --- Constraint Solver ---
+
+const DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday"] as const;
+const DAY_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+async function solve(
+  constraints: ParsedConstraints
+): Promise<{ day: number; hour: number } | null> {
+  const { Context } = await init();
+  const { Solver, Int, And, Or, isIntVal } = new Context("main");
+
+  const day = Int.const("day");
+  const hour = Int.const("hour");
+
+  const solver = new Solver();
+  solver.set("timeout", 10000);
+
+  solver.add(day.ge(0), day.le(4));
+  solver.add(hour.ge(9), hour.le(17));
+
+  for (const attendee of constraints.attendees) {
+    if (attendee.available.length === 0) continue;
+
+    const windows = attendee.available.map((w) => {
+      const dayIndex = DAY_NAMES.indexOf(w.day);
+      return And(
+        day.eq(dayIndex),
+        hour.ge(w.earliestHour),
+        hour.lt(w.latestHour),
+      );
+    });
+
+    solver.add(windows.length === 1 ? windows[0] : Or(...windows));
+  }
+
+  const result = await solver.check();
+
+  if (result === "sat") {
+    const model = solver.model();
+    const dayVal = model.eval(day);
+    const hourVal = model.eval(hour);
+    if (isIntVal(dayVal) && isIntVal(hourVal)) {
+      return { day: Number(dayVal.value()), hour: Number(hourVal.value()) };
+    }
+  }
+
+  return null;
+}
+
+// --- Main ---
+
+async function main() {
+  const agent = await open("claude");
+
+  try {
+    console.log("=== Meeting Scheduler ===\n");
+
+    const raw = await fs.readFile(
+      new URL("attendees.json", import.meta.url),
+      "utf-8",
+    );
+    const attendees: { name: string; availability: string }[] = JSON.parse(raw);
+
+    console.log("Attendees:");
+    for (const a of attendees) {
+      console.log(`  - ${a.name}: "${a.availability}"`);
+    }
+    console.log();
+
+    console.log("Parsing availability constraints...");
+
+    const attendeeList = attendees
+      .map((a) => `- ${a.name}: ${a.availability}`)
+      .join("\n");
+
+    const parsed = await agent
+      .think(ParsedConstraints.Schema)
+      .text(`
+        Parse each attendee's natural-language availability into structured
+        time windows. Each window specifies a day, earliest hour (inclusive),
+        and latest hour (exclusive) in 24-hour format.
+
+        Business hours are 9am (9) to 5pm (17). If someone says "mornings",
+        interpret that as 9-12. If they say "afternoons", interpret as 12-17.
+        If no time range is specified for a day, assume full business hours (9-17).
+
+        Attendees:
+
+      `)
+      .text(attendeeList)
+      .run();
+
+    for (const a of parsed.attendees) {
+      const windows = a.available
+        .map((w) => `${w.day} ${w.earliestHour}:00-${w.latestHour}:00`)
+        .join(", ");
+      console.log(`  ${a.name}: ${windows}`);
+    }
+    console.log();
+
+    console.log("Solving constraints...");
+    const solution = await solve(parsed);
+
+    const solverOutput = solution
+      ? `Found a valid time: ${DAY_LABELS[solution.day]} at ${solution.hour}:00`
+      : "No valid meeting time exists that satisfies all constraints.";
+
+    console.log(`  ${solverOutput}\n`);
+
+    const result = await agent
+      .think(ScheduleResult.Schema)
+      .text(`
+        Summarize this meeting scheduling result in a friendly, concise way.
+        Mention the attendees by name and the chosen time (or explain the conflict).
+
+        Attendees: ${attendees.map((a) => a.name).join(", ")}
+        Solver result: ${solverOutput}
+      `)
+      .run();
+
+    console.log("--- Result ---\n");
+    console.log(result.summary);
+  } finally {
+    await agent.close();
+  }
+}
+
+main();
+```
+
+## Running the Example
+
+```bash
+thinkwell src/schedule.ts
+```
+
+Sample output:
+
+```
+=== Meeting Scheduler ===
+
+Attendees:
+  - Alice: "Free Monday, Wednesday, and Friday mornings before noon"
+  - Bob: "Available Tuesday through Thursday, any time after 10am"
+  - Carol: "Only free Wednesday and Thursday, 10am to 2pm"
+  - Dave: "Open Monday through Friday but not before 11am or after 3pm"
+
+Parsing availability constraints...
+  Alice: monday 9:00-12:00, wednesday 9:00-12:00, friday 9:00-12:00
+  Bob: tuesday 10:00-17:00, wednesday 10:00-17:00, thursday 10:00-17:00
+  Carol: wednesday 10:00-14:00, thursday 10:00-14:00
+  Dave: monday 11:00-15:00, tuesday 11:00-15:00, wednesday 11:00-15:00, thursday 11:00-15:00, friday 11:00-15:00
+
+Solving constraints...
+  Found a valid time: Wednesday at 11:00
+
+--- Result ---
+
+Great news! Alice, Bob, Carol, and Dave can all meet on Wednesday at 11:00 AM.
+```
+
+## Key Takeaways
+
+1. **Use AI for language, solvers for search.** The agent is great at understanding what "mornings before noon" means. The solver is great at finding the intersection of everyone's availability. Neither is great at the other's job.
+
+2. **Structured types are the bridge.** The `@JSONSchema` types define a clear contract between the two systems. The agent fills in the structure; the solver reads it.
+
+3. **Guaranteed correctness where it matters.** The solver doesn't guess — it either finds a valid time or proves none exists. This is a stronger guarantee than asking an agent to "figure out when everyone is free."
+
+4. **The pattern generalizes.** Any problem where you need to understand fuzzy human input and then find an exact answer is a good fit for this approach: resource allocation, timetabling, configuration, logistics, and more.
