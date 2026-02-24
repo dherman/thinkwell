@@ -1,0 +1,109 @@
+---
+title: "Writing with Coding Agents"
+description: "Use coding agents like Claude Code, Cursor, and Codex to write Thinkwell scripts."
+---
+
+# Writing Thinkwell Scripts with Coding Agents
+
+Thinkwell ships an [Agent Skill](https://agentskills.io/) that teaches coding agents how to write Thinkwell code. Once installed, agents like Claude Code, Cursor, Codex, and [45+ others](https://agentskills.io/) can use the `@JSONSchema` pattern, ThinkBuilder API, and CLI correctly without you having to explain the framework from scratch.
+
+## Install the Skill
+
+Run this once in your project directory:
+
+```bash
+npx skills add dherman/thinkwell --skill thinkwell
+```
+
+This downloads the Thinkwell skill into your project's `.agents/skills/` directory, where compatible coding agents automatically discover it.
+
+## Example: Asking an Agent to Write a Script
+
+With the skill installed, you can ask your coding agent to write Thinkwell scripts directly. Here's an example prompt you might give:
+
+> Write a Thinkwell script that reads a TypeScript file, analyzes it for code smells, and returns structured results with a severity level for each issue found.
+
+A coding agent with the Thinkwell skill would produce something like this:
+
+```typescript
+import { open } from "thinkwell";
+import { readFile } from "fs/promises";
+
+/**
+ * A code quality issue found in the source.
+ * @JSONSchema
+ */
+export interface CodeSmell {
+  /** Short name of the issue (e.g., "long-method", "deep-nesting") */
+  name: string;
+  /** Human-readable description of the problem */
+  description: string;
+  /** Line number where the issue starts */
+  line: number;
+  /** How severe this issue is */
+  severity: "info" | "warning" | "error";
+  /** Suggested fix */
+  suggestion: string;
+}
+
+/**
+ * Analysis results for a source file.
+ * @JSONSchema
+ */
+export interface AnalysisResult {
+  /** Overall quality score from 1-10 */
+  score: number;
+  /** Issues found in the code */
+  issues: CodeSmell[];
+  /** Brief summary of the analysis */
+  summary: string;
+}
+
+async function main() {
+  const filePath = process.argv[2];
+  if (!filePath) {
+    console.error("Usage: thinkwell analyze.ts <file>");
+    process.exit(1);
+  }
+
+  const source = await readFile(filePath, "utf-8");
+  const agent = await open("claude");
+
+  try {
+    const result = await agent
+      .think(AnalysisResult.Schema)
+      .text("Analyze the following TypeScript file for code smells and quality issues.")
+      .code(source, "typescript")
+      .run();
+
+    console.log(`Quality score: ${result.score}/10`);
+    console.log(`Summary: ${result.summary}\n`);
+
+    for (const issue of result.issues) {
+      console.log(`[${issue.severity.toUpperCase()}] Line ${issue.line}: ${issue.name}`);
+      console.log(`  ${issue.description}`);
+      console.log(`  Fix: ${issue.suggestion}\n`);
+    }
+  } finally {
+    agent.close();
+  }
+}
+
+main();
+```
+
+Run it with:
+
+```bash
+thinkwell analyze.ts src/utils.ts
+```
+
+## Tips for Good Results
+
+**Be specific about your schema.** Instead of "analyze this code," describe the fields you want back: "return a score, a list of issues with severity levels, and a summary."
+
+**Mention tools if you need them.** If your script should call external APIs or read files, tell the agent: "Add a tool that fetches the latest npm package version."
+
+**Start simple.** Ask for a basic script first, then iterate. "Add streaming output" or "add a session so it can ask follow-up questions" are easy follow-ups once the core script works.
+
+**Use the CLI.** Remind the agent that Thinkwell scripts run with `thinkwell script.ts` — no build step needed.
