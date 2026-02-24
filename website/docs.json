@@ -60,7 +60,7 @@
         "pages": [
           "api/overview",
           "api/agent",
-          "api/think-builder",
+          "api/plan",
           "api/sessions"
         ]
       },
@@ -117,6 +117,11 @@
     {
       "source": "/api/connectors",
       "destination": "/api/agent",
+      "permanent": true
+    },
+    {
+      "source": "/api/think-builder",
+      "destination": "/api/plan",
       "permanent": true
     }
   ]

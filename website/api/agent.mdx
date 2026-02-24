@@ -276,7 +276,7 @@ Opens a connection using a custom command.
 
 ### `agent.think(schema)`
 
-Creates a `ThinkBuilder` for constructing a single-turn prompt. Each call creates an ephemeral session that is automatically closed when the prompt completes.
+Creates a `Plan` for constructing a single-turn prompt. Each call creates an ephemeral session that is automatically closed when the prompt completes.
 
 **Parameters:**
 
@@ -284,7 +284,7 @@ Creates a `ThinkBuilder` for constructing a single-turn prompt. Each call create
 |-----------|------|-------------|
 | `schema` | `SchemaProvider<Output>` | Defines the expected output structure |
 
-**Returns:** `ThinkBuilder<Output>`
+**Returns:** `Plan<Output>`
 
 ---
 
@@ -317,5 +317,5 @@ Closes the connection to the agent. This shuts down the conductor and invalidate
 
 ## See Also
 
-- [API Overview](/api/overview) - ThinkBuilder methods and schema providers
+- [API Overview](/api/overview) - Plan methods and schema providers
 - [Sessions](/api/sessions) - Multi-turn conversation sessions

@@ -12,13 +12,13 @@ See [RFD](rfd/rename-thinkbuilder.md) for full design rationale.
 
 ## Website (`website/`)
 
-- [ ] Rename `api/think-builder.mdx` → `api/plan.mdx` and update content
-- [ ] Update `docs.json` navigation and add redirect
-- [ ] Update cross-references in `api/overview.mdx`
-- [ ] Update cross-references in `api/agent.mdx`
-- [ ] Update cross-references in `api/sessions.mdx`
-- [ ] Update cross-references in `get-started/quickstart.mdx`
-- [ ] Update cross-references in `get-started/coding-agents.mdx`
+- [x] Rename `api/think-builder.mdx` → `api/plan.mdx` and update content
+- [x] Update `docs.json` navigation and add redirect
+- [x] Update cross-references in `api/overview.mdx`
+- [x] Update cross-references in `api/agent.mdx`
+- [x] Update cross-references in `api/sessions.mdx`
+- [x] Update cross-references in `get-started/quickstart.mdx`
+- [x] Update cross-references in `get-started/coding-agents.mdx`
 
 ## Skill (`skills/thinkwell/`)
 
