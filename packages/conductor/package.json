@@ -1,6 +1,6 @@
 {
   "name": "@thinkwell/conductor",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "TypeScript conductor for ACP proxy chains - orchestrates message routing between clients, proxies, and agents",
   "type": "module",
   "main": "./dist/index.js",

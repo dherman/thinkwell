@@ -2,7 +2,7 @@
   "name": "thinkwell-vscode",
   "displayName": "Thinkwell",
   "description": "IDE support for the Thinkwell agent framework for TypeScript.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "publisher": "thinkwell",
   "license": "MIT",
