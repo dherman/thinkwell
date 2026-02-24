@@ -43,6 +43,7 @@
         "pages": [
           "get-started/introduction",
           "get-started/quickstart",
+          "get-started/coding-agents",
           "get-started/cli"
         ]
       },

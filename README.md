@@ -127,6 +127,14 @@ To get IDE autocomplete for auto-generated `TypeName.Schema` namespaces:
    *.thinkwell.d.ts
    ```
 
+## Agent Skill
+
+Thinkwell ships an [Agent Skill](https://agentskills.io/) that teaches coding agents (Claude Code, Cursor, Gemini CLI, Codex, OpenCode, etc.) how to write Thinkwell code. Install it with:
+
+```bash
+npx skills add dherman/thinkwell --skill thinkwell
+```
+
 ## Development
 
 ```bash
