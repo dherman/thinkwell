@@ -25,7 +25,7 @@ export interface CustomAgentOptions extends AgentOptions {
 export function schemaOf<T>(schema: JsonSchema): SchemaProvider<T>;
 
 // Classes
-export class ThinkBuilder<Output> { ... }
+export class Plan<Output> { ... }
 export class Session { ... }
 export class ThoughtStream<Output> { ... }
 
@@ -41,7 +41,7 @@ Created via `open()`. Provides the entry point for sending prompts.
 ```typescript
 interface Agent {
   // Ephemeral single-shot prompt (creates a new session each time)
-  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output>;
+  think<Output>(schema: SchemaProvider<Output>): Plan<Output>;
 
   // Multi-turn conversation with persistent context
   createSession(options?: SessionOptions): Promise<Session>;
@@ -65,21 +65,23 @@ class Session {
   readonly sessionId: string;
 
   // Same as agent.think(), but within this session's context
-  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output>;
+  think<Output>(schema: SchemaProvider<Output>): Plan<Output>;
 
   // Stop using this session (agent connection stays open)
   close(): void;
 }
 ```
 
-## ThinkBuilder
+## Plan
 
 Fluent builder for composing prompts. Obtained from `agent.think()` or `session.think()`.
+
+> **Note:** `Plan` was previously named `ThinkBuilder`. The old name still works as a deprecated alias.
 
 ### Content Methods
 
 ```typescript
-class ThinkBuilder<Output> {
+class Plan<Output> {
   // Add literal text to the prompt
   text(content: string): this;
 
@@ -98,7 +100,7 @@ class ThinkBuilder<Output> {
 ### Tool Methods
 
 ```typescript
-class ThinkBuilder<Output> {
+class Plan<Output> {
   // Overload 1: No input/output schema
   tool(
     name: string,
@@ -134,7 +136,7 @@ class ThinkBuilder<Output> {
 ### Skill Methods
 
 ```typescript
-class ThinkBuilder<Output> {
+class Plan<Output> {
   // Stored skill: path to a directory containing SKILL.md
   skill(path: string): this;
 
@@ -159,7 +161,7 @@ interface SkillTool<I = unknown, O = unknown> {
 ### Configuration Methods
 
 ```typescript
-class ThinkBuilder<Output> {
+class Plan<Output> {
   // Set working directory for the session
   cwd(path: string): this;
 }
@@ -168,7 +170,7 @@ class ThinkBuilder<Output> {
 ### Execution Methods
 
 ```typescript
-class ThinkBuilder<Output> {
+class Plan<Output> {
   // Execute the prompt, return typed result
   run(): Promise<Output>;
 

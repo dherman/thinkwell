@@ -22,9 +22,9 @@ See [RFD](rfd/rename-thinkbuilder.md) for full design rationale.
 
 ## Skill (`skills/thinkwell/`)
 
-- [ ] Update `SKILL.md`
-- [ ] Update `references/api-reference.md`
-- [ ] Update `references/examples.md`
+- [x] Update `SKILL.md`
+- [x] Update `references/api-reference.md`
+- [x] Update `references/examples.md` (no changes needed — no direct `ThinkBuilder` references)
 
 ## ACP comments (`packages/acp/`)
 
