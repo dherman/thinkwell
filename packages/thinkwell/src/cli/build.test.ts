@@ -12,7 +12,7 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -113,33 +113,24 @@ describe("thinkwell build", { skip: SKIP }, () => {
       assert.ok(existsSync(join(distDir, "utils.js")), "utils.js should be emitted");
     });
 
-    it("should inject @JSONSchema namespace declarations in emitted JS", async () => {
-      const typesJs = readFileSync(join(projectDir, "dist/types.js"), "utf-8");
+    it("should produce valid Greeting and Person schemas via namespace merging", async () => {
+      const types = await import(pathToFileURL(join(projectDir, "dist/types.js")).href);
 
-      // The transformation should have injected namespace declarations
-      // that make Greeting.Schema and Person.Schema available at runtime
-      assert.ok(
-        typesJs.includes("Greeting.Schema") || typesJs.includes("Greeting["),
-        "Emitted types.js should contain Greeting schema namespace",
-      );
-      assert.ok(
-        typesJs.includes("Person.Schema") || typesJs.includes("Person["),
-        "Emitted types.js should contain Person schema namespace",
-      );
+      const greetingSchema = types.Greeting.Schema.toJsonSchema();
+      assert.strictEqual(greetingSchema.type, "object");
+      assert.ok(greetingSchema.properties?.message, "Greeting should have a 'message' property");
+
+      const personSchema = types.Person.Schema.toJsonSchema();
+      assert.strictEqual(personSchema.type, "object");
+      assert.ok(personSchema.properties?.name, "Person should have a 'name' property");
+      assert.ok(personSchema.properties?.age, "Person should have an 'age' property");
     });
 
-    it("should emit declaration files with namespace merging", async () => {
+    it("should emit namespace declarations in .d.ts", () => {
       const typesDts = readFileSync(join(projectDir, "dist/types.d.ts"), "utf-8");
-
-      // The .d.ts should contain the namespace declarations
-      assert.ok(
-        typesDts.includes("namespace Greeting"),
-        "Declaration file should contain Greeting namespace",
-      );
-      assert.ok(
-        typesDts.includes("namespace Person"),
-        "Declaration file should contain Person namespace",
-      );
+      for (const name of ["Greeting", "Person", "Choice"]) {
+        assert.ok(typesDts.includes(`namespace ${name}`), `Declaration file should contain namespace ${name}`);
+      }
     });
 
     it("should pass through non-@JSONSchema files unchanged", async () => {
@@ -163,6 +154,22 @@ describe("thinkwell build", { skip: SKIP }, () => {
         existsSync(join(projectDir, "dist/main.js.map")),
         "main.js.map should exist",
       );
+    });
+
+    it("should produce a valid Choice schema with oneOf for the discriminated union", async () => {
+      const types = await import(pathToFileURL(join(projectDir, "dist/types.js")).href);
+      const schema = types.Choice.Schema.toJsonSchema();
+
+      // Structural verification
+      const variants = schema.oneOf ?? schema.anyOf;
+      assert.ok(Array.isArray(variants), "Choice schema should have oneOf/anyOf");
+      assert.strictEqual(variants.length, 3, "Should have 3 variants (Done | Rename | GiveUp)");
+
+      // Each variant should be fully inlined (no $ref) and have a 'type' discriminant
+      for (const variant of variants) {
+        assert.ok(!("$ref" in variant), "Variants should be inlined, not $ref");
+        assert.ok(variant.properties?.type, "Each variant should have a 'type' discriminant property");
+      }
     });
   });
 

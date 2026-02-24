@@ -8,7 +8,8 @@
     "summarize": "thinkwell src/summarize.ts",
     "sentiment": "thinkwell src/sentiment.ts",
     "greeting": "thinkwell src/greeting.ts",
-    "unminify": "thinkwell src/unminify.ts"
+    "unminify": "thinkwell src/unminify.ts",
+    "classify": "thinkwell src/classify.ts"
   },
   "dependencies": {
     "@types/lodash": "^4.17.23",

@@ -118,6 +118,53 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
     const result = await stream.result;
     assert.ok(typeof result.greeting === "string", "Expected greeting from fire-and-forget");
   });
+
+  it("run() should return typed result for a discriminated union schema", async () => {
+    // Union schemas (anyOf/oneOf) lack a top-level type: "object", so
+    // ThinkBuilder must wrap them for the Anthropic API and unwrap on return.
+    type Action =
+      | { type: "respond"; message: string }
+      | { type: "escalate"; department: string };
+
+    const ActionSchema = schemaOf<Action>({
+      anyOf: [
+        {
+          type: "object",
+          properties: {
+            type: { type: "string", const: "respond" },
+            message: { type: "string" },
+          },
+          required: ["type", "message"],
+          additionalProperties: false,
+        },
+        {
+          type: "object",
+          properties: {
+            type: { type: "string", const: "escalate" },
+            department: { type: "string" },
+          },
+          required: ["type", "department"],
+          additionalProperties: false,
+        },
+      ],
+    });
+
+    const a = await ensureAgent();
+    const result = await a
+      .think(ActionSchema)
+      .text('Classify: "How do I reset my password?" Pick respond or escalate.')
+      .run();
+
+    assert.ok(
+      result.type === "respond" || result.type === "escalate",
+      `Expected 'respond' or 'escalate', got '${result.type}'`,
+    );
+    if (result.type === "respond") {
+      assert.ok(typeof result.message === "string" && result.message.length > 0, "respond should have a non-empty message");
+    } else {
+      assert.ok(typeof result.department === "string" && result.department.length > 0, "escalate should have a non-empty department");
+    }
+  });
 });
 
 /**

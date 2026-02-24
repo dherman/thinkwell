@@ -549,8 +549,15 @@ export class ThinkBuilder<Output> {
     let resultReceived = false;
     let result: Output | undefined;
 
-    // Get the output schema for the return_result tool
-    const outputSchema = this._schemaProvider?.toJsonSchema() ?? { type: "object" };
+    // Get the output schema for the return_result tool.
+    // The Anthropic API requires tool input schemas to have type: "object" at
+    // the root. Union types (anyOf/oneOf) don't satisfy this, so we wrap them
+    // in a single-property object and unwrap in the handler.
+    const rawSchema = this._schemaProvider?.toJsonSchema() ?? { type: "object" };
+    const needsWrap = rawSchema.type !== "object";
+    const outputSchema = needsWrap
+      ? { type: "object", properties: { result: rawSchema }, required: ["result"] }
+      : rawSchema;
 
     // Add return instruction
     prompt += "\n\nWhen you have your answer, call the `return_result` MCP tool with the result.";
@@ -562,7 +569,7 @@ export class ThinkBuilder<Output> {
       outputSchema,
       { type: "object", properties: { success: { type: "boolean" } } },
       async (input: unknown) => {
-        result = input as Output;
+        result = (needsWrap ? (input as Record<string, unknown>).result : input) as Output;
         resultReceived = true;
         return { success: true };
       }
