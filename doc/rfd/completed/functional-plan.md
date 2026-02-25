@@ -1,5 +1,7 @@
 # RFD: Functional (Immutable) Plan API
 
+**Implementation:** [PR #53](https://github.com/dherman/thinkwell/pull/53)
+
 ## Summary
 
 Change `Plan` from a mutable class to an interface backed by an immutable implementation. Every builder method (`text`, `textln`, `quote`, `code`, `tool`, `defineTool`, `skill`, `cwd`) returns a **new** `Plan` object with the updated state, rather than mutating `this`. The fluent chaining API looks identical to callers — only code that depends on mutation through aliased references would break.

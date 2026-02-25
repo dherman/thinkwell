@@ -1,6 +1,6 @@
 # RFD: Migrate to `tsgo` IPC API
 
-**Depends on:** [vscode-ts-plugin](vscode-ts-plugin.md), [node-ux](completed/node-ux.md), [check-command](completed/check-command.md)
+**Depends on:** [vscode-ts-plugin](completed/vscode-ts-plugin.md), [node-ux](completed/node-ux.md), [check-command](completed/check-command.md)
 
 ## Summary
 
@@ -126,7 +126,7 @@ All three use the same underlying mechanism — intercepting file reads to serve
 
 During the coexistence period, the extension should support both TypeScript versions:
 
-- **TypeScript ≤6.x (tsserver):** Use the TS Language Service Plugin from [vscode-ts-plugin](vscode-ts-plugin.md)
+- **TypeScript ≤6.x (tsserver):** Use the TS Language Service Plugin from [vscode-ts-plugin](completed/vscode-ts-plugin.md)
 - **TypeScript 7+ (tsgo):** Use the `callbackfs` API described here
 
 The extension detects which TypeScript version is active and uses the appropriate mechanism. This is the same pattern that VSCode's own TypeScript extension will need to manage during the transition.
@@ -267,7 +267,7 @@ The TS 6.x plugin and `CompilerHost` approach provide working solutions during t
 
 - [RFD: Node-Native Developer Experience](completed/node-ux.md) — `thinkwell build` CompilerHost architecture
 - [RFD: `thinkwell check` Command](completed/check-command.md) — `thinkwell check` CompilerHost architecture
-- [RFD: VSCode Extension with TypeScript Plugin](vscode-ts-plugin.md) — the TS 5.x/6.x IDE approach this migrates from
+- [RFD: VSCode Extension with TypeScript Plugin](completed/vscode-ts-plugin.md) — the TS 5.x/6.x IDE approach this migrates from
 - [RFD: Remove `thinkwell:*` URI Scheme](completed/remove-uri-scheme.md) — prerequisite for all approaches
 - [PR #711: Scaffold IPC-based API](https://github.com/microsoft/typescript-go/pull/711)
 - [PR #2620: Async API and LSP integration](https://github.com/microsoft/typescript-go/pull/2620)

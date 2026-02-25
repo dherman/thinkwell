@@ -1,12 +1,13 @@
 # RFD: VSCode Extension with TypeScript Plugin for `@JSONSchema`
 
-**Depends on:** [remove-uri-scheme](completed/remove-uri-scheme.md)
+- **Implementation:** [PR #38](https://github.com/dherman/thinkwell/pull/38)
+- **Depends on:** [remove-uri-scheme](remove-uri-scheme.md)
 
 ## Summary
 
 Build a VSCode extension that bundles a TypeScript Language Service plugin to provide IDE support for the `@JSONSchema` feature. The plugin presents virtual type augmentations to TypeScript so that `Greeting.Schema` and other injected namespace members are visible in the editor — without generating any files on disk.
 
-This targets TypeScript 5.x/6.x. A separate RFD ([tsgo-api-migration](tsgo-api-migration.md)) covers the migration path to TypeScript 7+.
+This targets TypeScript 5.x/6.x. A separate RFD ([tsgo-api-migration](../tsgo-api-migration.md)) covers the migration path to TypeScript 7+.
 
 ## Background
 
@@ -31,7 +32,7 @@ This works perfectly at runtime. But in the editor, TypeScript sees only the int
 
 ### Prerequisite
 
-This RFD assumes the `thinkwell:*` URI scheme has been removed per [remove-uri-scheme](completed/remove-uri-scheme.md). For projects with `thinkwell` installed as an npm dependency, import resolution is handled natively by TypeScript through standard `package.json` exports. Two IDE gaps remain: `@JSONSchema` augmentation and standalone script support (see below).
+This RFD assumes the `thinkwell:*` URI scheme has been removed per [remove-uri-scheme](remove-uri-scheme.md). For projects with `thinkwell` installed as an npm dependency, import resolution is handled natively by TypeScript through standard `package.json` exports. Two IDE gaps remain: `@JSONSchema` augmentation and standalone script support (see below).
 
 ## Problem Statement
 
@@ -151,7 +152,7 @@ It works reliably in practice but is not guaranteed by TypeScript's API contract
 
 ### TypeScript version compatibility
 
-This approach targets TypeScript 5.x and 6.x. **TypeScript 7 (the Go port) will not support this plugin API.** The [tsgo-api-migration](tsgo-api-migration.md) RFD covers the migration strategy. The key mitigation: TypeScript 6.x will be maintained indefinitely with no hard sunset date, providing a long coexistence window.
+This approach targets TypeScript 5.x and 6.x. **TypeScript 7 (the Go port) will not support this plugin API.** The [tsgo-api-migration](../tsgo-api-migration.md) RFD covers the migration strategy. The key mitigation: TypeScript 6.x will be maintained indefinitely with no hard sunset date, providing a long coexistence window.
 
 ### Performance
 
@@ -179,5 +180,5 @@ Scanning project files for `@JSONSchema` markers must be fast. The initial imple
 
 - [Writing a Language Service Plugin (TypeScript Wiki)](https://github.com/microsoft/TypeScript/wiki/Writing-a-Language-Service-Plugin)
 - [getExternalFiles API discussion](https://github.com/microsoft/TypeScript/issues/29706)
-- [remove-uri-scheme](completed/remove-uri-scheme.md) — prerequisite RFD
-- [tsgo-api-migration](tsgo-api-migration.md) — follow-up RFD for TypeScript 7 migration
+- [remove-uri-scheme](remove-uri-scheme.md) — prerequisite RFD
+- [tsgo-api-migration](../tsgo-api-migration.md) — follow-up RFD for TypeScript 7 migration

@@ -1,5 +1,7 @@
 # RFD: Thinkwell Coding Skill
 
+**Implementation:** [PR #45](https://github.com/dherman/thinkwell/pull/45)
+
 ## Summary
 
 Publish an [Agent Skill](https://agentskills.io/) that teaches coding agents how to write TypeScript code using the Thinkwell framework. The skill covers the `@JSONSchema` syntax, the ThinkBuilder fluent API, agent lifecycle, tools, skills, thought streams, and the `thinkwell` CLI. It targets any agent that supports the Agent Skills standard — Claude Code, Cursor, Gemini CLI, OpenCode, Codex, and others.

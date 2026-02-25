@@ -1,5 +1,7 @@
 # RFD: Rename ThinkBuilder to Plan
 
+**Implementation:** [PR #49](https://github.com/dherman/thinkwell/pull/49)
+
 ## Summary
 
 Rename the `ThinkBuilder` class to `Plan`, keeping `ThinkBuilder` as a deprecated alias for backwards compatibility. The name "Plan" better describes what the object represents — a plan for the agent — rather than how it's implemented (a builder API). The `think()` method on `Agent` and `Session` stays as-is — it's central to the Thinkwell brand and still accurately describes what the plan is for: getting the agent to think.

@@ -1,17 +1,18 @@
 # RFD: Standalone Binary Should Respect Project Config
 
-- **Depends on:** [explicit-config](completed/explicit-config.md), [node-ux](completed/node-ux.md)
+- **Implementation:** [PR #46](https://github.com/dherman/thinkwell/pull/46)
+- **Depends on:** [explicit-config](explicit-config.md), [node-ux](node-ux.md)
 - **Issue:** [#33](https://github.com/dherman/thinkwell/issues/33)
 
 ## Summary
 
-The `thinkwell` standalone binary unconditionally uses its bundled versions of thinkwell, TypeScript, and `ts-json-schema-generator` for script execution (`thinkwell run`), bundling (`thinkwell bundle`), and `@JSONSchema` processing — even when the project has a `package.json` with explicit dependency declarations. This violates the principle established in [explicit-config](completed/explicit-config.md): a `package.json` signals user intent to manage dependencies explicitly, and bundled versions should defer to declared versions.
+The `thinkwell` standalone binary unconditionally uses its bundled versions of thinkwell, TypeScript, and `ts-json-schema-generator` for script execution (`thinkwell run`), bundling (`thinkwell bundle`), and `@JSONSchema` processing — even when the project has a `package.json` with explicit dependency declarations. This violates the principle established in [explicit-config](explicit-config.md): a `package.json` signals user intent to manage dependencies explicitly, and bundled versions should defer to declared versions.
 
 This RFD extends the explicit-config principle to all CLI commands, not just `build` and `check`.
 
 ## Problem Statement
 
-The [explicit-config RFD](completed/explicit-config.md) established a clear rule: when a project has a `package.json`, the CLI should use project-declared dependency versions and error if required dependencies are missing. This was implemented for `thinkwell build` and `thinkwell check`, but three gaps remain:
+The [explicit-config RFD](explicit-config.md) established a clear rule: when a project has a `package.json`, the CLI should use project-declared dependency versions and error if required dependencies are missing. This was implemented for `thinkwell build` and `thinkwell check`, but three gaps remain:
 
 ### 1. `thinkwell run` (script execution)
 
@@ -221,6 +222,6 @@ This would allow easier testing, versioning, and a clean extension point if the 
 ## References
 
 - [Issue #33: Thinkwell standalone binary should respect project config](https://github.com/dherman/thinkwell/issues/33)
-- [RFD: Explicit Configuration Experience](completed/explicit-config.md)
-- [RFD: Node-Native Developer Experience](completed/node-ux.md)
-- [RFD: pkg Migration](completed/pkg-migration.md)
+- [RFD: Explicit Configuration Experience](explicit-config.md)
+- [RFD: Node-Native Developer Experience](node-ux.md)
+- [RFD: pkg Migration](pkg-migration.md)
