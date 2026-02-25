@@ -13,6 +13,7 @@ import {
   cpSync,
   mkdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, resolve, join } from "node:path";
@@ -34,6 +35,8 @@ function copyFixture(prefix: string): string {
   const dest = join(tmpdir(), `thinkwell-check-test-${prefix}-${Date.now()}`);
   cpSync(FIXTURE_DIR, dest, { recursive: true });
   cpSync(join(dest, "type-stubs"), join(dest, "node_modules"), { recursive: true });
+  // Symlink the thinkwell package so `thinkwell/build` resolves in explicit-config mode
+  symlinkSync(PACKAGE_ROOT, join(dest, "node_modules", "thinkwell"), "dir");
   return dest;
 }
 
