@@ -19,7 +19,7 @@ import type { Agent, Session } from "thinkwell";
 | `open()` | Main entry point — opens a connection to a named agent |
 | `Agent` | The agent interface returned by `open()` |
 | `Session` | Manages multi-turn conversations with persistent context |
-| `ThinkBuilder` | Fluent API for building prompts with tools |
+| `Plan` | Fluent API for building prompts with tools |
 
 See [Agent](/api/agent) for the list of supported agent names.
 
@@ -33,7 +33,7 @@ Thinkwell follows a layered architecture:
    - **Ephemeral**: Use `agent.think()` for single-turn interactions
    - **Persistent**: Use `agent.createSession()` for multi-turn conversations
 
-3. **ThinkBuilder** - A fluent API for constructing prompts. Chain methods to build content, then call `.run()` to execute.
+3. **Plan** - A fluent API for constructing prompts. Chain methods to build content, then call `.run()` to execute.
 
 ## Structured Output with @JSONSchema
 
@@ -63,5 +63,5 @@ JSDoc comments become `description` fields in the generated schema, helping the 
 ## Next Steps
 
 - [Agent](/api/agent) - Opening agents, named agents, and managing sessions
-- [ThinkBuilder](/api/think-builder) - Building prompts with the fluent API
+- [Plan](/api/plan) - Building prompts with the fluent API
 - [Sessions](/api/sessions) - Multi-turn conversations

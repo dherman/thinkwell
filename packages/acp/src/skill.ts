@@ -7,7 +7,7 @@
 
 /**
  * A tool bundled with a virtual skill.
- * Same trust model as ThinkBuilder's .tool() -- user-authored handler functions.
+ * Same trust model as Plan's .tool() -- user-authored handler functions.
  *
  * Unlike top-level .tool() registrations, skill tools are not registered as
  * individual MCP tools with formal schemas. Instead, the skill body documents

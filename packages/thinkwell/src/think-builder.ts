@@ -130,15 +130,16 @@ class ThinkSession implements SessionHandler {
 }
 
 /**
- * Fluent builder for composing prompts with tools.
+ * Fluent builder for composing a plan — a prompt with tools, skills,
+ * and an output schema — that an agent will execute.
  *
- * ThinkBuilder provides a chainable API for:
+ * Plan provides a chainable API for:
  * - Adding literal text to the prompt
  * - Interpolating values
  * - Registering tools the LLM can call
  * - Executing the prompt and returning a typed result
  */
-export class ThinkBuilder<Output> {
+export class Plan<Output> {
   private readonly _conn: AgentConnection;
   private _promptParts: string[] = [];
   private _tools: Map<string, ToolDefinition> = new Map();
@@ -685,3 +686,8 @@ export class ThinkBuilder<Output> {
     }
   }
 }
+
+/** @deprecated Use {@link Plan} instead. */
+export const ThinkBuilder = Plan;
+/** @deprecated Use {@link Plan} instead. */
+export type ThinkBuilder<Output> = Plan<Output>;

@@ -2,13 +2,13 @@
 name: thinkwell
 description: >-
   Write TypeScript code using the Thinkwell framework. Covers the @JSONSchema
-  syntax, ThinkBuilder fluent API, agent lifecycle, tools, skills, thought
+  syntax, Plan fluent API, agent lifecycle, tools, skills, thought
   streams, and the thinkwell CLI.
 ---
 
 # Thinkwell
 
-Thinkwell is a TypeScript framework for blending deterministic code with LLM-powered reasoning. It provides a fluent API for composing prompts, attaching tools, and getting structured JSON responses.
+Thinkwell is a TypeScript framework for blending deterministic code with LLM-powered reasoning. It provides a fluent `Plan` API for composing prompts, attaching tools, and getting structured JSON responses.
 
 For detailed API signatures, see [references/api-reference.md](references/api-reference.md).
 For `@JSONSchema` details, see [references/schema-guide.md](references/schema-guide.md).
@@ -60,11 +60,11 @@ try {
 }
 ```
 
-The pattern is always: **open → think → build → run → close**.
+The pattern is always: **open → think → plan → run → close**.
 
-### 3. ThinkBuilder Fluent API
+### 3. Plan Fluent API
 
-`agent.think(schema)` returns a `ThinkBuilder`. Chain methods to compose the prompt, then call `.run()` or `.stream()`:
+`agent.think(schema)` returns a `Plan`. Chain methods to compose the prompt, then call `.run()` or `.stream()`:
 
 **Content methods:**
 - `.text(content)` — Add literal text
@@ -88,6 +88,8 @@ The pattern is always: **open → think → build → run → close**.
 **Execution:**
 - `.run()` — Execute and return the typed result
 - `.stream()` — Execute and return a `ThoughtStream` for streaming events + result
+
+> **Note:** `Plan` was previously named `ThinkBuilder`. The old name still works as a deprecated alias.
 
 ### 4. Tools
 
@@ -281,7 +283,7 @@ thinkwell check          # Type-check the project (supports @JSONSchema)
 
 ```typescript
 const result = await agent
-  .think(OutputSchema)               // 1. Schema (always first)
+  .think(OutputSchema)               // 1. Schema (always first) → returns Plan
   .cwd("/my/project")                // 2. Configuration
   .skill("./skills/code-review")     // 3. Skills
   .text("Analyze this code:")        // 4. Prompt content

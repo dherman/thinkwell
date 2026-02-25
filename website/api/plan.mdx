@@ -1,9 +1,13 @@
 ---
-title: "ThinkBuilder"
+title: "Plan"
 description: "The fluent API for building prompts."
 ---
 
-The `ThinkBuilder` class provides a fluent interface for constructing prompts. You obtain a `ThinkBuilder` by calling `agent.think()` or `session.think()`, then chain methods to build up your prompt content before executing with `.run()`.
+The `Plan` class provides a fluent interface for constructing prompts. You obtain a `Plan` by calling `agent.think()` or `session.think()`, then chain methods to build up your prompt content before executing with `.run()`.
+
+<Note>
+`Plan` was previously named `ThinkBuilder`. The old name is still available as a deprecated type alias.
+</Note>
 
 ## Basic Usage
 
@@ -390,7 +394,7 @@ Each `PlanEntry` has:
 
 ## Complete Example
 
-Here's a complete example showing multiple ThinkBuilder features:
+Here's a complete example showing multiple Plan features:
 
 ```typescript
 import { open } from "thinkwell";

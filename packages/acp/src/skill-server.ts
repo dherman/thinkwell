@@ -7,7 +7,7 @@
  * - read_skill_file: reads a file from a stored skill's basePath
  *
  * These tools are registered as standard MCP tools but are intended to be
- * hidden from the prompt (via ThinkBuilder's defineTool pattern).
+ * hidden from the prompt (via Plan's defineTool pattern).
  */
 
 import { readFile } from "node:fs/promises";

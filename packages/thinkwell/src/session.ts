@@ -1,6 +1,6 @@
 import type { AgentConnection, SessionOptions } from "./agent.js";
 import type { SchemaProvider } from "@thinkwell/acp";
-import { ThinkBuilder } from "./think-builder.js";
+import { Plan } from "./think-builder.js";
 
 /**
  * A session for multi-turn conversations with an agent.
@@ -51,7 +51,7 @@ export class Session {
   }
 
   /**
-   * Create a new think builder for constructing a prompt with tools.
+   * Create a new plan for constructing a prompt with tools.
    *
    * Unlike `agent.think()`, prompts sent through a session maintain
    * conversation context - the agent remembers previous interactions.
@@ -70,11 +70,11 @@ export class Session {
    *   .run();
    * ```
    */
-  think<Output>(schema: SchemaProvider<Output>): ThinkBuilder<Output> {
+  think<Output>(schema: SchemaProvider<Output>): Plan<Output> {
     if (this._closed) {
       throw new Error("Session is closed");
     }
-    return new ThinkBuilder<Output>(this._conn, schema, this._sessionId);
+    return new Plan<Output>(this._conn, schema, this._sessionId);
   }
 
   /**
