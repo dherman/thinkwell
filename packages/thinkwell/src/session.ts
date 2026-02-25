@@ -1,6 +1,6 @@
 import type { AgentConnection, SessionOptions } from "./agent.js";
 import type { SchemaProvider } from "@thinkwell/acp";
-import { Plan } from "./think-builder.js";
+import { createPlan, type Plan } from "./think-builder.js";
 
 /**
  * A session for multi-turn conversations with an agent.
@@ -74,7 +74,7 @@ export class Session {
     if (this._closed) {
       throw new Error("Session is closed");
     }
-    return new Plan<Output>(this._conn, schema, this._sessionId);
+    return createPlan<Output>(this._conn, schema, this._sessionId);
   }
 
   /**

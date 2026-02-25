@@ -138,114 +138,36 @@ class ThinkSession implements SessionHandler {
  * - Interpolating values
  * - Registering tools the LLM can call
  * - Executing the prompt and returning a typed result
+ *
+ * Plan is immutable: every builder method returns a **new** Plan with the
+ * updated state, leaving the original unchanged.
  */
-export class Plan<Output> {
-  private readonly _conn: AgentConnection;
-  private _promptParts: string[] = [];
-  private _tools: Map<string, ToolDefinition> = new Map();
-  private _skills: DeferredSkill[] = [];
-  private _schemaProvider: SchemaProvider<Output> | undefined;
-  private _cwd: string | undefined;
-  private _existingSessionId: string | undefined;
-
-  constructor(
-    conn: AgentConnection,
-    schema?: SchemaProvider<Output>,
-    existingSessionId?: string
-  ) {
-    this._conn = conn;
-    this._schemaProvider = schema;
-    this._existingSessionId = existingSessionId;
-  }
+export interface Plan<Output> {
+  /**
+   * Add literal text to the prompt.
+   */
+  text(content: string): Plan<Output>;
 
   /**
-   * Add literal text to the prompt
+   * Add a line of text with newline.
    */
-  text(content: string): this {
-    this._promptParts.push(content);
-    return this;
-  }
-
-  /**
-   * Add a line of text with newline
-   */
-  textln(content: string): this {
-    this._promptParts.push(content + "\n");
-    return this;
-  }
+  textln(content: string): Plan<Output>;
 
   /**
    * Quote some content delimited by XML-style tags.
    */
-  quote(content: string, tag: string = "quote"): this {
-    if (!content.includes("\n")) {
-      this._promptParts.push(`<${tag}>${content}</${tag}>\n`);
-    } else {
-      this._promptParts.push(
-        `<${tag}>\n${content}\n</${tag}>\n`
-      );
-    }
-    return this;
-  }
+  quote(content: string, tag?: string): Plan<Output>;
 
   /**
    * Quote some content as a Markdown-style code block.
    */
-  code(content: string, language: string = ""): this {
-    this._promptParts.push(`\`\`\`${language}\n${content}\n\`\`\`\n`);
-    return this;
-  }
+  code(content: string, language?: string): Plan<Output>;
 
   /**
    * Register a tool and reference it in the prompt.
    *
    * The tool will be mentioned in the prompt text to help the LLM
    * understand that it's available.
-   *
-   * @param name - The tool name
-   * @param description - A description of what the tool does
-   * @param inputSchema - A SchemaProvider describing the expected input structure
-   * @param outputSchema - A SchemaProvider describing the output structure
-   * @param handler - The function to execute when the tool is called
-   *
-   * @example
-   * ```typescript
-   * import { schemaOf } from "thinkwell";
-   *
-   * interface SearchInput {
-   *   query: string;
-   *   limit?: number;
-   * }
-   *
-   * interface SearchResult {
-   *   matches: string[];
-   *   total: number;
-   * }
-   *
-   * agent.think(outputSchema)
-   *   .tool(
-   *     "search",
-   *     "Search for documents",
-   *     schemaOf<SearchInput>({
-   *       type: "object",
-   *       properties: {
-   *         query: { type: "string" },
-   *         limit: { type: "number" }
-   *       },
-   *       required: ["query"]
-   *     }),
-   *     schemaOf<SearchResult>({
-   *       type: "object",
-   *       properties: {
-   *         matches: { type: "array", items: { type: "string" } },
-   *         total: { type: "number" }
-   *       },
-   *       required: ["matches", "total"]
-   *     }),
-   *     async (input: SearchInput) => { ... }
-   *   )
-   *   .run();
-   * ```
    */
   tool<I, O>(
     name: string,
@@ -253,7 +175,7 @@ export class Plan<Output> {
     inputSchema: SchemaProvider<I>,
     outputSchema: SchemaProvider<O>,
     handler: (input: I) => Promise<O>
-  ): this;
+  ): Plan<Output>;
 
   /**
    * Register a tool with only an input schema.
@@ -263,7 +185,7 @@ export class Plan<Output> {
     description: string,
     inputSchema: SchemaProvider<I>,
     handler: (input: I) => Promise<unknown>
-  ): this;
+  ): Plan<Output>;
 
   /**
    * Register a tool without schemas.
@@ -272,58 +194,13 @@ export class Plan<Output> {
     name: string,
     description: string,
     handler: (input: unknown) => Promise<unknown>
-  ): this;
-
-  tool<I, O>(
-    name: string,
-    description: string,
-    inputSchemaOrHandler: SchemaProvider<I> | ((input: I) => Promise<O>),
-    outputSchemaOrHandler?: SchemaProvider<O> | ((input: I) => Promise<O>),
-    handler?: (input: I) => Promise<O>
-  ): this {
-    let inputSchema: SchemaProvider<unknown>;
-    let outputSchema: SchemaProvider<unknown>;
-    let actualHandler: (input: unknown) => Promise<unknown>;
-
-    if (typeof inputSchemaOrHandler === "function") {
-      // Overload 3: tool(name, description, handler)
-      inputSchema = { toJsonSchema: () => ({ type: "object" }) };
-      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
-      actualHandler = inputSchemaOrHandler as (input: unknown) => Promise<unknown>;
-    } else if (typeof outputSchemaOrHandler === "function") {
-      // Overload 2: tool(name, description, inputSchema, handler)
-      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
-      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
-      actualHandler = outputSchemaOrHandler as (input: unknown) => Promise<unknown>;
-    } else {
-      // Overload 1: tool(name, description, inputSchema, outputSchema, handler)
-      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
-      outputSchema = outputSchemaOrHandler as SchemaProvider<unknown>;
-      actualHandler = handler as (input: unknown) => Promise<unknown>;
-    }
-
-    this._tools.set(name, {
-      name,
-      description,
-      handler: actualHandler,
-      inputSchema,
-      outputSchema,
-      includeInPrompt: true,
-    });
-    return this;
-  }
+  ): Plan<Output>;
 
   /**
    * Register a tool without adding a prompt reference.
    *
    * Use this for tools that should be available but don't need
    * to be explicitly mentioned in the prompt.
-   *
-   * @param name - The tool name
-   * @param description - A description of what the tool does
-   * @param inputSchema - A SchemaProvider describing the expected input structure
-   * @param outputSchema - A SchemaProvider describing the output structure
-   * @param handler - The function to execute when the tool is called
    */
   defineTool<I, O>(
     name: string,
@@ -331,7 +208,7 @@ export class Plan<Output> {
     inputSchema: SchemaProvider<I>,
     outputSchema: SchemaProvider<O>,
     handler: (input: I) => Promise<O>
-  ): this;
+  ): Plan<Output>;
 
   /**
    * Register a tool with only an input schema (no prompt reference).
@@ -341,7 +218,7 @@ export class Plan<Output> {
     description: string,
     inputSchema: SchemaProvider<I>,
     handler: (input: I) => Promise<unknown>
-  ): this;
+  ): Plan<Output>;
 
   /**
    * Register a tool without schemas (no prompt reference).
@@ -350,46 +227,7 @@ export class Plan<Output> {
     name: string,
     description: string,
     handler: (input: unknown) => Promise<unknown>
-  ): this;
-
-  defineTool<I, O>(
-    name: string,
-    description: string,
-    inputSchemaOrHandler: SchemaProvider<I> | ((input: I) => Promise<O>),
-    outputSchemaOrHandler?: SchemaProvider<O> | ((input: I) => Promise<O>),
-    handler?: (input: I) => Promise<O>
-  ): this {
-    let inputSchema: SchemaProvider<unknown>;
-    let outputSchema: SchemaProvider<unknown>;
-    let actualHandler: (input: unknown) => Promise<unknown>;
-
-    if (typeof inputSchemaOrHandler === "function") {
-      // Overload 3: defineTool(name, description, handler)
-      inputSchema = { toJsonSchema: () => ({ type: "object" }) };
-      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
-      actualHandler = inputSchemaOrHandler as (input: unknown) => Promise<unknown>;
-    } else if (typeof outputSchemaOrHandler === "function") {
-      // Overload 2: defineTool(name, description, inputSchema, handler)
-      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
-      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
-      actualHandler = outputSchemaOrHandler as (input: unknown) => Promise<unknown>;
-    } else {
-      // Overload 1: defineTool(name, description, inputSchema, outputSchema, handler)
-      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
-      outputSchema = outputSchemaOrHandler as SchemaProvider<unknown>;
-      actualHandler = handler as (input: unknown) => Promise<unknown>;
-    }
-
-    this._tools.set(name, {
-      name,
-      description,
-      handler: actualHandler,
-      inputSchema,
-      outputSchema,
-      includeInPrompt: false,
-    });
-    return this;
-  }
+  ): Plan<Output>;
 
   /**
    * Attach a skill to this prompt.
@@ -399,46 +237,230 @@ export class Plan<Output> {
    *
    * When called with an object, it is treated as a virtual skill definition
    * and validated eagerly.
-   *
-   * @param pathOrDef - Path to a SKILL.md file, or a virtual skill definition
    */
-  skill(pathOrDef: string | VirtualSkillDefinition): this {
-    if (typeof pathOrDef === "string") {
-      this._skills.push({ type: "stored", path: pathOrDef });
+  skill(pathOrDef: string | VirtualSkillDefinition): Plan<Output>;
+
+  /**
+   * Set the working directory for the session.
+   */
+  cwd(path: string): Plan<Output>;
+
+  /**
+   * Execute the prompt and return the result.
+   */
+  run(): Promise<Output>;
+
+  /**
+   * Start executing the prompt, returning a stream handle that provides
+   * both an async iterable of intermediate `ThoughtEvent`s and a `.result`
+   * promise for the final typed output.
+   *
+   * Execution begins eagerly — the returned stream is already "hot".
+   */
+  stream(): ThoughtStream<Output>;
+}
+
+/**
+ * Internal state bag for PlanImpl. Used by the clone helper to
+ * selectively override fields.
+ */
+interface PlanState<Output> {
+  conn: AgentConnection;
+  promptParts: readonly string[];
+  tools: ReadonlyMap<string, ToolDefinition>;
+  skills: readonly DeferredSkill[];
+  schemaProvider: SchemaProvider<Output> | undefined;
+  cwd: string | undefined;
+  existingSessionId: string | undefined;
+}
+
+class PlanImpl<Output> implements Plan<Output> {
+  private readonly _conn: AgentConnection;
+  private readonly _promptParts: readonly string[];
+  private readonly _tools: ReadonlyMap<string, ToolDefinition>;
+  private readonly _skills: readonly DeferredSkill[];
+  private readonly _schemaProvider: SchemaProvider<Output> | undefined;
+  private readonly _cwd: string | undefined;
+  private readonly _existingSessionId: string | undefined;
+
+  constructor(state: PlanState<Output>) {
+    this._conn = state.conn;
+    this._promptParts = state.promptParts;
+    this._tools = state.tools;
+    this._skills = state.skills;
+    this._schemaProvider = state.schemaProvider;
+    this._cwd = state.cwd;
+    this._existingSessionId = state.existingSessionId;
+  }
+
+  private _clone(overrides: Partial<PlanState<Output>>): PlanImpl<Output> {
+    return new PlanImpl<Output>({
+      conn: this._conn,
+      promptParts: this._promptParts,
+      tools: this._tools,
+      skills: this._skills,
+      schemaProvider: this._schemaProvider,
+      cwd: this._cwd,
+      existingSessionId: this._existingSessionId,
+      ...overrides,
+    });
+  }
+
+  text(content: string): Plan<Output> {
+    return this._clone({ promptParts: [...this._promptParts, content] });
+  }
+
+  textln(content: string): Plan<Output> {
+    return this._clone({ promptParts: [...this._promptParts, content + "\n"] });
+  }
+
+  quote(content: string, tag: string = "quote"): Plan<Output> {
+    const part = !content.includes("\n")
+      ? `<${tag}>${content}</${tag}>\n`
+      : `<${tag}>\n${content}\n</${tag}>\n`;
+    return this._clone({ promptParts: [...this._promptParts, part] });
+  }
+
+  code(content: string, language: string = ""): Plan<Output> {
+    return this._clone({
+      promptParts: [...this._promptParts, `\`\`\`${language}\n${content}\n\`\`\`\n`],
+    });
+  }
+
+  tool<I, O>(
+    name: string,
+    description: string,
+    inputSchema: SchemaProvider<I>,
+    outputSchema: SchemaProvider<O>,
+    handler: (input: I) => Promise<O>
+  ): Plan<Output>;
+  tool<I>(
+    name: string,
+    description: string,
+    inputSchema: SchemaProvider<I>,
+    handler: (input: I) => Promise<unknown>
+  ): Plan<Output>;
+  tool(
+    name: string,
+    description: string,
+    handler: (input: unknown) => Promise<unknown>
+  ): Plan<Output>;
+  tool<I, O>(
+    name: string,
+    description: string,
+    inputSchemaOrHandler: SchemaProvider<I> | ((input: I) => Promise<O>),
+    outputSchemaOrHandler?: SchemaProvider<O> | ((input: I) => Promise<O>),
+    handler?: (input: I) => Promise<O>
+  ): Plan<Output> {
+    let inputSchema: SchemaProvider<unknown>;
+    let outputSchema: SchemaProvider<unknown>;
+    let actualHandler: (input: unknown) => Promise<unknown>;
+
+    if (typeof inputSchemaOrHandler === "function") {
+      inputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = inputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else if (typeof outputSchemaOrHandler === "function") {
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = outputSchemaOrHandler as (input: unknown) => Promise<unknown>;
     } else {
-      // Validate eagerly for virtual skills
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = outputSchemaOrHandler as SchemaProvider<unknown>;
+      actualHandler = handler as (input: unknown) => Promise<unknown>;
+    }
+
+    const newTools = new Map(this._tools);
+    newTools.set(name, {
+      name,
+      description,
+      handler: actualHandler,
+      inputSchema,
+      outputSchema,
+      includeInPrompt: true,
+    });
+    return this._clone({ tools: newTools });
+  }
+
+  defineTool<I, O>(
+    name: string,
+    description: string,
+    inputSchema: SchemaProvider<I>,
+    outputSchema: SchemaProvider<O>,
+    handler: (input: I) => Promise<O>
+  ): Plan<Output>;
+  defineTool<I>(
+    name: string,
+    description: string,
+    inputSchema: SchemaProvider<I>,
+    handler: (input: I) => Promise<unknown>
+  ): Plan<Output>;
+  defineTool(
+    name: string,
+    description: string,
+    handler: (input: unknown) => Promise<unknown>
+  ): Plan<Output>;
+  defineTool<I, O>(
+    name: string,
+    description: string,
+    inputSchemaOrHandler: SchemaProvider<I> | ((input: I) => Promise<O>),
+    outputSchemaOrHandler?: SchemaProvider<O> | ((input: I) => Promise<O>),
+    handler?: (input: I) => Promise<O>
+  ): Plan<Output> {
+    let inputSchema: SchemaProvider<unknown>;
+    let outputSchema: SchemaProvider<unknown>;
+    let actualHandler: (input: unknown) => Promise<unknown>;
+
+    if (typeof inputSchemaOrHandler === "function") {
+      inputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = inputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else if (typeof outputSchemaOrHandler === "function") {
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = { toJsonSchema: () => ({ type: "object" }) };
+      actualHandler = outputSchemaOrHandler as (input: unknown) => Promise<unknown>;
+    } else {
+      inputSchema = inputSchemaOrHandler as SchemaProvider<unknown>;
+      outputSchema = outputSchemaOrHandler as SchemaProvider<unknown>;
+      actualHandler = handler as (input: unknown) => Promise<unknown>;
+    }
+
+    const newTools = new Map(this._tools);
+    newTools.set(name, {
+      name,
+      description,
+      handler: actualHandler,
+      inputSchema,
+      outputSchema,
+      includeInPrompt: false,
+    });
+    return this._clone({ tools: newTools });
+  }
+
+  skill(pathOrDef: string | VirtualSkillDefinition): Plan<Output> {
+    if (typeof pathOrDef === "string") {
+      return this._clone({ skills: [...this._skills, { type: "stored", path: pathOrDef }] });
+    } else {
       validateSkillName(pathOrDef.name);
       validateSkillDescription(pathOrDef.description);
-      this._skills.push({
-        type: "virtual",
-        skill: {
-          name: pathOrDef.name,
-          description: pathOrDef.description,
-          body: pathOrDef.body,
-          tools: pathOrDef.tools,
-        },
+      return this._clone({
+        skills: [...this._skills, {
+          type: "virtual",
+          skill: {
+            name: pathOrDef.name,
+            description: pathOrDef.description,
+            body: pathOrDef.body,
+            tools: pathOrDef.tools,
+          },
+        }],
       });
     }
-    return this;
   }
 
-  /**
-   * Set the working directory for the session
-   */
-  cwd(path: string): this {
-    this._cwd = path;
-    return this;
+  cwd(path: string): Plan<Output> {
+    return this._clone({ cwd: path });
   }
 
-  /**
-   * Resolve all deferred skills into ResolvedSkill instances.
-   *
-   * - Virtual skills are passed through as-is.
-   * - Stored skills are loaded from disk: SKILL.md is parsed and basePath is
-   *   set to the directory containing the file.
-   *
-   * Skills are returned in attachment order.
-   */
   private async _resolveSkills(): Promise<ResolvedSkill[]> {
     const resolved: ResolvedSkill[] = [];
 
@@ -461,12 +483,6 @@ export class Plan<Output> {
     return resolved;
   }
 
-  /**
-   * Build the `<available_skills>` XML block and infrastructure instructions.
-   *
-   * Returns the string to prepend before the user's prompt parts, or an
-   * empty string when no skills are attached.
-   */
   private _buildSkillsPrompt(skills: ResolvedSkill[]): string {
     if (skills.length === 0) return "";
 
@@ -488,28 +504,10 @@ export class Plan<Output> {
     return xml + "\n";
   }
 
-  /**
-   * Execute the prompt and return the result.
-   *
-   * This method:
-   * 1. Builds the final prompt from all text parts
-   * 2. Creates an MCP server with all registered tools
-   * 3. Adds a return_result tool for the output
-   * 4. Sends the prompt to the agent
-   * 5. Handles tool calls until the agent returns a result
-   * 6. Returns the typed result
-   */
   async run(): Promise<Output> {
     return this.stream().result;
   }
 
-  /**
-   * Start executing the prompt, returning a stream handle that provides
-   * both an async iterable of intermediate `ThoughtEvent`s and a `.result`
-   * promise for the final typed output.
-   *
-   * Execution begins eagerly — the returned stream is already "hot".
-   */
   stream(): ThoughtStream<Output> {
     const stream = new ThoughtStream<Output>();
     this._executeStream(stream).catch((err) => stream.rejectResult(err));
@@ -687,7 +685,27 @@ export class Plan<Output> {
   }
 }
 
-/** @deprecated Use {@link Plan} instead. */
-export const ThinkBuilder = Plan;
+/**
+ * Create a new Plan for composing a prompt with tools.
+ *
+ * This is the factory function for creating Plan instances. It is used
+ * internally by `Agent.think()` and `Session.think()`.
+ */
+export function createPlan<Output>(
+  conn: AgentConnection,
+  schema?: SchemaProvider<Output>,
+  existingSessionId?: string,
+): Plan<Output> {
+  return new PlanImpl<Output>({
+    conn,
+    promptParts: [],
+    tools: new Map(),
+    skills: [],
+    schemaProvider: schema,
+    cwd: undefined,
+    existingSessionId,
+  });
+}
+
 /** @deprecated Use {@link Plan} instead. */
 export type ThinkBuilder<Output> = Plan<Output>;

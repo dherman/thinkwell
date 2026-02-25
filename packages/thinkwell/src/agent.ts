@@ -22,7 +22,7 @@ import {
   McpOverAcpHandler,
   type SchemaProvider,
 } from "@thinkwell/acp";
-import { Plan } from "./think-builder.js";
+import { createPlan, type Plan } from "./think-builder.js";
 import { Session } from "./session.js";
 import type { ThoughtEvent, ToolContent, ContentBlock } from "./thought-event.js";
 import type {
@@ -236,7 +236,7 @@ class AgentImpl implements Agent {
   }
 
   think<Output>(schema: SchemaProvider<Output>): Plan<Output> {
-    return new Plan<Output>(this._conn, schema);
+    return createPlan<Output>(this._conn, schema);
   }
 
   async createSession(options?: SessionOptions): Promise<Session> {

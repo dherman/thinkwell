@@ -31,39 +31,50 @@ describe("Plan prompt composition", () => {
     | { type: "stored"; path: string }
     | { type: "virtual"; skill: { name: string; description: string; body: string; tools?: SkillTool[] } };
 
-  // Helper class that exposes internal state for testing
+  // Helper class that exposes internal state for testing.
+  // Mirrors PlanImpl's immutable pattern: each builder method returns a new instance.
   class TestableThinkBuilder {
-    private _promptParts: string[] = [];
-    private _tools: Map<string, { name: string; description: string; includeInPrompt: boolean }> = new Map();
-    private _skills: DeferredSkill[] = [];
+    private readonly _promptParts: readonly string[];
+    private readonly _tools: ReadonlyMap<string, { name: string; description: string; includeInPrompt: boolean }>;
+    private readonly _skills: readonly DeferredSkill[];
 
-    text(content: string): this {
-      this._promptParts.push(content);
-      return this;
+    constructor(
+      promptParts: readonly string[] = [],
+      tools: ReadonlyMap<string, { name: string; description: string; includeInPrompt: boolean }> = new Map(),
+      skills: readonly DeferredSkill[] = [],
+    ) {
+      this._promptParts = promptParts;
+      this._tools = tools;
+      this._skills = skills;
     }
 
-    textln(content: string): this {
-      this._promptParts.push(content + "\n");
-      return this;
+    text(content: string): TestableThinkBuilder {
+      return new TestableThinkBuilder([...this._promptParts, content], this._tools, this._skills);
     }
 
-    tool(name: string, description: string): this {
-      this._tools.set(name, { name, description, includeInPrompt: true });
-      return this;
+    textln(content: string): TestableThinkBuilder {
+      return new TestableThinkBuilder([...this._promptParts, content + "\n"], this._tools, this._skills);
     }
 
-    defineTool(name: string, description: string): this {
-      this._tools.set(name, { name, description, includeInPrompt: false });
-      return this;
+    tool(name: string, description: string): TestableThinkBuilder {
+      const newTools = new Map(this._tools);
+      newTools.set(name, { name, description, includeInPrompt: true });
+      return new TestableThinkBuilder(this._promptParts, newTools, this._skills);
     }
 
-    skill(pathOrDef: string | VirtualSkillDefinition): this {
+    defineTool(name: string, description: string): TestableThinkBuilder {
+      const newTools = new Map(this._tools);
+      newTools.set(name, { name, description, includeInPrompt: false });
+      return new TestableThinkBuilder(this._promptParts, newTools, this._skills);
+    }
+
+    skill(pathOrDef: string | VirtualSkillDefinition): TestableThinkBuilder {
       if (typeof pathOrDef === "string") {
-        this._skills.push({ type: "stored", path: pathOrDef });
+        return new TestableThinkBuilder(this._promptParts, this._tools, [...this._skills, { type: "stored", path: pathOrDef }]);
       } else {
         validateSkillName(pathOrDef.name);
         validateSkillDescription(pathOrDef.description);
-        this._skills.push({
+        return new TestableThinkBuilder(this._promptParts, this._tools, [...this._skills, {
           type: "virtual",
           skill: {
             name: pathOrDef.name,
@@ -71,9 +82,8 @@ describe("Plan prompt composition", () => {
             body: pathOrDef.body,
             tools: pathOrDef.tools,
           },
-        });
+        }]);
       }
-      return this;
     }
 
     async resolveSkills(): Promise<ResolvedSkill[]> {
@@ -146,7 +156,7 @@ describe("Plan prompt composition", () => {
         .map((t) => t.name);
     }
 
-    getSkills(): DeferredSkill[] {
+    getSkills(): readonly DeferredSkill[] {
       return this._skills;
     }
   }
@@ -672,6 +682,78 @@ describe("Plan prompt composition", () => {
       assert.ok(result2.content[0].text.includes("Stored body."));
 
       await rm(tmpDir, { recursive: true });
+    });
+  });
+
+  describe("immutability", () => {
+    it("text() should not modify the original builder", () => {
+      const base = new TestableThinkBuilder().text("base");
+      const derived = base.text(" extended");
+
+      assert.ok(base.buildPrompt().startsWith("base"));
+      assert.ok(!base.buildPrompt().includes("extended"));
+      assert.ok(derived.buildPrompt().startsWith("base extended"));
+    });
+
+    it("textln() should not modify the original builder", () => {
+      const base = new TestableThinkBuilder().textln("line1");
+      const derived = base.textln("line2");
+
+      const basePrompt = base.buildPrompt();
+      assert.ok(basePrompt.startsWith("line1\n"));
+      assert.ok(!basePrompt.includes("line2"));
+      assert.ok(derived.buildPrompt().startsWith("line1\nline2\n"));
+    });
+
+    it("tool() should not modify the original builder", () => {
+      const base = new TestableThinkBuilder().tool("first", "First tool");
+      const derived = base.tool("second", "Second tool");
+
+      assert.deepStrictEqual(base.getToolNames(), ["first"]);
+      assert.deepStrictEqual(derived.getToolNames(), ["first", "second"]);
+    });
+
+    it("defineTool() should not modify the original builder", () => {
+      const base = new TestableThinkBuilder().defineTool("hidden1", "H1");
+      const derived = base.defineTool("hidden2", "H2");
+
+      assert.deepStrictEqual(base.getToolNames(), ["hidden1"]);
+      assert.deepStrictEqual(derived.getToolNames(), ["hidden1", "hidden2"]);
+    });
+
+    it("skill() should not modify the original builder", () => {
+      const base = new TestableThinkBuilder()
+        .skill({ name: "skill-one", description: "First skill", body: "body1" });
+      const derived = base
+        .skill({ name: "skill-two", description: "Second skill", body: "body2" });
+
+      assert.strictEqual(base.getSkills().length, 1);
+      assert.strictEqual(derived.getSkills().length, 2);
+    });
+
+    it("should support branching from a shared base", () => {
+      const base = new TestableThinkBuilder()
+        .text("Analyze this document.")
+        .tool("search", "Search");
+
+      const brief = base.text(" Be brief.");
+      const detailed = base.text(" Be thorough and detailed.");
+
+      const basePrompt = base.buildPrompt();
+      const briefPrompt = brief.buildPrompt();
+      const detailedPrompt = detailed.buildPrompt();
+
+      assert.ok(!basePrompt.includes("brief"));
+      assert.ok(!basePrompt.includes("thorough"));
+      assert.ok(briefPrompt.includes("Be brief."));
+      assert.ok(!briefPrompt.includes("thorough"));
+      assert.ok(detailedPrompt.includes("Be thorough and detailed."));
+      assert.ok(!detailedPrompt.includes("brief"));
+
+      // All three share the same tools
+      assert.deepStrictEqual(base.getToolNames(), ["search"]);
+      assert.deepStrictEqual(brief.getToolNames(), ["search"]);
+      assert.deepStrictEqual(detailed.getToolNames(), ["search"]);
     });
   });
 });
