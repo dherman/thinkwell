@@ -17,13 +17,14 @@
 - [x] In `loadScript()`: skip `transformVirtualImports()` when `explicitConfig` is true — leave thinkwell imports as-is so they resolve through `node_modules` via the custom require
 - [x] Skip `registerBundledModules()` in `main.cjs` when explicit config detected (no need to populate `global.__bundled__`)
 
-## Phase 3: Project-local `@JSONSchema` processing
+## Phase 3: Project-local `@JSONSchema` processing via build API
 
-- [x] In `createSchemaGenerator()` in `schema.ts`: accept an optional `projectDir` parameter for resolving `ts-json-schema-generator` from `node_modules`
-- [x] When `explicitConfig` is true, use `require.resolve('ts-json-schema-generator', { paths: [projectDir] })` to load the project-local version
-- [x] Fall back to bundled version if project-local resolution fails (transitive dep may not be directly resolvable)
-- [x] Thread `projectDir` through `transformJsonSchemas()` → `generateSchemas()` → `createSchemaGenerator()`
-- [x] Update callers in `loader.ts`, `compiler-host.ts`, and `bundle.ts` to pass project dir when in explicit-config mode
+- [x] Add a public build API export (`thinkwell/build`) that exposes schema generation (wrapping `ts-json-schema-generator` internally)
+- [x] Add `"./build"` subpath export to `package.json`
+- [x] In `resolveCreateGenerator()` in `schema.ts`: when `projectDir` is provided, resolve `thinkwell/build` from the project's `node_modules` and use its exported schema generation API
+- [x] Remove the direct `require.resolve('ts-json-schema-generator')` fallback approach — in explicit-config mode, the build API is guaranteed available since `thinkwell` is a checked dependency
+- [x] Thread `projectDir` through `transformJsonSchemas()` → `generateSchemas()` → `createSchemaGenerator()` *(already done in Phase 2)*
+- [x] Update callers in `loader.ts`, `compiler-host.ts`, and `bundle.ts` to pass project dir when in explicit-config mode *(already done in Phase 2)*
 
 ## Testing
 
@@ -31,4 +32,4 @@
 - [x] Add test: `run` with `package.json` missing thinkwell dep errors with guidance
 - [x] Add test: `run` with `package.json` and deps resolves from `node_modules`
 - [x] Add test: `bundle` with `package.json` missing deps errors with guidance
-- [x] Add test: `@JSONSchema` processing uses project-local TS when available
+- [x] Add test: `@JSONSchema` processing uses project-local `thinkwell/build` API when available

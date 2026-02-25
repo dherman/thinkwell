@@ -17,7 +17,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import { execSync, spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, cpSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, cpSync, symlinkSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -549,16 +549,73 @@ describe("project config: @JSONSchema with project-local resolution", {
       if (existsSync(distPkgPath)) {
         writeFileSync(
           join(thinkwellModDir, "package.json"),
-          JSON.stringify({ name: "thinkwell", main: "index.cjs", version: "0.5.0" }),
+          JSON.stringify({
+            name: "thinkwell",
+            main: "index.cjs",
+            version: "0.5.0",
+            exports: {
+              ".": { default: "./index.cjs" },
+              "./build": { default: "./build.cjs" },
+            },
+          }),
         );
         cpSync(distPkgPath, join(thinkwellModDir, "index.cjs"));
+
+        // Provide the build API subpath so @JSONSchema processing resolves
+        // generateSchemas via thinkwell/build (project-local path).
+        // This is a minimal CJS implementation of the build API contract.
+        writeFileSync(
+          join(thinkwellModDir, "build.cjs"),
+          [
+            `const path = require("path");`,
+            `const fs = require("fs");`,
+            `const { createGenerator } = require("ts-json-schema-generator");`,
+            `function findTsConfig(dir) {`,
+            `  while (true) {`,
+            `    const p = path.join(dir, "tsconfig.json");`,
+            `    if (fs.existsSync(p)) return p;`,
+            `    const parent = path.dirname(dir);`,
+            `    if (parent === dir) return undefined;`,
+            `    dir = parent;`,
+            `  }`,
+            `}`,
+            `function inlineRefs(obj, defs) {`,
+            `  if (obj === null || typeof obj !== "object") return obj;`,
+            `  if (Array.isArray(obj)) return obj.map(i => inlineRefs(i, defs));`,
+            `  if (typeof obj["$ref"] === "string") {`,
+            `    const m = obj["$ref"].match(/^#\\/definitions\\/(.+)$/);`,
+            `    if (m && defs[m[1]]) return inlineRefs(defs[m[1]], defs);`,
+            `  }`,
+            `  const r = {};`,
+            `  for (const [k, v] of Object.entries(obj)) r[k] = inlineRefs(v, defs);`,
+            `  return r;`,
+            `}`,
+            `exports.generateSchemas = function(filePath, typeNames) {`,
+            `  const schemas = new Map();`,
+            `  if (!typeNames.length) return schemas;`,
+            `  const tsconfig = findTsConfig(path.dirname(filePath));`,
+            `  const gen = createGenerator({ path: filePath, ...(tsconfig && { tsconfig }), skipTypeCheck: true, encodeRefs: false });`,
+            `  for (const name of typeNames) {`,
+            `    const s = gen.createSchema(name);`,
+            `    const defs = s.definitions || {};`,
+            `    let r = defs[name] || s;`,
+            `    r = inlineRefs(r, defs);`,
+            `    if (typeof r === "object" && r !== null) { const c = { ...r }; delete c["$schema"]; delete c["definitions"]; schemas.set(name, c); }`,
+            `    else schemas.set(name, r);`,
+            `  }`,
+            `  return schemas;`,
+            `};`,
+          ].join("\n"),
+        );
       }
 
-      // Also need ts-json-schema-generator for @JSONSchema processing.
-      // The project-local resolution looks for it in node_modules.
-      // If it can't find it, it falls back to the bundled version.
-      // We don't install it here — the fallback behavior is what we're testing
-      // (since installing the real package would be slow).
+      // Symlink ts-json-schema-generator from the workspace so that the
+      // mock thinkwell/build can resolve it without a full npm install.
+      const tsjsgSource = resolve(PACKAGE_ROOT, "node_modules/ts-json-schema-generator");
+      const tsjsgTarget = join(projectDir, "node_modules/ts-json-schema-generator");
+      if (existsSync(tsjsgSource) && !existsSync(tsjsgTarget)) {
+        symlinkSync(tsjsgSource, tsjsgTarget);
+      }
     });
 
     after(() => {

@@ -119,13 +119,19 @@ Add the same dependency checking that `build`/`check` use. When a `package.json`
 
 Since `run` should remain fast for the zero-config case, dependency checking only runs when a `package.json` is detected.
 
-### Change 3: Project-local `@JSONSchema` processing
+### Change 3: Project-local `@JSONSchema` processing via build API
 
-`createSchemaGenerator()` in `schema.ts` currently imports `ts-json-schema-generator` directly (which bundles its own TypeScript). When the project has explicit config, it should use the project-local `typescript` and `ts-json-schema-generator`.
+`createSchemaGenerator()` in `schema.ts` currently imports `ts-json-schema-generator` directly (which bundles its own TypeScript). When the project has explicit config, it should use the project-local version.
 
-This is the trickiest change because `ts-json-schema-generator` is a build-time dependency of the CLI itself. In the bundled binary, it lives in the pkg snapshot. To use the project-local version, we need to `require.resolve()` it from the project's `node_modules`.
+The challenge is that `ts-json-schema-generator` is a transitive dependency of `thinkwell`, not something the user declares directly. Resolving it from the project root is unreliable under strict package managers like pnpm, and requiring users to add it as a direct dependency would leak an implementation detail into their contract.
 
-**Approach:** When in explicit-config mode, resolve `ts-json-schema-generator` from the project's `node_modules`. If it's not installed (it's a transitive dependency of `thinkwell`), fall back to the bundled version. The key point is that the project-local `thinkwell` package should bring `ts-json-schema-generator` as a dependency, so resolving it from the project's `node_modules` should work once `thinkwell` is installed as a project dependency.
+**Approach:** Export a public build API from the `thinkwell` package itself (e.g., `thinkwell/build`) that exposes schema generation functionality. In explicit-config mode, the CLI resolves `thinkwell` from the project's `node_modules` — which is already guaranteed by the dependency check — and calls its exported build API. The `thinkwell` package uses its own `ts-json-schema-generator` dependency internally, so version coordination is automatic and resolution is guaranteed by normal Node.js module resolution.
+
+This avoids:
+- Leaking `ts-json-schema-generator` into the user's dependency contract
+- Fragile cross-package `require.resolve()` tricks
+- Silent fallback to a potentially incompatible bundled version
+- The need for a separate `@thinkwell/build` package (the build API ships with `thinkwell` itself, so one dependency covers both runtime and build-time)
 
 ### Change 4: Dependency checking for `bundle`
 
@@ -138,7 +144,7 @@ Since `bundle` already reads `package.json` for configuration (`thinkwell.bundle
 
 ### Change 5: Import transformation in `bundle`
 
-When bundling a project with explicit config, the esbuild plugin's `@JSONSchema` processing should use the project-local `ts-json-schema-generator` rather than the bundled one. The esbuild resolver will naturally resolve `thinkwell` imports from the project's `node_modules` since esbuild operates on the real filesystem.
+When bundling a project with explicit config, the esbuild plugin's `@JSONSchema` processing should use the project-local `thinkwell` build API rather than the bundled `ts-json-schema-generator`. The esbuild resolver will naturally resolve `thinkwell` imports from the project's `node_modules` since esbuild operates on the real filesystem.
 
 The generated wrapper's `global.__bundled__` setup remains necessary for the *output* binary (which won't have `node_modules` at runtime), but the *build-time* resolution should use project-local versions.
 
@@ -149,10 +155,13 @@ The generated wrapper's `global.__bundled__` setup remains necessary for the *ou
 ```
 src/cli/
 ├── loader.ts           # Add explicit-config awareness to module resolution
-├── schema.ts           # Support project-local ts-json-schema-generator
+├── schema.ts           # Support project-local build API for schema generation
 ├── main.cjs            # Conditional bundled module registration
 ├── bundle.ts           # Add dependency checking
 └── dependency-check.ts # (unchanged, already used by build/check)
+
+src/
+├── build.ts            # Public build API (schema generation) exported as thinkwell/build
 ```
 
 ### Config Detection
@@ -188,7 +197,7 @@ To manage risk, this can be implemented in phases:
 |--------|--------|
 | Breaking change for `run` | Projects with package.json that relied on bundled versions will see new errors |
 | Startup cost for `run` | Dependency checking adds a small overhead when package.json exists |
-| `ts-json-schema-generator` resolution complexity | Need to handle the case where it's a transitive dep of thinkwell |
+| New public API surface | `thinkwell/build` export needs to be designed and maintained |
 
 ### Migration Path
 
@@ -198,23 +207,16 @@ Same as the explicit-config RFD — existing projects see a clear error message 
 
 ### `@thinkwell/build` package
 
-The `@JSONSchema` transformation logic is currently duplicated across four consumers:
+The `thinkwell/build` export introduced in Change 3 solves the immediate problem: the CLI can call the project-local build API without leaking `ts-json-schema-generator` into the user contract.
+
+A future `@thinkwell/build` *package* could go further by encapsulating the full transformation pipeline behind a stable interface, shared across all four consumers:
 
 1. **CLI loader** (`loader.ts`) — runtime transformation for `thinkwell run`
 2. **CompilerHost** (`compiler-host.ts`) — build-time transformation for `thinkwell build`/`check`
 3. **esbuild plugin** (`bundle.ts`) — bundle-time transformation for `thinkwell bundle`
 4. **VS Code TS plugin** (`packages/vscode-ts-plugin/`) — IDE-time virtual declarations
 
-Each wires up its own pipeline using `transformJsonSchemas()` from `schema.ts` (except the VS Code plugin, which has its own scanner-based approach).
-
-A future `@thinkwell/build` package could encapsulate the transformation pipeline behind a stable interface, allowing:
-
-- Shared logic between all four consumers
-- The `ts-json-schema-generator` dependency to be an implementation detail
-- Easier testing and versioning of the transformation logic
-- A clean extension point if the transformation approach changes (e.g., replacing `ts-json-schema-generator` with a custom solution)
-
-This refactoring is out of scope for the current issue but would simplify the project-config resolution problem: instead of each consumer needing to conditionally resolve `ts-json-schema-generator`, they'd all go through `@thinkwell/build` which handles it internally.
+This would allow easier testing, versioning, and a clean extension point if the transformation approach changes. However, it introduces version coordination concerns between packages, so it's deferred until the API surface stabilizes.
 
 ## References
 
