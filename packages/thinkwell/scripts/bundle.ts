@@ -80,6 +80,16 @@ const PACKAGES: PackageConfig[] = [
     // @yao-pkg/pkg is external because it's only used at build time (not inside the compiled binary)
     external: ["@yao-pkg/pkg"],
   },
+  {
+    name: "cli-dependency-check",
+    entryPoint: resolve(ROOT_DIR, "dist/cli/dependency-check.js"),
+    output: "cli-dependency-check.cjs",
+  },
+  {
+    name: "cli-dependency-errors",
+    entryPoint: resolve(ROOT_DIR, "dist/cli/dependency-errors.js"),
+    output: "cli-dependency-errors.cjs",
+  },
 ];
 
 async function bundlePackage(pkg: PackageConfig): Promise<void> {

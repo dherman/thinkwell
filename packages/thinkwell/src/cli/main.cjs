@@ -13,8 +13,8 @@
  * - Handle @JSONSchema type processing
  */
 
-const { existsSync } = require("node:fs");
-const { resolve, isAbsolute } = require("node:path");
+const { existsSync, readFileSync } = require("node:fs");
+const { resolve, isAbsolute, dirname } = require("node:path");
 const { showMainHelp, showNoScriptError, hasHelpFlag, fmtError } = require("../../dist/cli/commands.js");
 
 // Version must be updated manually to match package.json
@@ -279,6 +279,24 @@ async function runUserScript(scriptPath, args) {
     process.exit(1);
   }
 
+  // Check for project-level dependencies when a package.json exists
+  // Use pre-bundled CJS versions since ESM sibling imports fail in pkg snapshot
+  const { findProjectRoot, checkDependencies } = require("../../dist-pkg/cli-dependency-check.cjs");
+  const { hasMissingDeps, formatMissingDepsError } = require("../../dist-pkg/cli-dependency-errors.cjs");
+
+  const projectRoot = findProjectRoot(dirname(resolvedPath));
+  if (projectRoot) {
+    // Determine if typescript is required by checking for @JSONSchema markers
+    const source = readFileSync(resolvedPath, "utf-8");
+    const requireTypescript = source.includes("@JSONSchema");
+
+    const depCheck = await checkDependencies(projectRoot);
+    if (hasMissingDeps(depCheck, { requireTypescript })) {
+      process.stderr.write(formatMissingDepsError(depCheck, { requireTypescript }) + "\n");
+      process.exit(2);
+    }
+  }
+
   // Import the loader from the pre-bundled CJS
   // Path: src/cli/ -> ../../dist-pkg/cli-loader.cjs
   const { runScript } = require("../../dist-pkg/cli-loader.cjs");
@@ -372,13 +390,30 @@ async function main() {
     showNoScriptError();
   }
 
-  // Register bundled modules before loading user scripts
-  // This populates global.__bundled__ which the loader uses to resolve
-  // thinkwell:* imports in user scripts.
-  registerBundledModules();
+  // Detect whether the user script lives in a project with explicit
+  // thinkwell dependencies (package.json present). When it does, we skip
+  // the bundled module registry and let the loader resolve thinkwell
+  // packages from the project's node_modules instead.
+  const scriptPath = runArgs[0];
+  const resolvedScriptPath = isAbsolute(scriptPath)
+    ? scriptPath
+    : resolve(process.cwd(), scriptPath);
+
+  const { findProjectRoot } = require("../../dist-pkg/cli-dependency-check.cjs");
+  const projectRoot = findProjectRoot(dirname(resolvedScriptPath));
+  const explicitConfig = projectRoot !== undefined;
+
+  if (explicitConfig) {
+    // Explicit config mode: tell the loader to resolve from node_modules
+    // and use project-local ts-json-schema-generator for @JSONSchema processing
+    const { setExplicitConfig } = require("../../dist-pkg/cli-loader.cjs");
+    setExplicitConfig(projectRoot);
+  } else {
+    // Zero-config mode: populate global.__bundled__ for the loader
+    registerBundledModules();
+  }
 
   // Run the user script
-  const scriptPath = runArgs[0];
   const scriptArgs = runArgs.slice(1);
   await runUserScript(scriptPath, scriptArgs);
 }

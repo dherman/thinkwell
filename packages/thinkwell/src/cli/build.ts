@@ -180,14 +180,17 @@ export async function runBuild(options: BuildOptions): Promise<void> {
     }
   }
 
+  // Resolve project directory for project-local @JSONSchema processing
+  const projectDir = hasPackageJson(cwd) ? cwd : undefined;
+
   // Watch mode: use TypeScript's watch API for continuous compilation
   if (options.watch) {
-    return runWatch(configPath, fileFilter);
+    return runWatch(configPath, fileFilter, projectDir);
   }
 
   // Single-pass build
-  const { program, configErrors } = fileFilter
-    ? createThinkwellProgram({ configPath, fileFilter })
+  const { program, configErrors } = (fileFilter || projectDir)
+    ? createThinkwellProgram({ configPath, fileFilter, projectDir })
     : createThinkwellProgram(configPath);
 
   // Report config-level diagnostics
@@ -257,6 +260,7 @@ export async function runBuild(options: BuildOptions): Promise<void> {
 function runWatch(
   configPath: string,
   fileFilter: ((fileName: string) => boolean) | undefined,
+  projectDir?: string,
 ): Promise<never> {
   const reportDiagnostic: ts.DiagnosticReporter = (diagnostic) => {
     console.error(ts.formatDiagnosticsWithColorAndContext([diagnostic], diagnosticsHost));
@@ -269,6 +273,7 @@ function runWatch(
   const watchHost = createThinkwellWatchHost({
     configPath,
     fileFilter,
+    projectDir,
     reportDiagnostic,
     reportWatchStatus,
   });

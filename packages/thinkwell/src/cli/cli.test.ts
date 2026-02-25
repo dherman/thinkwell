@@ -18,7 +18,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import { execSync, spawnSync, spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, cpSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, cpSync, symlinkSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -784,6 +784,8 @@ function copyFixture(prefix: string): string {
   const dest = join(tmpdir(), `thinkwell-cli-test-${prefix}-${Date.now()}`);
   cpSync(FIXTURE_DIR, dest, { recursive: true });
   cpSync(join(dest, "type-stubs"), join(dest, "node_modules"), { recursive: true });
+  // Symlink the thinkwell package so `thinkwell/build` resolves in explicit-config mode
+  symlinkSync(PACKAGE_ROOT, join(dest, "node_modules", "thinkwell"), "dir");
   return dest;
 }
 

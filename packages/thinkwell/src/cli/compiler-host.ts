@@ -104,6 +104,12 @@ export interface ThinkwellHostOptions {
    * are always excluded). Return true to allow transformation.
    */
   fileFilter?: (fileName: string) => boolean;
+  /**
+   * Optional project root directory for resolving project-local
+   * ts-json-schema-generator. When set, @JSONSchema processing uses the
+   * project's version instead of the bundled one.
+   */
+  projectDir?: string;
 }
 
 function isThinkwellHostOptions(options: ts.CompilerOptions | ThinkwellHostOptions): options is ThinkwellHostOptions {
@@ -127,13 +133,16 @@ export function createThinkwellHost(options: ThinkwellHostOptions): ts.CompilerH
 export function createThinkwellHost(options: ts.CompilerOptions | ThinkwellHostOptions): ts.CompilerHost {
   let compilerOptions: ts.CompilerOptions;
   let fileFilter: ((fileName: string) => boolean) | undefined;
+  let projectDir: string | undefined;
 
   if (isThinkwellHostOptions(options)) {
     compilerOptions = options.compilerOptions;
     fileFilter = options.fileFilter;
+    projectDir = options.projectDir;
   } else {
     compilerOptions = options;
     fileFilter = undefined;
+    projectDir = undefined;
   }
   const defaultHost = ts.createCompilerHost(compilerOptions);
   const tsLibDir = getTypeScriptLibDir();
@@ -162,7 +171,7 @@ export function createThinkwellHost(options: ts.CompilerOptions | ThinkwellHostO
       // If a fileFilter is provided, also check that the file passes the filter.
       if (shouldTransform(fileName) && hasJsonSchemaMarkers(source)) {
         if (!fileFilter || fileFilter(fileName)) {
-          const transformed = transformJsonSchemas(fileName, source);
+          const transformed = transformJsonSchemas(fileName, source, projectDir);
           return ts.createSourceFile(fileName, transformed, languageVersionOrOptions);
         }
       }
@@ -184,6 +193,11 @@ export interface CreateProgramOptions {
    * transformation. See {@link ThinkwellHostOptions.fileFilter}.
    */
   fileFilter?: (fileName: string) => boolean;
+  /**
+   * Optional project root directory for resolving project-local
+   * ts-json-schema-generator. See {@link ThinkwellHostOptions.projectDir}.
+   */
+  projectDir?: string;
 }
 
 /**
@@ -206,13 +220,16 @@ export function createThinkwellProgram(configPathOrOptions: string | CreateProgr
   const fileFilter = typeof configPathOrOptions === "object"
     ? configPathOrOptions.fileFilter
     : undefined;
+  const projectDir = typeof configPathOrOptions === "object"
+    ? configPathOrOptions.projectDir
+    : undefined;
 
   const resolvedConfigPath = resolve(configPath);
   const { options, fileNames, errors } = parseTsConfig(resolvedConfigPath);
 
   function makeHost() {
-    return fileFilter
-      ? createThinkwellHost({ compilerOptions: options, fileFilter })
+    return (fileFilter || projectDir)
+      ? createThinkwellHost({ compilerOptions: options, fileFilter, projectDir })
       : createThinkwellHost(options);
   }
 
@@ -251,6 +268,11 @@ export interface CreateWatchHostOptions {
    * transformation. See {@link ThinkwellHostOptions.fileFilter}.
    */
   fileFilter?: (fileName: string) => boolean;
+  /**
+   * Optional project root directory for resolving project-local
+   * ts-json-schema-generator. See {@link ThinkwellHostOptions.projectDir}.
+   */
+  projectDir?: string;
   /** Callback to report individual diagnostics (errors, warnings) */
   reportDiagnostic: ts.DiagnosticReporter;
   /** Callback to report watch status changes ("Starting compilation...", etc.) */
@@ -266,6 +288,7 @@ export interface CreateWatchHostOptions {
 function patchHost(
   host: ts.CompilerHost,
   fileFilter?: (fileName: string) => boolean,
+  projectDir?: string,
 ): void {
   const originalGetSourceFile = host.getSourceFile.bind(host);
   const tsLibDir = getTypeScriptLibDir();
@@ -282,7 +305,7 @@ function patchHost(
 
     if (shouldTransform(fileName) && hasJsonSchemaMarkers(source)) {
       if (!fileFilter || fileFilter(fileName)) {
-        const transformed = transformJsonSchemas(fileName, source);
+        const transformed = transformJsonSchemas(fileName, source, projectDir);
         return ts.createSourceFile(fileName, transformed, languageVersionOrOptions);
       }
     }
@@ -305,7 +328,7 @@ function patchHost(
 export function createThinkwellWatchHost(
   options: CreateWatchHostOptions,
 ): ts.WatchCompilerHostOfConfigFile<ts.EmitAndSemanticDiagnosticsBuilderProgram> {
-  const { configPath, fileFilter, reportDiagnostic, reportWatchStatus } = options;
+  const { configPath, fileFilter, projectDir, reportDiagnostic, reportWatchStatus } = options;
 
   const createProgram: ts.CreateProgram<ts.EmitAndSemanticDiagnosticsBuilderProgram> = (
     rootNames,
@@ -318,7 +341,7 @@ export function createThinkwellWatchHost(
     // Patch the host that TypeScript's watch system created, rather than
     // replacing it entirely. This preserves watch-specific internal state.
     if (host) {
-      patchHost(host, fileFilter);
+      patchHost(host, fileFilter, projectDir);
     }
 
     return ts.createEmitAndSemanticDiagnosticsBuilderProgram(

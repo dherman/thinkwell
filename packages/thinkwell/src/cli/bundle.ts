@@ -30,6 +30,8 @@ import { createHash } from "node:crypto";
 import { spawn, execSync } from "node:child_process";
 import * as esbuild from "esbuild";
 import { transformJsonSchemas, hasJsonSchemaMarkers } from "./schema.js";
+import { findProjectRoot, checkDependencies } from "./dependency-check.js";
+import { hasMissingDeps, formatMissingDepsError } from "./dependency-errors.js";
 
 // ============================================================================
 // Simple Spinner Implementation
@@ -313,6 +315,8 @@ interface BundleContext {
   resolvedTargets: Exclude<Target, "host">[];
   /** Build options */
   options: BundleOptions;
+  /** Project root directory (when package.json found), for resolving project-local deps */
+  projectDir?: string;
 }
 
 /**
@@ -586,7 +590,7 @@ require.main = __origRequire.main;
               }
 
               // Transform the source to inject schema namespaces
-              const transformed = transformJsonSchemas(args.path, source);
+              const transformed = transformJsonSchemas(args.path, source, ctx.projectDir);
 
               return {
                 contents: transformed,
@@ -1293,13 +1297,30 @@ function runDryRun(ctx: BundleContext): void {
  * Main build function.
  */
 export async function runBundle(options: BundleOptions): Promise<void> {
+  // Check for project-level dependencies when a package.json exists
+  const entryPath = isAbsolute(options.entry)
+    ? options.entry
+    : resolve(process.cwd(), options.entry);
+  const projectRoot = findProjectRoot(dirname(entryPath));
+  if (projectRoot && existsSync(entryPath)) {
+    const source = readFileSync(entryPath, "utf-8");
+    const requireTypescript = hasJsonSchemaMarkers(source);
+
+    const depCheck = await checkDependencies(projectRoot);
+    if (hasMissingDeps(depCheck, { requireTypescript })) {
+      process.stderr.write(formatMissingDepsError(depCheck, { requireTypescript }) + "\n");
+      process.exit(2);
+    }
+  }
+
   // Handle watch mode separately
   if (options.watch) {
-    await runWatchMode(options);
+    await runWatchMode(options, projectRoot);
     return;
   }
 
   const ctx = initBundleContext(options);
+  ctx.projectDir = projectRoot;
 
   // Check for top-level await and warn
   const topLevelAwaits = detectTopLevelAwait(ctx.entryPath);
@@ -1387,8 +1408,9 @@ export async function runBundle(options: BundleOptions): Promise<void> {
 /**
  * Run the build in watch mode, rebuilding on file changes.
  */
-async function runWatchMode(options: BundleOptions): Promise<void> {
+async function runWatchMode(options: BundleOptions, projectDir?: string): Promise<void> {
   const ctx = initBundleContext(options);
+  ctx.projectDir = projectDir;
 
   console.log(styleText("bold", `Watching ${ctx.entryBasename} for changes...`));
   console.log(styleText("dim", "Press Ctrl+C to stop.\n"));

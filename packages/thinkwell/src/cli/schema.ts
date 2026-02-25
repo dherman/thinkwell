@@ -4,17 +4,23 @@
  * This module provides schema generation functionality for the CLI. It handles:
  *
  * 1. **Type Discovery**: Finding types marked with @JSONSchema JSDoc tag
- * 2. **Schema Generation**: Using ts-json-schema-generator to create JSON schemas
+ * 2. **Schema Generation**: Delegating to the thinkwell/build API
  * 3. **Code Injection**: Generating namespace declarations with SchemaProvider
+ *
+ * Schema generation is handled by the `thinkwell/build` module, which
+ * encapsulates all interaction with `ts-json-schema-generator`. In
+ * explicit-config mode, the build API is resolved from the project's
+ * `node_modules` so the project-local version is used. In zero-config mode,
+ * the bundled version is used directly.
  *
  * Unlike the bun-plugin which operates at bundle time with caching across files,
  * this module operates at runtime on individual user scripts.
  */
 
 import ts from "typescript";
-import { dirname, join } from "node:path";
-import { existsSync, statSync } from "node:fs";
-import { createGenerator, type Config, type SchemaGenerator } from "ts-json-schema-generator";
+import { join } from "node:path";
+import { createRequire } from "node:module";
+import { generateSchemas as bundledGenerateSchemas } from "../build.js";
 
 // =============================================================================
 // Type Discovery
@@ -118,85 +124,54 @@ export function findMarkedTypes(path: string, source: string): TypeInfo[] {
 // =============================================================================
 
 /**
- * Find tsconfig.json by walking up from the given directory.
+ * Resolve the `generateSchemas` function from the thinkwell/build API.
+ *
+ * When `projectDir` is provided (explicit-config mode), resolves
+ * `thinkwell/build` from the project's `node_modules` and uses its
+ * exported `generateSchemas`. This ensures schema generation uses the
+ * project-local version of `ts-json-schema-generator` (encapsulated
+ * inside `thinkwell/build`), without leaking it into the user's contract.
+ *
+ * In explicit-config mode, resolution failure is an error — `thinkwell`
+ * is a checked dependency, so `thinkwell/build` is guaranteed available.
+ * Silently falling back to the bundled version would hide version
+ * mismatches.
+ *
+ * Returns the bundled version only in zero-config mode (no projectDir).
  */
-function findTsConfig(startDir: string): string | undefined {
-  let dir = startDir;
-  while (true) {
-    const configPath = join(dir, "tsconfig.json");
-    if (existsSync(configPath)) {
-      return configPath;
+function resolveGenerateSchemas(projectDir?: string): typeof bundledGenerateSchemas {
+  if (projectDir) {
+    const projectRequire = createRequire(join(projectDir, "package.json"));
+    const buildMod = projectRequire("thinkwell/build");
+    if (typeof buildMod.generateSchemas === "function") {
+      return buildMod.generateSchemas;
     }
-    const parent = dirname(dir);
-    if (parent === dir) {
-      return undefined;
-    }
-    dir = parent;
+    throw new Error(
+      `thinkwell/build resolved from ${projectDir} but does not export generateSchemas. ` +
+      `This may indicate a version mismatch — try updating the thinkwell dependency.`
+    );
   }
-}
-
-/**
- * Recursively inline $ref references to make schemas self-contained.
- */
-function inlineRefs(
-  obj: unknown,
-  definitions: Record<string, unknown>
-): unknown {
-  if (obj === null || typeof obj !== "object") {
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map((item) => inlineRefs(item, definitions));
-  }
-
-  const record = obj as Record<string, unknown>;
-
-  // If this object has a $ref, replace it with the referenced definition
-  if (typeof record["$ref"] === "string") {
-    const ref = record["$ref"];
-    const match = ref.match(/^#\/definitions\/(.+)$/);
-    if (match && definitions[match[1]]) {
-      return inlineRefs(definitions[match[1]], definitions);
-    }
-  }
-
-  // Otherwise, recursively process all properties
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(record)) {
-    result[key] = inlineRefs(value, definitions);
-  }
-  return result;
-}
-
-/**
- * Create a schema generator for a single file.
- */
-function createSchemaGenerator(filePath: string): SchemaGenerator {
-  const configPath = findTsConfig(dirname(filePath));
-
-  const config: Config = {
-    path: filePath,
-    ...(configPath && { tsconfig: configPath }),
-    skipTypeCheck: true,
-    encodeRefs: false,
-  };
-
-  return createGenerator(config);
+  return bundledGenerateSchemas;
 }
 
 /**
  * Generate JSON schemas for the given types.
  *
+ * Delegates to the `thinkwell/build` API (project-local or bundled) for
+ * the actual schema generation. This module only handles type discovery,
+ * error formatting, and code injection.
+ *
  * @param path - The path to the TypeScript file
  * @param types - The types to generate schemas for
  * @param sourceCode - The source code (for error messages)
+ * @param projectDir - Optional project root for resolving project-local build API
  * @returns Map from type name to JSON schema object
  */
 export function generateSchemas(
   path: string,
   types: TypeInfo[],
-  sourceCode?: string
+  sourceCode?: string,
+  projectDir?: string,
 ): Map<string, object> {
   const schemas = new Map<string, object>();
 
@@ -204,31 +179,17 @@ export function generateSchemas(
     return schemas;
   }
 
-  const generator = createSchemaGenerator(path);
+  const buildGenerateSchemas = resolveGenerateSchemas(projectDir);
 
   for (const typeInfo of types) {
-    const { name, line, column, declarationLength } = typeInfo;
+    const { name, line, column } = typeInfo;
     try {
-      const schema = generator.createSchema(name);
-      const definitions = (schema.definitions || {}) as Record<string, unknown>;
-
-      // Get the schema for this specific type
-      let result: unknown = definitions[name] || schema;
-
-      // Inline all $ref references
-      result = inlineRefs(result, definitions);
-
-      // Clean up root-level properties
-      if (typeof result === "object" && result !== null) {
-        const cleaned = { ...(result as Record<string, unknown>) };
-        delete cleaned["$schema"];
-        delete cleaned["definitions"];
-        schemas.set(name, cleaned as object);
-      } else {
-        schemas.set(name, result as object);
+      const result = buildGenerateSchemas(path, [name]);
+      const schema = result.get(name);
+      if (schema) {
+        schemas.set(name, schema);
       }
     } catch (error) {
-      // Format error with location information
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(
         `Failed to generate schema for type '${name}' at ${path}:${line}:${column}\n` +
@@ -367,9 +328,10 @@ export function hasJsonSchemaMarkers(source: string): boolean {
  *
  * @param path - The file path
  * @param source - The TypeScript source code
+ * @param projectDir - Optional project root for resolving project-local ts-json-schema-generator
  * @returns The transformed source code, or the original if no transforms needed
  */
-export function transformJsonSchemas(path: string, source: string): string {
+export function transformJsonSchemas(path: string, source: string, projectDir?: string): string {
   // Fast path: no @JSONSchema markers
   if (!hasJsonSchemaMarkers(source)) {
     return source;
@@ -382,7 +344,7 @@ export function transformJsonSchemas(path: string, source: string): string {
   }
 
   // Generate schemas
-  const schemas = generateSchemas(path, markedTypes, source);
+  const schemas = generateSchemas(path, markedTypes, source, projectDir);
 
   // Generate and apply insertions
   const insertions = generateInsertions(markedTypes, schemas);

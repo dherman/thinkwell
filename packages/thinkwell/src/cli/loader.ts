@@ -69,6 +69,30 @@ export function initializeBundledRegistry(
 }
 
 /**
+ * When set, thinkwell imports resolve from the project's node_modules
+ * instead of the bundled modules in global.__bundled__.
+ *
+ * Contains the project root directory path (for resolving project-local
+ * dependencies like ts-json-schema-generator), or undefined in zero-config mode.
+ *
+ * Set by main.cjs when a project has an explicit thinkwell dependency
+ * in its package.json (i.e., it's not using the zero-config binary mode).
+ */
+let __projectDir: string | undefined = undefined;
+
+/**
+ * Enable explicit config mode.
+ *
+ * When called with a project directory, the loader skips bundled module lookups
+ * and virtual import transforms, allowing thinkwell packages to resolve from
+ * node_modules. The project directory is also used to resolve project-local
+ * ts-json-schema-generator for @JSONSchema processing.
+ */
+export function setExplicitConfig(projectDir: string): void {
+  __projectDir = projectDir;
+}
+
+/**
  * Check if a module name refers to a bundled package.
  */
 function isBundledPackage(moduleName: string): boolean {
@@ -174,8 +198,8 @@ export function createCustomRequire(
   const baseRequire = createRequire(scriptPath);
 
   function customRequire(moduleName: string): unknown {
-    // First check if it's a bundled module
-    if (global.__bundled__ && isBundledPackage(moduleName)) {
+    // In zero-config mode, resolve thinkwell packages from bundled modules
+    if (!__projectDir && global.__bundled__ && isBundledPackage(moduleName)) {
       const bundled = global.__bundled__[moduleName];
       if (bundled) {
         return bundled;
@@ -196,8 +220,8 @@ export function createCustomRequire(
 
   // Copy over require properties that modules might depend on
   customRequire.resolve = ((id: string, options?: { paths?: string[] }) => {
-    // Check bundled first
-    if (global.__bundled__ && isBundledPackage(id)) {
+    // In zero-config mode, resolve thinkwell packages from bundled modules
+    if (!__projectDir && global.__bundled__ && isBundledPackage(id)) {
       // Return a fake path for bundled modules
       return `/__bundled__/${id}`;
     }
@@ -224,16 +248,22 @@ export function createCustomRequire(
 /**
  * Check if source code needs transformation.
  *
+ * In zero-config mode, thinkwell imports require transformation to use
+ * global.__bundled__. In explicit-config mode, thinkwell imports are left
+ * as-is (they resolve from node_modules), so they don't trigger transformation.
+ *
+ * @JSONSchema markers always require transformation regardless of mode.
+ *
  * @param source - The script source code
- * @returns true if the source contains thinkwell imports or @JSONSchema markers
+ * @returns true if the source needs transformation before loading
  */
 function needsTransformation(source: string): boolean {
-  // Check for bundled package imports
-  if (/from\s+['"](?:thinkwell|@thinkwell\/(?:acp|protocol))['"]/.test(source)) {
+  // Check for @JSONSchema markers (always needs transformation)
+  if (hasJsonSchemaMarkers(source)) {
     return true;
   }
-  // Check for @JSONSchema markers
-  if (hasJsonSchemaMarkers(source)) {
+  // In zero-config mode, thinkwell imports need rewriting to global.__bundled__
+  if (!__projectDir && /from\s+['"](?:thinkwell|@thinkwell\/(?:acp|protocol))['"]/.test(source)) {
     return true;
   }
   return false;
@@ -357,10 +387,13 @@ export function loadScript(scriptPath: string): unknown {
   // Source needs transformation - apply transforms and use a temp file
   // Process @JSONSchema types (must happen before import transformation
   // because it adds an import statement that also needs transformation)
-  let source = transformJsonSchemas(absolutePath, sourceWithoutShebang);
+  let source = transformJsonSchemas(absolutePath, sourceWithoutShebang, __projectDir);
 
-  // Transform imports to use bundled modules (global.__bundled__)
-  source = transformVirtualImports(source);
+  // In zero-config mode, rewrite thinkwell imports to use global.__bundled__.
+  // In explicit-config mode, leave imports as-is so they resolve from node_modules.
+  if (!__projectDir) {
+    source = transformVirtualImports(source);
+  }
 
   // Rewrite .js → .ts in relative imports for TypeScript convention compatibility
   source = rewriteJsToTsExtensions(absolutePath, source);
