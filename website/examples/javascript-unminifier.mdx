@@ -3,36 +3,25 @@ title: "JavaScript Unminifier"
 description: "Build simple code transformations using agents."
 ---
 
-This example demonstrates how to build a multi-step LLM pipeline that transforms minified JavaScript into readable code. It showcases Thinkwell's core pattern: use deterministic code for orchestration and iteration, while delegating semantic understanding to the AI agent.
+This example demonstrates how to build a pipeline that transforms minified JavaScript into readable code, mixing LLM-powered analysis with deterministic transformations. It showcases Thinkwell's core pattern: use deterministic tools where they excel, and delegate semantic understanding to the AI agent.
 
 ## What the Unminifier Does
 
 The unminifier takes minified JavaScript (like `underscore-umd-min.js`) and produces readable code through five steps:
 
-1. **Pretty-print** with Prettier (no LLM needed)
-2. **Convert UMD to ESM** - strip the UMD boilerplate and use modern module syntax
-3. **Extract functions** - identify all top-level functions with minified names
-4. **Analyze functions** - suggest descriptive names for each function (in parallel batches)
-5. **Apply renames** - perform all identifier renames in a single pass
+1. **Pretty-print** with Prettier (deterministic)
+2. **Convert UMD to ESM** with ast-grep pattern matching (deterministic)
+3. **Extract functions** - identify all top-level functions with minified names (LLM)
+4. **Analyze functions** - suggest descriptive names for each function in parallel batches (LLM)
+5. **Apply renames** with Babel's scope-aware renaming (deterministic)
 
-This pipeline illustrates a key insight: some transformations are purely mechanical (formatting), while others require semantic understanding (naming). Thinkwell lets you mix both approaches naturally.
+This pipeline illustrates a key insight: some transformations are purely mechanical (formatting, module conversion, renaming), while others require semantic understanding (identifying and naming functions). Thinkwell lets you mix both approaches naturally.
 
 ## The Schema Definitions
 
-First, define the structured outputs for each LLM step using the `@JSONSchema` annotation:
+The LLM steps (3 and 4) use structured outputs defined with the `@JSONSchema` annotation:
 
 ```typescript
-/**
- * Result of converting a UMD module to ESM.
- * @JSONSchema
- */
-export interface ModuleConversion {
-  /** The converted ESM code with default export */
-  code: string;
-  /** The name of the main exported object/function */
-  exportedName: string;
-}
-
 /**
  * Information about a function found in the code.
  * @JSONSchema
@@ -78,21 +67,9 @@ export interface FunctionAnalysisBatch {
   /** Array of function analyses */
   analyses: FunctionAnalysis[];
 }
-
-/**
- * Result of applying renames to code.
- * @JSONSchema
- */
-export interface RenamedCode {
-  /** The code with all renames applied */
-  code: string;
-  /** Number of identifiers that were renamed */
-  renameCount: number;
-}
 ```
 
-Notice how each schema serves a specific step in the pipeline:
-- `ModuleConversion` captures both the transformed code and metadata about what was exported
+Notice how each schema serves the LLM steps:
 - `FunctionList` uses a nested structure to return multiple items
 - `FunctionAnalysis` includes a `confidence` field with literal union types for quality signals
 - `FunctionAnalysisBatch` wraps multiple analyses for efficient batched processing
@@ -115,30 +92,35 @@ export async function formatCode(code: string): Promise<string> {
 }
 ```
 
-This demonstrates an important pattern: **use traditional tools where they excel**. Prettier handles formatting perfectly - there's no need to involve an LLM.
+This demonstrates an important pattern: **use deterministic tools where they excel**. Prettier handles formatting perfectly — there's no need to involve an LLM.
 
 ## Step 2: Convert UMD to ESM
 
-Now we need semantic understanding. The LLM can recognize UMD boilerplate patterns and extract the module body:
+UMD boilerplate follows a predictable pattern, so there's no need for an LLM here. We use [ast-grep](https://ast-grep.github.io) to match the UMD wrapper and rewrite it in a single pass:
 
 ```typescript
-const conversion = await agent
-  .think(ModuleConversion.Schema)
-  .text(`
-    Convert this UMD module to an ESM module with a default export.
-    Remove the UMD wrapper boilerplate (the IIFE that checks for exports/define/globalThis).
-    Keep all the internal code intact, just change the module format.
-    The code should end with a default export of the main library object.
+import * as os from "os";
+import * as path from "path";
+import { execFile } from "child_process";
 
-  `)
-  .code(prettyCode, "javascript")
-  .run();
+const tmpFile = path.join(os.tmpdir(), `unminify-${Date.now()}.js`);
+await fs.writeFile(tmpFile, prettyCode);
+await new Promise<void>((resolve, reject) => {
+  execFile("ast-grep", [
+    "run",
+    "--pattern", "!($IIFE)(this, function () { $$$BODY return $RET; })",
+    "--rewrite", "$$$BODY\nexport default $RET;",
+    "--lang", "js",
+    "--update-all",
+    tmpFile,
+  ], (err) => err ? reject(err) : resolve());
+});
 
-console.log(`Exported as: ${conversion.exportedName}`);
-const esmCode = await formatCode(conversion.code);
+const esmCode = await formatCode(await fs.readFile(tmpFile, "utf-8"));
+await fs.unlink(tmpFile).catch(() => {});
 ```
 
-The `.code()` method formats the code as a fenced code block in the prompt, making it clear to the agent where the code begins and ends.
+The ast-grep pattern `!($IIFE)(this, function () { $$$BODY return $RET; })` matches the UMD IIFE wrapper. The `$$$BODY` metavariable captures all statements inside, and `$RET` captures the return value. The rewrite replaces the entire wrapper with just the body plus `export default $RET;`. This runs in ~130ms — compared to ~200s when the LLM had to regenerate the entire file token by token.
 
 ## Step 3: Extract Function List
 
@@ -222,44 +204,54 @@ Key patterns here:
 
 ## Step 5: Apply Renames
 
-Finally, ask the agent to apply all the renames in a single pass:
+Renaming is another task that doesn't need an LLM — Babel's scope-aware renaming handles it correctly and instantly:
 
 ```typescript
-const renameList = Array.from(renames.entries())
-  .map(([from, to]) => `  ${from} -> ${to}`)
-  .join("\n");
+import { parse as babelParse } from "@babel/parser";
+import { generate } from "@babel/generator";
+import { default as _traverse } from "@babel/traverse";
 
-const renamed = await agent
-  .think(RenamedCode.Schema)
-  .text(`
-    Apply the following renames to the code. Be careful to only rename
-    the function definitions and all their usages, not unrelated identifiers
-    that happen to have the same name:
+const traverse: typeof _traverse = (_traverse as any).default ?? _traverse;
 
-    ${renameList}
+const ast = babelParse(esmCode, { sourceType: "module", plugins: [] });
+let renameCount = 0;
 
-    Here is the code:
+traverse(ast, {
+  Program(path: any) {
+    for (const [oldName, newName] of renames) {
+      if (path.scope.getBinding(oldName)) {
+        path.scope.rename(oldName, newName);
+        renameCount++;
+      }
+    }
+  },
+});
 
-  `)
-  .code(esmCode, "javascript")
-  .run();
-
-const finalCode = await formatCode(renamed.code);
-console.log(`Applied ${renamed.renameCount} renames`);
+const renamedCode = generate(ast, { retainLines: false, comments: true }).code;
+const finalCode = await formatCode(renamedCode);
+console.log(`Applied ${renameCount} renames`);
 ```
 
-Doing renames in a single pass rather than incrementally avoids ordering issues (what if function `a` calls function `b` and both need renaming?).
+Babel's `scope.rename()` is scope-aware, so it correctly renames function definitions and all their usages without touching unrelated identifiers that happen to share the same name. This is more reliable than asking an LLM to regenerate the entire file — and runs in milliseconds.
 
 ## The Complete Pipeline
 
-Here's how it all fits together:
+Here's how it all fits together — notice how LLM and deterministic steps interleave naturally:
 
 ```typescript
 import { open } from "thinkwell";
 import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
+import { execFile } from "child_process";
 import * as prettier from "prettier";
 import pLimit from "p-limit";
 import _ from "lodash";
+import { parse as babelParse } from "@babel/parser";
+import { generate } from "@babel/generator";
+import { default as _traverse } from "@babel/traverse";
+
+const traverse: typeof _traverse = (_traverse as any).default ?? _traverse;
 
 async function main() {
   const agent = await open('claude');
@@ -267,16 +259,21 @@ async function main() {
   try {
     const minifiedCode = await fs.readFile("underscore-umd-min.js", "utf-8");
 
-    // Step 1: Pretty-print (no LLM)
+    // Step 1: Pretty-print (deterministic — Prettier)
     const prettyCode = await formatCode(minifiedCode);
 
-    // Step 2: Convert UMD to ESM (LLM)
-    const conversion = await agent
-      .think(ModuleConversion.Schema)
-      .text(`Convert this UMD module to ESM...`)
-      .code(prettyCode, "javascript")
-      .run();
-    const esmCode = await formatCode(conversion.code);
+    // Step 2: Convert UMD to ESM (deterministic — ast-grep)
+    const tmpFile = path.join(os.tmpdir(), `unminify-${Date.now()}.js`);
+    await fs.writeFile(tmpFile, prettyCode);
+    await new Promise<void>((resolve, reject) => {
+      execFile("ast-grep", [
+        "run",
+        "--pattern", "!($IIFE)(this, function () { $$$BODY return $RET; })",
+        "--rewrite", "$$$BODY\nexport default $RET;",
+        "--lang", "js", "--update-all", tmpFile,
+      ], (err) => err ? reject(err) : resolve());
+    });
+    const esmCode = await formatCode(await fs.readFile(tmpFile, "utf-8"));
 
     // Step 3: Extract function list (LLM)
     const functionList = await agent
@@ -289,14 +286,19 @@ async function main() {
     const renames = new Map<string, string>();
     // ... batch processing with p-limit ...
 
-    // Step 5: Apply renames (LLM)
-    const renamed = await agent
-      .think(RenamedCode.Schema)
-      .text(`Apply these renames...`)
-      .code(esmCode, "javascript")
-      .run();
+    // Step 5: Apply renames (deterministic — Babel)
+    const ast = babelParse(esmCode, { sourceType: "module", plugins: [] });
+    traverse(ast, {
+      Program(path: any) {
+        for (const [oldName, newName] of renames) {
+          if (path.scope.getBinding(oldName)) {
+            path.scope.rename(oldName, newName);
+          }
+        }
+      },
+    });
+    const finalCode = await formatCode(generate(ast).code);
 
-    const finalCode = await formatCode(renamed.code);
     await fs.writeFile("underscore.js", finalCode, "utf-8");
   } finally {
     agent.close();
@@ -324,7 +326,7 @@ Step 1: Pretty-printing with Prettier...
 Pretty-printed: 892 lines
 
 Step 2: Converting UMD wrapper to ESM...
-Exported as: _
+ESM module: 879 lines
 
 Step 3: Extracting function list...
 Found 47 functions to analyze
@@ -336,7 +338,7 @@ Step 4: Analyzing functions in batches...
   A -> optimizeCb
   ...
 
-Step 5: Applying renames...
+Step 5: Applying renames with Babel...
 Applied 47 renames
 
 === Done! ===
@@ -344,9 +346,9 @@ Applied 47 renames
 
 ## Key Takeaways
 
-1. **Mix LLM and traditional tools** - Use Prettier for formatting, LLM for semantic understanding
-2. **Sequential `agent.think()` calls** create natural pipeline stages
-3. **Parallel processing with `p-limit`** keeps pipelines efficient without exhausting account limits
-4. **Batch schemas like `FunctionAnalysisBatch`** reduce round trips for repeated operations
+1. **Use deterministic tools where they excel** - Prettier for formatting, ast-grep for structural rewrites, Babel for scope-aware renaming
+2. **Reserve the LLM for semantic understanding** - only steps 3 and 4 (function extraction and naming) actually need AI
+3. **Parallel processing with `p-limit`** keeps LLM-powered steps efficient without exhausting account limits
+4. **Batch schemas like `FunctionAnalysisBatch`** reduce round trips for repeated LLM operations
 5. **The `.code()` method** clearly delineates code blocks in prompts
-6. **Send full code context** when a prompt requires understanding relationships between code elements
+6. **Deterministic steps are faster and more reliable** - the ast-grep rewrite runs in ~130ms vs ~200s for LLM regeneration
