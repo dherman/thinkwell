@@ -4,8 +4,8 @@ export type { Agent, AgentName, AgentOptions, CustomAgentOptions, SessionOptions
 export { Session } from "./session.js";
 
 // Plan (fluent prompt builder)
-export { Plan, ThinkBuilder } from "./think-builder.js";
-export type { VirtualSkillDefinition } from "./think-builder.js";
+export { createPlan } from "./think-builder.js";
+export type { Plan, ThinkBuilder, VirtualSkillDefinition } from "./think-builder.js";
 
 // Thought streaming
 export { ThoughtStream } from "./thought-stream.js";
