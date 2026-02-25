@@ -9,8 +9,8 @@ This example demonstrates how to build a pipeline that transforms minified JavaS
 
 The unminifier takes minified JavaScript (like `underscore-umd-min.js`) and produces readable code through five steps:
 
-1. **Pretty-print** with Prettier (deterministic)
-2. **Convert UMD to ESM** with ast-grep pattern matching (deterministic)
+1. **Pretty-print** with [Prettier](https://prettier.io) (deterministic)
+2. **Convert UMD to ESM** with [ast-grep](https://ast-grep.github.io) pattern matching (deterministic)
 3. **Extract functions** - identify all top-level functions with minified names (LLM)
 4. **Analyze functions** - suggest descriptive names for each function in parallel batches (LLM)
 5. **Apply renames** with Babel's scope-aware renaming (deterministic)
@@ -76,7 +76,7 @@ Notice how each schema serves the LLM steps:
 
 ## Step 1: Pretty-Print with Prettier
 
-The first step is purely mechanical - no LLM required. Use Prettier to make the minified code readable:
+The first step is purely mechanical - no LLM required. Use [Prettier](https://prettier.io) to make the minified code readable:
 
 ```typescript
 import * as prettier from "prettier";
@@ -120,7 +120,9 @@ const esmCode = await formatCode(await fs.readFile(tmpFile, "utf-8"));
 await fs.unlink(tmpFile).catch(() => {});
 ```
 
-The ast-grep pattern `!($IIFE)(this, function () { $$$BODY return $RET; })` matches the UMD IIFE wrapper. The `$$$BODY` metavariable captures all statements inside, and `$RET` captures the return value. The rewrite replaces the entire wrapper with just the body plus `export default $RET;`. This runs in ~130ms — compared to ~200s when the LLM had to regenerate the entire file token by token.
+The ast-grep pattern `!($IIFE)(this, function () { $$$BODY return $RET; })` matches the UMD IIFE wrapper. The `$$$BODY` metavariable captures all statements inside, and `$RET` captures the return value. The rewrite replaces the entire wrapper with just the body plus `export default $RET;`.
+
+Once again, this demonstrates the benefits of using deterministic tools where they excel: ast-grep is convenient and effective for matching simple syntactic patterns. Not only that, it's highly efficient and cheaper; transforming a large source file like Underscore with an LLM chews through quite a few tokens.
 
 ## Step 3: Extract Function List
 
