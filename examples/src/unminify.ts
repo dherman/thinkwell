@@ -4,36 +4,35 @@
  * Example: JavaScript Unminifier using LLM
  *
  * This example demonstrates using thinkwell to unminify JavaScript code
- * through a series of LLM-powered transformations:
+ * through a mix of LLM-powered analysis and deterministic transformations:
  * 1. Pretty-print with Prettier
- * 2. Convert UMD wrapper to ESM default export
- * 3. Extract list of functions
- * 4. Analyze each function to suggest better names
- * 5. Apply renames in a single pass
+ * 2. Convert UMD wrapper to ESM default export (deterministic, ast-grep)
+ * 3. Extract list of functions (LLM)
+ * 4. Analyze each function to suggest better names (LLM, parallel batches)
+ * 5. Apply renames with Babel's scope-aware renaming (deterministic)
  *
+ * Requires: ast-grep installed and in PATH (https://ast-grep.github.io)
  * Run with: thinkwell src/unminify.ts
  */
 
 import { open } from "thinkwell";
 import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
+import { execFile } from "child_process";
 import * as prettier from "prettier";
 import pLimit from "p-limit";
 import _ from "lodash";
+import { parse as babelParse } from "@babel/parser";
+import { generate } from "@babel/generator";
+import { default as _traverse } from "@babel/traverse";
+
+// @babel/traverse has a double-default due to CJS→ESM interop
+const traverse: typeof _traverse = (_traverse as any).default ?? _traverse;
 
 // =============================================================================
 // Type Definitions (marked with @JSONSchema for schema generation)
 // =============================================================================
-
-/**
- * Result of converting a UMD module to ESM.
- * @JSONSchema
- */
-export interface ModuleConversion {
-  /** The converted ESM code with default export */
-  code: string;
-  /** The name of the main exported object/function */
-  exportedName: string;
-}
 
 /**
  * Information about a function found in the code.
@@ -81,17 +80,6 @@ export interface FunctionAnalysisBatch {
   analyses: FunctionAnalysis[];
 }
 
-/**
- * Result of applying renames to code.
- * @JSONSchema
- */
-export interface RenamedCode {
-  /** The code with all renames applied */
-  code: string;
-  /** Number of identifiers that were renamed */
-  renameCount: number;
-}
-
 // =============================================================================
 // Step 1: Pretty-print
 // =============================================================================
@@ -135,23 +123,28 @@ async function main() {
     const step1EndTime = Date.now();
 
     // -------------------------------------------------------------------------
-    // Step 2: Convert UMD to ESM
+    // Step 2: Convert UMD to ESM (deterministic — ast-grep)
     // -------------------------------------------------------------------------
     console.log("Step 2: Converting UMD wrapper to ESM...");
-    const conversion = await agent
-      .think(ModuleConversion.Schema)
-      .text(`
-        Convert this UMD module to an ESM module with a default export.
-        Remove the UMD wrapper boilerplate (the IIFE that checks for exports/define/globalThis).
-        Keep all the internal code intact, just change the module format.
-        The code should end with a default export of the main library object.
 
-      `)
-      .code(prettyCode, "javascript")
-      .run();
+    // Use ast-grep to strip the UMD wrapper and add a default export.
+    // Pattern matches: !(function(n, r) { ... })(this, function() { BODY return RET; });
+    const tmpFile = path.join(os.tmpdir(), `unminify-${Date.now()}.js`);
+    await fs.writeFile(tmpFile, prettyCode);
+    await new Promise<void>((resolve, reject) => {
+      execFile("ast-grep", [
+        "run",
+        "--pattern", "!($IIFE)(this, function () { $$$BODY return $RET; })",
+        "--rewrite", "$$$BODY\nexport default $RET;",
+        "--lang", "js",
+        "--update-all",
+        tmpFile,
+      ], (err) => err ? reject(err) : resolve());
+    });
 
-    console.log(`Exported as: ${conversion.exportedName}`);
-    const esmCode = await formatCode(conversion.code);
+    const esmCode = await formatCode(await fs.readFile(tmpFile, "utf-8"));
+    await fs.unlink(tmpFile).catch(() => {});
+
     console.log(`ESM module: ${esmCode.split("\n").length} lines\n`);
 
     const step2EndTime = Date.now();
@@ -231,30 +224,26 @@ async function main() {
     const step4EndTime = Date.now();
 
     // -------------------------------------------------------------------------
-    // Step 5: Apply renames
+    // Step 5: Apply renames (deterministic — Babel scope-aware renaming)
     // -------------------------------------------------------------------------
-    console.log("Step 5: Applying renames...");
-    const renameList = Array.from(renames.entries())
-      .map(([from, to]) => `  ${from} -> ${to}`)
-      .join("\n");
+    console.log("Step 5: Applying renames with Babel...");
+    const ast = babelParse(esmCode, { sourceType: "module", plugins: [] });
+    let renameCount = 0;
 
-    const renamed = await agent
-      .think(RenamedCode.Schema)
-      .text(`
-        Apply the following renames to the code. Be careful to only rename
-        the function definitions and all their usages, not unrelated identifiers
-        that happen to have the same name:
+    traverse(ast, {
+      Program(path: any) {
+        for (const [oldName, newName] of renames) {
+          if (path.scope.getBinding(oldName)) {
+            path.scope.rename(oldName, newName);
+            renameCount++;
+          }
+        }
+      },
+    });
 
-        ${renameList}
-
-        Here is the code:
-
-      `)
-      .code(esmCode, "javascript")
-      .run();
-
-    const finalCode = await formatCode(renamed.code);
-    console.log(`Applied ${renamed.renameCount} renames\n`);
+    const renamedCode = generate(ast, { retainLines: false, comments: true }).code;
+    const finalCode = await formatCode(renamedCode);
+    console.log(`Applied ${renameCount} renames\n`);
 
     const step5EndTime = Date.now();
 
@@ -269,7 +258,7 @@ async function main() {
     console.log("\n=== Done! ===");
 
     console.log("\n=== Timing Summary ===");
-    console.log(`  Step 1 (Pretty-print):       ${(step1EndTime - startTime) / 1000}s`);
+    console.log(`  Step 1 (Pretty-print):      ${(step1EndTime - startTime) / 1000}s`);
     console.log(`  Step 2 (UMD to ESM):        ${(step2EndTime - step1EndTime) / 1000}s`);
     console.log(`  Step 3 (Extract functions): ${(step3EndTime - step2EndTime) / 1000}s`);
     console.log(`  Step 4 (Analyze functions): ${(step4EndTime - step3EndTime) / 1000}s`);
