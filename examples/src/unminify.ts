@@ -214,9 +214,27 @@ async function main() {
       for (const analysis of batch.analyses) {
         if (analysis.suggestedName !== analysis.originalName) {
           renames.set(analysis.originalName, analysis.suggestedName);
-          console.log(`  ${analysis.originalName} -> ${analysis.suggestedName}`);
         }
       }
+    }
+
+    // Deduplicate suggested names: since batches run in parallel, different
+    // minified functions may independently get the same suggested name. The
+    // first occurrence keeps the clean name; subsequent duplicates get a
+    // numeric suffix (e.g. toArray, toArray2, toArray3). A production tool
+    // could do something more sophisticated (e.g. a second LLM pass to
+    // disambiguate), but this keeps the demo simple.
+    const nameCount = new Map<string, number>();
+    for (const [orig, suggested] of renames) {
+      const count = (nameCount.get(suggested) ?? 0) + 1;
+      nameCount.set(suggested, count);
+      if (count > 1) {
+        renames.set(orig, `${suggested}${count}`);
+      }
+    }
+
+    for (const [orig, suggested] of renames) {
+      console.log(`  ${orig} -> ${suggested}`);
     }
 
     console.log(`\nIdentified ${renames.size} renames\n`);
