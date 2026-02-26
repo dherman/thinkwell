@@ -25,7 +25,7 @@ const dim = (t: string) => styleText("dim", t);
  */
 export function showMainHelp(): void {
   console.log(`
-${cyanBold("thinkwell")} - ${whiteBold("agent scripting made easy ✨🖋️")}
+${cyanBold("thinkwell")} - ${whiteBold("agent scripting made easy ✨✍️")}
 
 ${greenBold("Usage:")}
   ${cyanBold("thinkwell")} ${dim("<script.ts> [args...]")}     Run a TypeScript script
