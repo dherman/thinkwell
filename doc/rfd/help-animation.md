@@ -11,10 +11,10 @@ Add a brief typewriter-style animation to the `thinkwell --help` screen that "wr
 The current main help screen displays:
 
 ```
-thinkwell - agent scripting made easy ✨🖋️
+thinkwell - agent scripting made easy ✨✍️
 ```
 
-The `✨🖋️` emoji conveys the idea of scripting/writing. Issue #56 proposes a brief (~200ms) animation that makes the tagline appear to be actively "written out," swapping in `✨✍️` during the animation to suggest active writing, then settling on the final `✨🖋️` once the animation completes.
+The `✨✍️` emoji conveys the idea of actively scripting/writing. Issue #56 proposes a brief (~200ms) animation that makes the tagline appear to be actively "written out," using a typewriter reveal effect.
 
 ## Design Goals
 
@@ -45,15 +45,14 @@ This keeps the animation as a fun brand moment that appears exactly when someone
 The animation targets the first line of help output — the tagline:
 
 ```
-thinkwell - agent scripting made easy ✨🖋️
+thinkwell - agent scripting made easy ✨✍️
 ```
 
-The effect is a typewriter reveal of the tagline text, character by character (or in small chunks), with the `✍️` emoji displayed during writing and `🖋️` shown at the end. A rough sketch of the sequence:
+The effect is a typewriter reveal of the tagline text, character by character (or in small chunks), with `✨✍️` at the end. A rough sketch of the sequence:
 
 1. Print `thinkwell` (the command name, styled cyan+bold) immediately — this anchors the line.
 2. Reveal ` - agent scripting made easy` progressively over ~200ms, with `✨✍️` at the end of whatever has been revealed so far.
-3. On the final frame, replace `✍️` with `🖋️` to show the "finished" state.
-4. Print the rest of the help text (usage, examples, URL) all at once.
+3. Print the rest of the help text (usage, examples, URL) all at once.
 
 The exact timing and chunking (per-character, per-word, or some hybrid) should be tuned during implementation to feel natural. The total animation duration should be short — roughly 150–250ms — so it reads as a quick flourish, not a loading screen.
 

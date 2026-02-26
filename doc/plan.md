@@ -6,7 +6,7 @@ RFD: [doc/rfd/help-animation.md](rfd/help-animation.md)
 
 - [ ] Add typewriter animation logic to `showMainHelp()` in `commands.ts`
   - Split tagline into anchor (`thinkwell`) + revealed text (` - agent scripting made easy`)
-  - Use `✨✍️` during reveal, `✨🖋️` on final frame
+  - Use `✨✍️` emoji (replaces former `✨🖋️` everywhere)
   - Use `\r\x1b[K` line-overwrite technique, ~200ms total duration
   - Guard: only animate when `process.stdout.isTTY && !process.env.CI`
   - Non-TTY path prints static text immediately
