@@ -11,6 +11,9 @@
  * where ESM import resolution for sibling modules fails.
  */
 
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { homedir } from "node:os";
 import { styleText } from "node:util";
 
 const cyan = (t: string) => styleText("cyan", t);
@@ -20,16 +23,52 @@ const whiteBold = (t: string) => styleText(["white", "bold"], t);
 const redBold = (t: string) => styleText(["red", "bold"], t);
 const dim = (t: string) => styleText("dim", t);
 
+export interface ShowMainHelpOptions {
+  version: string;
+  forceWelcome?: boolean;
+}
+
+function getWelcomeMarkerPath(): string {
+  const cacheDir = process.env.THINKWELL_CACHE_DIR || join(homedir(), ".cache", "thinkwell");
+  return join(cacheDir, "welcome-version");
+}
+
+function shouldAnimate(version: string, forceWelcome: boolean): boolean {
+  if (forceWelcome) return true;
+  try {
+    const stored = readFileSync(getWelcomeMarkerPath(), "utf-8").trim();
+    return stored !== version;
+  } catch {
+    return true;
+  }
+}
+
+function recordWelcomeVersion(version: string): void {
+  try {
+    const markerPath = getWelcomeMarkerPath();
+    mkdirSync(dirname(markerPath), { recursive: true });
+    writeFileSync(markerPath, version + "\n", "utf-8");
+  } catch {
+    // Best-effort — if we can't write, the animation plays again next time.
+  }
+}
+
 /**
  * Print the main help screen to stdout, with an optional typewriter
  * animation on the tagline when stdout is an interactive TTY.
+ *
+ * The animation is gated to run once per installed version. Pass
+ * `forceWelcome: true` (via the undocumented `--welcome` flag) to
+ * bypass version gating.
  */
-export async function showMainHelp(): Promise<void> {
+export async function showMainHelp(options: ShowMainHelpOptions): Promise<void> {
   const anchor = cyanBold("thinkwell");
   const revealedText = " - agent scripting made easy";
   const pen = " ✍️  ";
   const penWithSparkle = " ✨✍️  ";
-  const animate = process.stdout.isTTY && !process.env.CI;
+  const { version, forceWelcome = false } = options;
+  const ttyOk = process.stdout.isTTY && !process.env.CI;
+  const animate = ttyOk && shouldAnimate(version, forceWelcome);
 
   const middleHelp = `
 
@@ -171,6 +210,9 @@ ${greenBold("Example:")}
   // Write sparkle + pen at final position
   process.stdout.write(`\x1b[${taglineRow}A\r\x1b[K${anchor}${whiteBold(revealedText + penWithSparkle)}\x1b[${taglineRow}B\r`);
 
+  // Record that this version's welcome animation has been shown
+  recordWelcomeVersion(version);
+
   // Show cursor
   process.stdout.write("\x1b[?25h\n");
 }
@@ -190,6 +232,13 @@ export function showNoScriptError(): never {
  */
 export function hasHelpFlag(args: string[]): boolean {
   return args.includes("--help") || args.includes("-h");
+}
+
+/**
+ * Check if args contain the undocumented --welcome flag.
+ */
+export function hasWelcomeFlag(args: string[]): boolean {
+  return args.includes("--welcome");
 }
 
 /**

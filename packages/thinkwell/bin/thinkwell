@@ -49,7 +49,7 @@ const MIN_NODE_VERSION = 24;
 // ============================================================================
 
 const commandsPath = resolve(__dirname, "../dist/cli/commands.js");
-const { showMainHelp, showNoScriptError, hasHelpFlag, fmtError } = await import(commandsPath);
+const { showMainHelp, showNoScriptError, hasHelpFlag, hasWelcomeFlag, fmtError } = await import(commandsPath);
 
 // ============================================================================
 // Path Helpers
@@ -375,9 +375,11 @@ async function main() {
     process.exit(0);
   }
 
-  // Handle --help (global) - after subcommand checks
-  if (hasHelpFlag(args) || args.length === 0) {
-    await showMainHelp();
+  // Handle --help (global) and --welcome (undocumented: forces welcome animation)
+  const forceWelcome = hasWelcomeFlag(args);
+  if (hasHelpFlag(args) || args.length === 0 || forceWelcome) {
+    const version = await getVersion();
+    await showMainHelp({ version, forceWelcome });
     process.exit(0);
   }
 
