@@ -15,7 +15,7 @@
 
 const { existsSync, readFileSync } = require("node:fs");
 const { resolve, isAbsolute, dirname } = require("node:path");
-const { showMainHelp, showNoScriptError, hasHelpFlag, fmtError } = require("../../dist/cli/commands.js");
+const { showMainHelp, showNoScriptError, hasHelpFlag, hasWelcomeFlag, fmtError } = require("../../dist/cli/commands.js");
 
 // Version must be updated manually to match package.json
 const VERSION = "0.5.3";
@@ -370,9 +370,10 @@ async function main() {
     process.exit(0);
   }
 
-  // Handle --help (global) - after subcommand checks
-  if (hasHelpFlag(args) || args.length === 0) {
-    showMainHelp();
+  // Handle --help (global) and --welcome (undocumented: forces welcome animation)
+  const forceWelcome = hasWelcomeFlag(args);
+  if (hasHelpFlag(args) || args.length === 0 || forceWelcome) {
+    await showMainHelp({ version: VERSION, forceWelcome });
     process.exit(0);
   }
 
