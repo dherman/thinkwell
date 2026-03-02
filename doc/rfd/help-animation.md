@@ -1,6 +1,7 @@
 # RFD: Animated Help Screen
 
 - **Issue:** [#56](https://github.com/dherman/thinkwell/issues/56)
+- **Implementation:** [PR #57](https://github.com/dherman/thinkwell/pull/57)
 
 ## Summary
 
