@@ -372,7 +372,7 @@ async function main() {
 
   // Handle --help (global) - after subcommand checks
   if (hasHelpFlag(args) || args.length === 0) {
-    showMainHelp();
+    await showMainHelp();
     process.exit(0);
   }
 

@@ -21,11 +21,17 @@ const redBold = (t: string) => styleText(["red", "bold"], t);
 const dim = (t: string) => styleText("dim", t);
 
 /**
- * Print the main help screen to stdout.
+ * Print the main help screen to stdout, with an optional typewriter
+ * animation on the tagline when stdout is an interactive TTY.
  */
-export function showMainHelp(): void {
-  console.log(`
-${cyanBold("thinkwell")} - ${whiteBold("agent scripting made easy ✨✍️")}
+export async function showMainHelp(): Promise<void> {
+  const anchor = cyanBold("thinkwell");
+  const revealedText = " - agent scripting made easy";
+  const pen = " ✍️  ";
+  const penWithSparkle = " ✨✍️  ";
+  const animate = process.stdout.isTTY && !process.env.CI;
+
+  const middleHelp = `
 
 ${greenBold("Usage:")}
   ${cyanBold("thinkwell")} ${dim("<script.ts> [args...]")}     Run a TypeScript script
@@ -40,9 +46,133 @@ ${greenBold("Usage:")}
 
 ${greenBold("Example:")}
   ${cyanBold("thinkwell")} ${cyan("my-agent.ts")}
+`;
 
-For more information, visit: ${cyanBold("https://thinkwell.sh")}
-`.trim() + "\n");
+  const infoLineText = "For more information, visit: ";
+  const infoLineUrl = "https://thinkwell.sh";
+  const infoLine = `${infoLineText}${cyanBold(infoLineUrl)}`;
+
+  if (!animate) {
+    console.log(anchor + whiteBold(revealedText + penWithSparkle) + middleHelp + "\n" + infoLine);
+    return;
+  }
+
+  // Helper: typewriter with ✍️ trailing cursor
+  const typewrite = (
+    chars: string[],
+    duration: number,
+    styleFn: (revealed: string) => string,
+  ) =>
+    new Promise<void>((resolve) => {
+      const interval = duration / chars.length;
+      let i = 0;
+      const timer = setInterval(() => {
+        i++;
+        const revealed = chars.slice(0, i).join("");
+        process.stdout.write(`\r\x1b[K${styleFn(revealed)}${pen}`);
+        if (i >= chars.length) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, interval);
+    });
+
+  // Hide cursor during animation
+  process.stdout.write("\x1b[?25l");
+
+  // Stage 1: Typewriter the tagline over 1s
+  process.stdout.write(pen);
+  const fullText = "thinkwell" + revealedText;
+  const fullChars = [...fullText];
+  await typewrite(fullChars, 1000, (revealed) =>
+    revealed.length <= 9
+      ? cyanBold(revealed)
+      : cyanBold("thinkwell") + whiteBold(revealed.slice(9)),
+  );
+
+  // Print the middle help text statically (remove ✍️ from tagline first)
+  process.stdout.write(`\r\x1b[K${anchor}${whiteBold(revealedText)}`);
+  process.stdout.write(middleHelp + "\n");
+
+  // Stage 2: Typewriter the "For more information" line with 📖 prefix over 1s
+  const infoChars = [...(infoLineText + infoLineUrl)];
+  await new Promise<void>((resolve) => {
+    const interval = 1000 / infoChars.length;
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      const revealed = infoChars.slice(0, i).join("");
+      const styled = revealed.length <= infoLineText.length
+        ? revealed
+        : infoLineText + cyanBold(revealed.slice(infoLineText.length));
+      process.stdout.write(`\r\x1b[K📖 ${styled}${pen}`);
+      if (i >= infoChars.length) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, interval);
+  });
+
+  // Remove pen, keep 📖
+  process.stdout.write(`\r\x1b[K📖 ${infoLine}`);
+
+  // Stage 3: Pen travels up vertically in the same column to the tagline
+  //
+  // The pen sits just after "📖 For more information, visit: https://thinkwell.sh"
+  // "📖 " = 3 visible cols, + infoLineText (29) + infoLineUrl (20) = 52 cols.
+  // The pen emoji occupies col 53+. On each intermediate line, we save the
+  // plain character at col 53 (all description text at that column is unstyled
+  // ASCII), write the pen over it, then restore it before moving up.
+  const penCol = 53;
+  const goCol = `\x1b[${penCol}G`;
+
+  // Strip ANSI escape codes to get visible text
+  const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+
+  // Build array of plain chars at penCol for each line (bottom to top)
+  const helpLines = (middleHelp + "\n").split("\n");
+  // helpLines[0] corresponds to the line just below the tagline (bottom of array = closest to info line)
+  const charAtCol = helpLines.map((line) => {
+    const plain = stripAnsi(line);
+    // penCol is 1-based, string index is 0-based
+    return plain[penCol - 1] ?? " ";
+  });
+
+  // Number of \n characters between tagline and info line
+  const linesFromInfoToTagline = helpLines.length - 1;
+  const stepDelay = 40; // ms per line
+
+  // Animate pen traveling upward — save/restore single char at fixed col
+  for (let linesUp = 1; linesUp < linesFromInfoToTagline; linesUp++) {
+    // Draw pen at fixed column on this line
+    process.stdout.write(`\x1b[${linesUp}A${goCol}✍️\x1b[${linesUp}B\r`);
+    await new Promise((r) => setTimeout(r, stepDelay));
+
+    // Restore original character at that column
+    const originalChar = charAtCol[helpLines.length - 1 - linesUp];
+    process.stdout.write(`\x1b[${linesUp}A${goCol}${originalChar}\x1b[${linesUp}B\r`);
+  }
+
+  // Pen arrives at tagline — slide left from col 53 to final position
+  // The tagline "thinkwell - agent scripting made easy" is 38 visible chars.
+  // The sparkle goes at col 39, pen (✍️) at col 41 (after "✨").
+  // But first the pen slides from col 53 to col 40 (one past the sparkle slot).
+  const taglineRow = linesFromInfoToTagline;
+  const sparkleCol = 39;
+
+  for (let col = penCol; col > sparkleCol; col--) {
+    process.stdout.write(`\x1b[${taglineRow}A\x1b[${col}G✍️\x1b[${taglineRow}B\r`);
+    await new Promise((r) => setTimeout(r, stepDelay));
+
+    // Erase pen (it's over spaces on the tagline)
+    process.stdout.write(`\x1b[${taglineRow}A\x1b[${col}G \x1b[${taglineRow}B\r`);
+  }
+
+  // Write sparkle + pen at final position
+  process.stdout.write(`\x1b[${taglineRow}A\r\x1b[K${anchor}${whiteBold(revealedText + penWithSparkle)}\x1b[${taglineRow}B\r`);
+
+  // Show cursor
+  process.stdout.write("\x1b[?25h\n");
 }
 
 /**
