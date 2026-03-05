@@ -510,7 +510,10 @@ class PlanImpl<Output> implements Plan<Output> {
 
   stream(): ThoughtStream<Output> {
     const stream = new ThoughtStream<Output>();
-    this._executeStream(stream).catch((err) => stream.rejectResult(err));
+    this._executeStream(stream).catch((err) => {
+      stream.rejectResult(err instanceof Error ? err : new Error(String(err?.message ?? err)));
+      stream.close();
+    });
     return stream;
   }
 

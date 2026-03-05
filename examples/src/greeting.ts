@@ -26,9 +26,9 @@ export interface Greeting {
 async function main() {
   const agent = await open('claude');
 
-  try {
-    const status = new Status('Thinking...');
+  const status = new Status('Thinking...');
 
+  try {
     const thoughts = agent
       .think(Greeting.Schema)
       .text(`
@@ -69,6 +69,7 @@ async function main() {
     status.clear();
     console.log(styleText(["bold", "white"], `✨ ${greeting.message}`));
   } catch (error) {
+    status.clear();
     console.error("Error:", error);
     throw error;
   } finally {

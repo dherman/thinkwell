@@ -17,7 +17,7 @@ export class ThoughtStream<Output> implements AsyncIterable<ThoughtEvent> {
   readonly result: Promise<Output>;
 
   private _resolveResult!: (value: Output) => void;
-  private _rejectResult!: (error: Error) => void;
+  private _rejectResult!: (error: unknown) => void;
 
   private _pendingEvents: ThoughtEvent[] = [];
   private _eventResolvers: Array<(value: IteratorResult<ThoughtEvent>) => void> = [];
@@ -71,8 +71,10 @@ export class ThoughtStream<Output> implements AsyncIterable<ThoughtEvent> {
    * Reject the result promise.
    * @internal
    */
-  rejectResult(error: Error): void {
-    this._rejectResult(error);
+  rejectResult(error: unknown): void {
+    this._rejectResult(
+      error instanceof Error ? error : new Error(String((error as any)?.message ?? error))
+    );
   }
 
   [Symbol.asyncIterator](): AsyncIterator<ThoughtEvent> {
