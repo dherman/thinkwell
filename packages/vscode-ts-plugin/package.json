@@ -8,6 +8,7 @@
     "dist"
   ],
   "scripts": {
+    "prebuild": "tsx scripts/generate-bundled-types.ts",
     "build": "tsc",
     "clean": "rm -rf dist",
     "test": "node --test --import tsx src/**/*.test.ts"
@@ -22,7 +23,10 @@
   "author": "David Herman",
   "license": "MIT",
   "devDependencies": {
+    "@thinkwell/acp": "workspace:*",
+    "@thinkwell/protocol": "workspace:*",
     "@types/node": "^24.10.4",
+    "thinkwell": "workspace:*",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

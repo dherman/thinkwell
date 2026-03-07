@@ -13,7 +13,7 @@ import path from "node:path";
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { type MarkedType, findMarkedTypes, hasJsonSchemaMarkers } from "./scanner";
 import { generateVirtualDeclarations } from "./virtual-declarations";
-import { patchModuleResolution } from "./standalone-resolver";
+import { patchModuleResolution, getVirtualTypeContent } from "./standalone-resolver";
 
 const VIRTUAL_DIR = ".thinkwell";
 const VIRTUAL_FILE_NAME = "augmentations.d.ts";
@@ -255,6 +255,13 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
         // Return in-memory content (not the on-disk file)
         return tsModule.ScriptSnapshot.fromString(state.virtualContent);
       }
+
+      // Serve bundled type declarations for virtual paths
+      const bundledContent = getVirtualTypeContent(fileName);
+      if (bundledContent !== undefined) {
+        return tsModule.ScriptSnapshot.fromString(bundledContent);
+      }
+
       return origGetScriptSnapshot(fileName);
     };
 
@@ -262,6 +269,10 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
     info.languageServiceHost.getScriptVersion = (fileName: string) => {
       if (fileName === virtualFilePath) {
         return String(state.virtualFileVersion);
+      }
+      // Bundled type files are immutable — version never changes
+      if (getVirtualTypeContent(fileName) !== undefined) {
+        return "bundled-1";
       }
       return origGetScriptVersion(fileName);
     };
