@@ -26,13 +26,14 @@ const files = [
   "dist/scanner.js",
   "dist/virtual-declarations.js",
   "dist/standalone-resolver.js",
+  "dist/generated/bundled-types.js",
 ];
 
 // Remove the entire pnpm-managed node_modules
 fs.rmSync(nodeModulesDir, { recursive: true, force: true });
 
 // Create a clean node_modules with just the TS plugin
-fs.mkdirSync(path.join(pluginDst, "dist"), { recursive: true });
+fs.mkdirSync(path.join(pluginDst, "dist", "generated"), { recursive: true });
 
 for (const file of files) {
   const src = path.join(pluginSrc, file);

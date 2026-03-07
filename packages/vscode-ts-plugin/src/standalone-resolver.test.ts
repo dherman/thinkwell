@@ -1,12 +1,11 @@
-import { describe, it, before, after } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import ts from "typescript";
-import path from "node:path";
-import fs from "node:fs";
 import {
   isStandaloneScript,
-  resolveModulePath,
-  type ThinkwellInstallation,
+  getVirtualTypeContent,
+  virtualTypePath,
+  VIRTUAL_TYPES_PREFIX,
 } from "./standalone-resolver";
 
 /**
@@ -67,65 +66,75 @@ describe("isStandaloneScript", () => {
   });
 });
 
-describe("resolveModulePath", () => {
-  const tmpDir = path.join(
-    process.env.TMPDIR ?? "/tmp",
-    "thinkwell-resolver-test-" + Date.now(),
-  );
-
-  let installation: ThinkwellInstallation;
-
-  before(() => {
-    const packageRoot = path.join(tmpDir, "node_modules/thinkwell");
-    const nodeModulesDir = path.join(tmpDir, "node_modules");
-
-    installation = { packageRoot, nodeModulesDir };
-
-    // Create fake thinkwell package
-    fs.mkdirSync(path.join(packageRoot, "dist"), { recursive: true });
-    fs.writeFileSync(
-      path.join(packageRoot, "package.json"),
-      JSON.stringify({ name: "thinkwell", types: "./dist/index.d.ts" }),
-    );
-    fs.writeFileSync(
-      path.join(packageRoot, "dist/index.d.ts"),
-      "export declare function open(): void;",
-    );
-
-    // Create @thinkwell/acp with exports field
-    const acpDir = path.join(nodeModulesDir, "@thinkwell/acp");
-    fs.mkdirSync(path.join(acpDir, "dist"), { recursive: true });
-    fs.writeFileSync(
-      path.join(acpDir, "package.json"),
-      JSON.stringify({
-        name: "@thinkwell/acp",
-        exports: { ".": { types: "./dist/index.d.ts" } },
-      }),
-    );
-    fs.writeFileSync(
-      path.join(acpDir, "dist/index.d.ts"),
-      "export declare const ACP: string;",
+describe("virtualTypePath", () => {
+  it("constructs virtual paths for thinkwell modules", () => {
+    assert.equal(
+      virtualTypePath("thinkwell", "index.d.ts"),
+      `${VIRTUAL_TYPES_PREFIX}/thinkwell/index.d.ts`,
     );
   });
 
-  after(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+  it("constructs virtual paths for scoped modules", () => {
+    assert.equal(
+      virtualTypePath("@thinkwell/acp", "index.d.ts"),
+      `${VIRTUAL_TYPES_PREFIX}/@thinkwell/acp/index.d.ts`,
+    );
   });
 
-  it("resolves 'thinkwell' to its types entry point", () => {
-    const result = resolveModulePath("thinkwell", installation);
-    assert.ok(result, "Should resolve thinkwell");
-    assert.ok(result.endsWith("dist/index.d.ts"));
+  it("constructs virtual paths for nested files", () => {
+    assert.equal(
+      virtualTypePath("thinkwell", "agent.d.ts"),
+      `${VIRTUAL_TYPES_PREFIX}/thinkwell/agent.d.ts`,
+    );
+  });
+});
+
+describe("getVirtualTypeContent", () => {
+  it("returns content for bundled thinkwell index.d.ts", () => {
+    const content = getVirtualTypeContent(
+      `${VIRTUAL_TYPES_PREFIX}/thinkwell/index.d.ts`,
+    );
+    assert.ok(content, "should return content for thinkwell/index.d.ts");
+    assert.ok(content.includes("export"), "should contain exports");
   });
 
-  it("resolves '@thinkwell/acp' via exports['.'].types", () => {
-    const result = resolveModulePath("@thinkwell/acp", installation);
-    assert.ok(result, "Should resolve @thinkwell/acp");
-    assert.ok(result.endsWith("dist/index.d.ts"));
+  it("returns content for bundled @thinkwell/acp index.d.ts", () => {
+    const content = getVirtualTypeContent(
+      `${VIRTUAL_TYPES_PREFIX}/@thinkwell/acp/index.d.ts`,
+    );
+    assert.ok(content, "should return content for @thinkwell/acp/index.d.ts");
   });
 
-  it("returns null for uninstalled packages", () => {
-    const result = resolveModulePath("@thinkwell/protocol", installation);
-    assert.equal(result, null);
+  it("returns content for bundled @thinkwell/protocol index.d.ts", () => {
+    const content = getVirtualTypeContent(
+      `${VIRTUAL_TYPES_PREFIX}/@thinkwell/protocol/index.d.ts`,
+    );
+    assert.ok(content, "should return content for @thinkwell/protocol/index.d.ts");
+  });
+
+  it("returns content for non-index bundled files", () => {
+    // The thinkwell package should have agent.d.ts
+    const content = getVirtualTypeContent(
+      `${VIRTUAL_TYPES_PREFIX}/thinkwell/agent.d.ts`,
+    );
+    assert.ok(content, "should return content for thinkwell/agent.d.ts");
+  });
+
+  it("returns undefined for nonexistent virtual files", () => {
+    const content = getVirtualTypeContent(
+      `${VIRTUAL_TYPES_PREFIX}/thinkwell/nonexistent.d.ts`,
+    );
+    assert.equal(content, undefined);
+  });
+
+  it("returns undefined for non-virtual paths", () => {
+    assert.equal(getVirtualTypeContent("/real/path/index.d.ts"), undefined);
+  });
+
+  it("returns undefined for unknown modules", () => {
+    const content = getVirtualTypeContent(
+      `${VIRTUAL_TYPES_PREFIX}/unknown-module/index.d.ts`,
+    );
+    assert.equal(content, undefined);
   });
 });
