@@ -172,9 +172,18 @@ importers:
 
   packages/vscode-ts-plugin:
     devDependencies:
+      '@thinkwell/acp':
+        specifier: workspace:*
+        version: link:../acp
+      '@thinkwell/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
+      thinkwell:
+        specifier: workspace:*
+        version: link:../thinkwell
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
