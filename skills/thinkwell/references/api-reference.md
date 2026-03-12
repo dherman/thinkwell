@@ -21,11 +21,8 @@ export interface CustomAgentOptions extends AgentOptions {
   cmd: string;                     // Shell command to spawn the agent process
 }
 
-// Schema helper
-export function schemaOf<T>(schema: JsonSchema): SchemaProvider<T>;
-
-// Classes
-export class Plan<Output> { ... }
+// Interfaces / Classes
+export interface Plan<Output> { ... }   // immutable — every method returns a new Plan
 export class Session { ... }
 export class ThoughtStream<Output> { ... }
 
@@ -76,37 +73,39 @@ class Session {
 
 Fluent builder for composing prompts. Obtained from `agent.think()` or `session.think()`.
 
+**`Plan` is immutable** — every builder method returns a new `Plan` instance, leaving the original unchanged. This enables safe branching from a shared base plan.
+
 > **Note:** `Plan` was previously named `ThinkBuilder`. The old name still works as a deprecated alias.
 
 ### Content Methods
 
 ```typescript
-class Plan<Output> {
+interface Plan<Output> {
   // Add literal text to the prompt
-  text(content: string): this;
+  text(content: string): Plan<Output>;
 
   // Add text with trailing newline
-  textln(content: string): this;
+  textln(content: string): Plan<Output>;
 
   // Add content in XML-style tags: <tag>content</tag>
   // Default tag is "quote"
-  quote(content: string, tag?: string): this;
+  quote(content: string, tag?: string): Plan<Output>;
 
   // Add content as a fenced Markdown code block
-  code(content: string, language?: string): this;
+  code(content: string, language?: string): Plan<Output>;
 }
 ```
 
 ### Tool Methods
 
 ```typescript
-class Plan<Output> {
+interface Plan<Output> {
   // Overload 1: No input/output schema
   tool(
     name: string,
     description: string,
     handler: (input: unknown) => Promise<unknown>
-  ): this;
+  ): Plan<Output>;
 
   // Overload 2: With input schema
   tool<I>(
@@ -114,7 +113,7 @@ class Plan<Output> {
     description: string,
     inputSchema: SchemaProvider<I>,
     handler: (input: I) => Promise<unknown>
-  ): this;
+  ): Plan<Output>;
 
   // Overload 3: With input and output schemas
   tool<I, O>(
@@ -123,25 +122,25 @@ class Plan<Output> {
     inputSchema: SchemaProvider<I>,
     outputSchema: SchemaProvider<O>,
     handler: (input: I) => Promise<O>
-  ): this;
+  ): Plan<Output>;
 
   // Same three overloads, but the tool is NOT mentioned in prompt text.
   // Use for infrastructure tools that should be available but not highlighted.
-  defineTool(name, description, handler): this;
-  defineTool(name, description, inputSchema, handler): this;
-  defineTool(name, description, inputSchema, outputSchema, handler): this;
+  defineTool(name, description, handler): Plan<Output>;
+  defineTool(name, description, inputSchema, handler): Plan<Output>;
+  defineTool(name, description, inputSchema, outputSchema, handler): Plan<Output>;
 }
 ```
 
 ### Skill Methods
 
 ```typescript
-class Plan<Output> {
+interface Plan<Output> {
   // Stored skill: path to a directory containing SKILL.md
-  skill(path: string): this;
+  skill(path: string): Plan<Output>;
 
   // Virtual skill: defined programmatically
-  skill(definition: VirtualSkillDefinition): this;
+  skill(definition: VirtualSkillDefinition): Plan<Output>;
 }
 
 interface VirtualSkillDefinition {
@@ -161,16 +160,16 @@ interface SkillTool<I = unknown, O = unknown> {
 ### Configuration Methods
 
 ```typescript
-class Plan<Output> {
+interface Plan<Output> {
   // Set working directory for the session
-  cwd(path: string): this;
+  cwd(path: string): Plan<Output>;
 }
 ```
 
 ### Execution Methods
 
 ```typescript
-class Plan<Output> {
+interface Plan<Output> {
   // Execute the prompt, return typed result
   run(): Promise<Output>;
 
@@ -244,24 +243,13 @@ interface SchemaProvider<T> {
 }
 ```
 
-Two ways to obtain a `SchemaProvider`:
+The standard way to obtain a `SchemaProvider` is via the `@JSONSchema` annotation, which auto-generates `TypeName.Schema`:
 
-1. **`@JSONSchema` annotation** — auto-generates `TypeName.Schema`:
-   ```typescript
-   /** @JSONSchema */
-   interface Greeting { message: string; }
-   // Greeting.Schema is a SchemaProvider<Greeting>
-   ```
-
-2. **`schemaOf()` helper** — wraps a raw JSON Schema object:
-   ```typescript
-   import { schemaOf } from "thinkwell";
-   const schema = schemaOf<{ answer: string }>({
-     type: "object",
-     properties: { answer: { type: "string" } },
-     required: ["answer"]
-   });
-   ```
+```typescript
+/** @JSONSchema */
+interface Greeting { message: string; }
+// Greeting.Schema is a SchemaProvider<Greeting>
+```
 
 ## Environment Variables
 
