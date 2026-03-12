@@ -89,8 +89,6 @@ The pattern is always: **open → think → plan → run → close**.
 - `.run()` — Execute and return the typed result
 - `.stream()` — Execute and return a `ThoughtStream` for streaming events + result
 
-> **Note:** `Plan` was previously named `ThinkBuilder`. The old name still works as a deprecated alias.
-
 ### 4. Tools
 
 Tools let the agent call back into your code. Three overloads:
@@ -227,23 +225,6 @@ Input: \`{ "path": "string" }\`
     },
   }],
 })
-```
-
-### 8. schemaOf() Helper
-
-For schemas without `@JSONSchema` (e.g., inline or dynamic schemas):
-
-```typescript
-import { schemaOf } from "thinkwell";
-
-const result = await agent
-  .think(schemaOf<{ answer: string }>({
-    type: "object",
-    properties: { answer: { type: "string" } },
-    required: ["answer"]
-  }))
-  .text("What is 2 + 2?")
-  .run();
 ```
 
 ## CLI Usage
