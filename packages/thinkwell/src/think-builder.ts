@@ -550,6 +550,8 @@ class PlanImpl<Output> implements Plan<Output> {
     // Track if we've received a result
     let resultReceived = false;
     let result: Output | undefined;
+    let resolveResultReady: () => void;
+    const resultReady = new Promise<void>((r) => { resolveResultReady = r; });
 
     // Get the output schema for the return_result tool.
     // The Anthropic API requires tool input schemas to have type: "object" at
@@ -573,6 +575,7 @@ class PlanImpl<Output> implements Plan<Output> {
       async (input: unknown) => {
         result = (needsWrap ? (input as Record<string, unknown>).result : input) as Output;
         resultReceived = true;
+        resolveResultReady();
         return { success: true };
       }
     );
@@ -652,26 +655,113 @@ class PlanImpl<Output> implements Plan<Output> {
         // Start the prompt without awaiting - we need to read updates concurrently
         const promptPromise = session.sendPrompt(prompt);
 
-        // Read updates, forwarding events to the stream and watching for result
+        // Read updates, forwarding events to the stream and watching for result.
+        // Some agents handle MCP tool calls internally (single turn), while
+        // others announce tool calls via session updates and expect the client
+        // to execute them and send results back (multi-turn). We handle both
+        // by tracking announced tool calls and looping when needed.
+        const pendingToolCalls: Array<{ id: string; name: string; input: unknown }> = [];
+
         while (!resultReceived) {
           const update = await session.readUpdate();
 
           if (update.type === "stop") {
-            if (!resultReceived) {
-              stream.rejectResult(new Error("Session ended without calling return_result"));
-            }
             break;
+          }
+
+          // Track tool calls for tools we own (may need client-side execution)
+          if (update.type === "tool_start") {
+            const toolName = update.title;
+            if (this._tools.has(toolName) || toolName === "return_result") {
+              pendingToolCalls.push({ id: update.id, name: toolName, input: update.input });
+            }
           }
 
           // Forward the event to stream consumers
           stream.pushEvent(update);
         }
 
-        // Wait for the prompt to complete (it should already be done since we got a stop)
+        // Wait for the prompt to complete
         await promptPromise;
+
+        // The ACP SDK's receive loop does not await #processMessage, so
+        // the prompt response can resolve before an in-flight return_result
+        // handler completes. Give it a short window to settle.
+        if (!resultReceived) {
+          await Promise.race([
+            resultReady,
+            new Promise<void>((r) => setTimeout(r, 500)),
+          ]);
+        }
+
+        // If the agent announced tool calls but didn't execute them via MCP
+        // (i.e. it expects client-side execution), run them and loop.
+        while (!resultReceived && pendingToolCalls.length > 0) {
+          const calls = pendingToolCalls.splice(0);
+          const results: string[] = [];
+
+          for (const call of calls) {
+            if (call.name === "return_result") {
+              // Handle return_result directly
+              result = (needsWrap
+                ? (call.input as Record<string, unknown>).result
+                : call.input) as Output;
+              resultReceived = true;
+              break;
+            }
+
+            const tool = this._tools.get(call.name);
+            if (tool) {
+              try {
+                const output = await tool.handler(call.input);
+                const text = typeof output === "string" ? output : JSON.stringify(output);
+                results.push(`Tool "${call.name}" (id: ${call.id}) result:\n${text}`);
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                results.push(`Tool "${call.name}" (id: ${call.id}) error:\n${msg}`);
+              }
+            }
+          }
+
+          if (resultReceived) break;
+
+          if (results.length === 0) break;
+
+          // Send tool results back and read the next turn
+          const followUp = results.join("\n\n")
+            + "\n\nWhen you have your answer, call the `return_result` MCP tool with the result.";
+          const followUpPromise = session.sendPrompt(followUp);
+
+          while (!resultReceived) {
+            const update = await session.readUpdate();
+
+            if (update.type === "stop") {
+              break;
+            }
+
+            if (update.type === "tool_start" && update.input !== undefined) {
+              const toolName = update.title;
+              if (this._tools.has(toolName) || toolName === "return_result") {
+                pendingToolCalls.push({ id: update.id, name: toolName, input: update.input });
+              }
+            }
+
+            stream.pushEvent(update);
+          }
+
+          await followUpPromise;
+          if (!resultReceived) {
+            await Promise.race([
+              resultReady,
+              new Promise<void>((r) => setTimeout(r, 500)),
+            ]);
+          }
+        }
 
         if (resultReceived && result !== undefined) {
           stream.resolveResult(result);
+        } else {
+          stream.rejectResult(new Error("Session ended without calling return_result"));
         }
       } finally {
         stream.close();

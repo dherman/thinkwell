@@ -421,12 +421,16 @@ export function convertNotification(notification: SessionNotification): ThoughtE
     }
 
     case "tool_call": {
-      return {
+      const event: ThoughtEvent = {
         type: "tool_start",
         id: update.toolCallId,
         title: update.title,
         kind: update.kind,
       };
+      if (update.rawInput !== undefined) {
+        event.input = update.rawInput;
+      }
+      return event;
     }
 
     case "tool_call_update": {

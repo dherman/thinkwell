@@ -47,7 +47,7 @@ export interface PlanEntry {
 export type ThoughtEvent =
   | { type: "thought"; text: string }
   | { type: "message"; text: string }
-  | { type: "tool_start"; id: string; title: string; kind?: ToolKind }
+  | { type: "tool_start"; id: string; title: string; kind?: ToolKind; input?: unknown }
   | { type: "tool_update"; id: string; status: string; content?: ToolContent[] }
   | { type: "tool_done"; id: string; status: "completed" | "failed" }
   | { type: "plan"; entries: PlanEntry[] };
