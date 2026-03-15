@@ -686,12 +686,14 @@ class PlanImpl<Output> implements Plan<Output> {
 
         // The ACP SDK's receive loop does not await #processMessage, so
         // the prompt response can resolve before an in-flight return_result
-        // handler completes. Give it a short window to settle.
-        if (!resultReceived) {
-          await Promise.race([
-            resultReady,
-            new Promise<void>((r) => setTimeout(r, 500)),
-          ]);
+        // handler finishes its async chain. However, the session_update
+        // notification (tool_start) is processed synchronously — pushUpdate
+        // runs before any microtask yield — so it is guaranteed to be in
+        // our update queue before the prompt response resolves. If we saw
+        // the tool_start for return_result, the handler is in-flight and
+        // resultReady will resolve; otherwise the agent never called it.
+        if (!resultReceived && pendingToolCalls.some(c => c.name === "return_result")) {
+          await resultReady;
         }
 
         // If the agent announced tool calls but didn't execute them via MCP
@@ -750,11 +752,8 @@ class PlanImpl<Output> implements Plan<Output> {
           }
 
           await followUpPromise;
-          if (!resultReceived) {
-            await Promise.race([
-              resultReady,
-              new Promise<void>((r) => setTimeout(r, 500)),
-            ]);
+          if (!resultReceived && pendingToolCalls.some(c => c.name === "return_result")) {
+            await resultReady;
           }
         }
 
