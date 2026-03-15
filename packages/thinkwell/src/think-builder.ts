@@ -553,6 +553,13 @@ class PlanImpl<Output> implements Plan<Output> {
     let resolveResultReady: () => void;
     const resultReady = new Promise<void>((r) => { resolveResultReady = r; });
 
+    // Accept a return_result invocation, unwrapping if needed.
+    const acceptResult = (input: unknown) => {
+      result = (needsWrap ? (input as Record<string, unknown>).result : input) as Output;
+      resultReceived = true;
+      resolveResultReady();
+    };
+
     // Get the output schema for the return_result tool.
     // The Anthropic API requires tool input schemas to have type: "object" at
     // the root. Union types (anyOf/oneOf) don't satisfy this, so we wrap them
@@ -573,9 +580,7 @@ class PlanImpl<Output> implements Plan<Output> {
       outputSchema,
       { type: "object", properties: { success: { type: "boolean" } } },
       async (input: unknown) => {
-        result = (needsWrap ? (input as Record<string, unknown>).result : input) as Output;
-        resultReceived = true;
-        resolveResultReady();
+        acceptResult(input);
         return { success: true };
       }
     );
@@ -652,63 +657,60 @@ class PlanImpl<Output> implements Plan<Output> {
       await this._conn.mcpHandler.waitForToolsDiscovery(sessionId, 2000);
 
       try {
-        // Start the prompt without awaiting - we need to read updates concurrently
-        const promptPromise = session.sendPrompt(prompt);
-
-        // Read updates, forwarding events to the stream and watching for result.
-        // Some agents handle MCP tool calls internally (single turn), while
-        // others announce tool calls via session updates and expect the client
-        // to execute them and send results back (multi-turn). We handle both
-        // by tracking announced tool calls and looping when needed.
+        // Pending tool calls announced by the agent via session updates.
+        // Some agents handle MCP tool calls internally (single-turn), while
+        // others announce tool calls via session updates and expect the
+        // client to execute them and send results back (multi-turn). We
+        // handle both by tracking announced tool calls and looping.
         const pendingToolCalls: Array<{ id: string; name: string; input: unknown }> = [];
 
-        while (!resultReceived) {
-          const update = await session.readUpdate();
+        // Send a prompt and read session updates until the turn ends.
+        // Forwards events to the stream and collects tool_start events
+        // for tools we own (which may need client-side execution).
+        const sendTurn = async (text: string) => {
+          const promptPromise = session.sendPrompt(text);
 
-          if (update.type === "stop") {
-            break;
-          }
+          while (!resultReceived) {
+            const update = await session.readUpdate();
+            if (update.type === "stop") break;
 
-          // Track tool calls for tools we own (may need client-side execution)
-          if (update.type === "tool_start") {
-            const toolName = update.title;
-            if (this._tools.has(toolName) || toolName === "return_result") {
-              pendingToolCalls.push({ id: update.id, name: toolName, input: update.input });
+            if (update.type === "tool_start") {
+              const toolName = update.title;
+              if (this._tools.has(toolName) || toolName === "return_result") {
+                pendingToolCalls.push({ id: update.id, name: toolName, input: update.input });
+              }
             }
+
+            stream.pushEvent(update);
           }
 
-          // Forward the event to stream consumers
-          stream.pushEvent(update);
-        }
+          await promptPromise;
 
-        // Wait for the prompt to complete
-        await promptPromise;
+          // The ACP SDK's receive loop does not await #processMessage, so
+          // the prompt response can resolve before an in-flight return_result
+          // handler finishes its async chain. However, the session_update
+          // notification (tool_start) is processed synchronously — pushUpdate
+          // runs before any microtask yield — so it is guaranteed to be in
+          // our update queue before the prompt response resolves. If we saw
+          // the tool_start for return_result, the handler is in-flight and
+          // resultReady will resolve; otherwise the agent never called it.
+          if (!resultReceived && pendingToolCalls.some(c => c.name === "return_result")) {
+            await resultReady;
+          }
+        };
 
-        // The ACP SDK's receive loop does not await #processMessage, so
-        // the prompt response can resolve before an in-flight return_result
-        // handler finishes its async chain. However, the session_update
-        // notification (tool_start) is processed synchronously — pushUpdate
-        // runs before any microtask yield — so it is guaranteed to be in
-        // our update queue before the prompt response resolves. If we saw
-        // the tool_start for return_result, the handler is in-flight and
-        // resultReady will resolve; otherwise the agent never called it.
-        if (!resultReceived && pendingToolCalls.some(c => c.name === "return_result")) {
-          await resultReady;
-        }
+        // Initial turn
+        await sendTurn(prompt);
 
-        // If the agent announced tool calls but didn't execute them via MCP
-        // (i.e. it expects client-side execution), run them and loop.
+        // Multi-turn loop: if the agent announced tool calls but didn't
+        // execute them via MCP, run them client-side and send results back.
         while (!resultReceived && pendingToolCalls.length > 0) {
           const calls = pendingToolCalls.splice(0);
           const results: string[] = [];
 
           for (const call of calls) {
             if (call.name === "return_result") {
-              // Handle return_result directly
-              result = (needsWrap
-                ? (call.input as Record<string, unknown>).result
-                : call.input) as Output;
-              resultReceived = true;
+              acceptResult(call.input);
               break;
             }
 
@@ -725,36 +727,11 @@ class PlanImpl<Output> implements Plan<Output> {
             }
           }
 
-          if (resultReceived) break;
+          if (resultReceived || results.length === 0) break;
 
-          if (results.length === 0) break;
-
-          // Send tool results back and read the next turn
           const followUp = results.join("\n\n")
             + "\n\nWhen you have your answer, call the `return_result` MCP tool with the result.";
-          const followUpPromise = session.sendPrompt(followUp);
-
-          while (!resultReceived) {
-            const update = await session.readUpdate();
-
-            if (update.type === "stop") {
-              break;
-            }
-
-            if (update.type === "tool_start" && update.input !== undefined) {
-              const toolName = update.title;
-              if (this._tools.has(toolName) || toolName === "return_result") {
-                pendingToolCalls.push({ id: update.id, name: toolName, input: update.input });
-              }
-            }
-
-            stream.pushEvent(update);
-          }
-
-          await followUpPromise;
-          if (!resultReceived && pendingToolCalls.some(c => c.name === "return_result")) {
-            await resultReady;
-          }
+          await sendTurn(followUp);
         }
 
         if (resultReceived && result !== undefined) {
