@@ -75,3 +75,21 @@ Common scopes for this repository:
 Implementation plans are stored in doc/plan.md and are scoped to an individual pull request (by deleting from git before merge). This file should contain markdown checklists for tasks, and should contain high-level task descriptions, usually one line long. To avoid wasting time keeping the plan document in sync with the implementation, the plan should contain no code blocks of implementation details (high level signatures or usage examples are fine).
 
 When implementing a plan, remember to check off the tasks in the plan document as you work.
+
+## Build-Time Feature Flags
+
+This project has a compile-time feature flag system. Features are defined in `features.json` at the monorepo root with boolean values indicating their release-mode state.
+
+**Two build modes:**
+- `pnpm build` (release) — flags use their `features.json` values; disabled features are stripped from output
+- `pnpm build:debug` — all flags forced to `true`; nothing is stripped
+
+**How flags work in code:**
+- Each package gets an auto-generated `src/generated/features.ts` (gitignored) exporting a `features` object
+- Import with `import { features } from "./generated/features.js"`
+- Use `if (features.FLAG_NAME) { ... }` for conditional behavior — esbuild eliminates dead branches in release builds
+- Use `/** @feature(FLAG_NAME) */` JSDoc annotations on declarations/methods to strip them entirely from release output (both `.js` and `.d.ts`)
+
+**Adding a new flag:** Add it to `features.json`, then use it in code. The generation script propagates it to all packages.
+
+**Never edit `src/generated/features.ts` directly** — it is overwritten on every build.
