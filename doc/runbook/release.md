@@ -40,7 +40,24 @@ This triggers the GitHub Actions release workflow, which:
 - Creates a GitHub Release with binaries and checksums
 - Marks it as a pre-release (due to "alpha" in the tag)
 
-### 3. Publish to npm
+### 3. Build (Release Mode)
+
+Run a **release** build (not debug) to ensure feature flags are set correctly and disabled features are stripped. Then bundle the thinkwell package (produces `dist-pkg/`, which is included in the npm package):
+
+```bash
+pnpm build
+pnpm --filter thinkwell bundle
+```
+
+### 4. Smoke Test
+
+Run the greeting example by hand to verify the release build works end-to-end. This must be run manually (not via Claude Code) since the release build doesn't enable nested Claude Code execution. It should show a status spinner followed by a greeting with no errors:
+
+```bash
+(cd examples && node ../packages/thinkwell/bin/thinkwell src/greeting.ts)
+```
+
+### 5. Publish to npm
 
 ```bash
 pnpm -r publish --tag next --access public --no-git-checks
@@ -48,9 +65,9 @@ pnpm -r publish --tag next --access public --no-git-checks
 
 This publishes all packages to the `next` tag (for pre-releases).
 
-### 4. Publish VSCode Extension
+### 6. Publish VSCode Extension
 
-Build the `.vsix` package and publish to the VSCode Marketplace:
+Publish the pre-built `.vsix` to the VSCode Marketplace:
 
 ```bash
 pnpm --filter thinkwell-vscode package
@@ -59,7 +76,7 @@ npx @vscode/vsce publish --pre-release --packagePath packages/vscode-extension/t
 
 The `--packagePath` flag publishes the pre-built `.vsix` directly, bypassing `npm list` validation (which doesn't work with pnpm workspaces). The `--pre-release` flag marks it as a pre-release in the marketplace.
 
-### 5. Update Homebrew Formula
+### 7. Update Homebrew Formula
 
 After the GitHub Release is created (wait for the workflow to complete):
 
@@ -85,7 +102,7 @@ After the GitHub Release is created (wait for the workflow to complete):
    git push origin main
    ```
 
-### 6. Verify Installation
+### 8. Verify Installation
 
 Test all installation methods:
 
@@ -137,7 +154,24 @@ This triggers the GitHub Actions release workflow, which:
 - Creates a GitHub Release with binaries and checksums
 - Since the tag doesn't contain "alpha", "beta", or "rc", it's marked as a stable release
 
-### 3. Publish to npm
+### 3. Build (Release Mode)
+
+Run a **release** build (not debug) to ensure feature flags are set correctly and disabled features are stripped. Then bundle the thinkwell package (produces `dist-pkg/`, which is included in the npm package):
+
+```bash
+pnpm build
+pnpm --filter thinkwell bundle
+```
+
+### 4. Smoke Test
+
+Run the greeting example by hand to verify the release build works end-to-end. This must be run manually (not via Claude Code) since the release build doesn't enable nested Claude Code execution. It should show a status spinner followed by a greeting with no errors:
+
+```bash
+(cd examples && node ../packages/thinkwell/bin/thinkwell src/greeting.ts)
+```
+
+### 5. Publish to npm
 
 ```bash
 pnpm -r publish --access public --no-git-checks
@@ -145,16 +179,16 @@ pnpm -r publish --access public --no-git-checks
 
 This publishes all packages to the `latest` tag (default for stable releases).
 
-### 4. Publish VSCode Extension
+### 6. Publish VSCode Extension
 
-Build the `.vsix` package and publish to the VSCode Marketplace:
+Publish the pre-built `.vsix` to the VSCode Marketplace:
 
 ```bash
 pnpm --filter thinkwell-vscode package
 npx @vscode/vsce publish --packagePath packages/vscode-extension/thinkwell-vscode-0.5.0.vsix
 ```
 
-### 5. Update Homebrew Formula
+### 7. Update Homebrew Formula
 
 After the GitHub Release is created (wait for the workflow to complete):
 
@@ -180,7 +214,7 @@ After the GitHub Release is created (wait for the workflow to complete):
    git push origin main
    ```
 
-### 6. Verify Installation
+### 8. Verify Installation
 
 Test all installation methods:
 
