@@ -101,5 +101,8 @@ jobs:
       - name: Build TypeScript (debug mode)
         run: pnpm build:debug
 
+      - name: Bundle for distribution
+        run: pnpm --filter thinkwell bundle
+
       - name: Run unit tests
         run: pnpm test
