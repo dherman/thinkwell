@@ -32,7 +32,8 @@
     ]
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsx ../../scripts/strip-features.ts --mode=release",
+    "build:debug": "tsc",
     "clean": "rm -rf dist",
     "prepackage": "node scripts/prepare-package.js",
     "package": "npx @vscode/vsce package",
