@@ -20,7 +20,7 @@ packages/vscode-extension/package.json.bak
 .claude
 
 # Generated feature flag modules
-src/generated/
+**/src/generated/
 
 # Generated output from unminify demo
 examples/data/underscore.js
