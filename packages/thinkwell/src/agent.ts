@@ -22,6 +22,7 @@ import {
   McpOverAcpHandler,
   type SchemaProvider,
 } from "@thinkwell/acp";
+import { features } from "./generated/features.js";
 import { createPlan, type Plan } from "./think-builder.js";
 import { Session } from "./session.js";
 import type { ThoughtEvent, ToolContent, ContentBlock } from "./thought-event.js";
@@ -29,6 +30,8 @@ import type {
   ToolCallContent as AcpToolCallContent,
   ContentBlock as AcpContentBlock,
 } from "@agentclientprotocol/sdk";
+import { appendFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Known agent names that can be passed to `open()`.
@@ -331,12 +334,23 @@ function createClient(
       request: RequestPermissionRequest
     ): Promise<RequestPermissionResponse> {
       const firstOption = request.options[0];
-      return Promise.resolve({
+      const response: RequestPermissionResponse = {
         outcome: {
           outcome: "selected",
           optionId: firstOption?.optionId ?? "approve",
         },
-      });
+      };
+      if (features.LOG_PERMISSIONS) {
+        const logDir = process.env.THINKWELL_LOG_DIR ?? process.cwd();
+        const logPath = join(logDir, "permissions.ndjson");
+        const record = {
+          timestamp: new Date().toISOString(),
+          request,
+          response,
+        };
+        appendFileSync(logPath, JSON.stringify(record) + "\n");
+      }
+      return Promise.resolve(response);
     },
 
     async extMethod(
@@ -460,6 +474,9 @@ export function convertNotification(notification: SessionNotification): ThoughtE
     case "user_message_chunk":
     case "available_commands_update":
     case "current_mode_update":
+    case "config_option_update":
+    case "session_info_update":
+    case "usage_update":
       break;
   }
 
@@ -536,11 +553,13 @@ export async function open(
 ): Promise<Agent> {
   const { command, options } = resolveCommand(nameOrOptions, maybeOptions);
 
-  // When env is provided, we need to pass a CommandOptions object.
-  // Otherwise a plain string works (fromCommands parses it internally).
-  const commandSpec: CommandSpec = options?.env
-    ? parseCommandWithEnv(command, options.env)
-    : command;
+  const agentEnv: Record<string, string> = {
+    // Strip CLAUDECODE to prevent the nested-session guard from blocking
+    // the agent's Claude Code subprocess when thinkwell runs inside Claude Code.
+    ...(features.STRIP_CLAUDECODE_ENV ? { CLAUDECODE: "" } : {}),
+    ...options?.env,
+  };
+  const commandSpec: CommandSpec = parseCommandWithEnv(command, agentEnv);
 
   const conductor = new Conductor({
     instantiator: fromCommands([commandSpec]),

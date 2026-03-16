@@ -31,7 +31,7 @@
   "author": "David Herman",
   "license": "MIT",
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.4.0",
+    "@agentclientprotocol/sdk": "^0.16.1",
     "@thinkwell/conductor": "workspace:*",
     "@thinkwell/protocol": "workspace:*",
     "uuid": "^11.0.3"

@@ -11,17 +11,16 @@ describe("McpOverAcpHandler", () => {
   });
 
   describe("isMcpRequest", () => {
-    it("should return true for mcp/ prefixed methods (underscore stripped by SDK)", () => {
-      assert.strictEqual(handler.isMcpRequest("mcp/connect"), true);
-      assert.strictEqual(handler.isMcpRequest("mcp/message"), true);
-      assert.strictEqual(handler.isMcpRequest("mcp/disconnect"), true);
+    it("should return true for _mcp/ prefixed methods", () => {
+      assert.strictEqual(handler.isMcpRequest("_mcp/connect"), true);
+      assert.strictEqual(handler.isMcpRequest("_mcp/message"), true);
+      assert.strictEqual(handler.isMcpRequest("_mcp/disconnect"), true);
     });
 
     it("should return false for non-MCP methods", () => {
       assert.strictEqual(handler.isMcpRequest("session/new"), false);
       assert.strictEqual(handler.isMcpRequest("session/prompt"), false);
-      // Note: _mcp/ prefix is stripped by the SDK before we see it
-      assert.strictEqual(handler.isMcpRequest("_mcp/connect"), false);
+      assert.strictEqual(handler.isMcpRequest("mcp/connect"), false);
     });
   });
 
@@ -185,11 +184,11 @@ describe("McpOverAcpHandler", () => {
   });
 
   describe("routeRequest", () => {
-    it("should route mcp/connect requests", async () => {
+    it("should route _mcp/connect requests", async () => {
       const server = mcpServer("test").build();
       handler.register(server);
 
-      const result = await handler.routeRequest("mcp/connect", {
+      const result = await handler.routeRequest("_mcp/connect", {
         connectionId: "conn-1",
         acp_url: server.acpUrl,
       });
@@ -198,19 +197,19 @@ describe("McpOverAcpHandler", () => {
       assert.strictEqual((result as { connectionId: string }).connectionId, "conn-1");
     });
 
-    it("should route mcp/message requests", async () => {
+    it("should route _mcp/message requests", async () => {
       const server = mcpServer("test")
         .tool("ping", "Ping", { type: "object" }, { type: "object" }, async () => ({ pong: true }))
         .build();
 
       handler.register(server);
 
-      await handler.routeRequest("mcp/connect", {
+      await handler.routeRequest("_mcp/connect", {
         connectionId: "conn-1",
         acp_url: server.acpUrl,
       });
 
-      const result = await handler.routeRequest("mcp/message", {
+      const result = await handler.routeRequest("_mcp/message", {
         connectionId: "conn-1",
         method: "tools/call",
         params: { name: "ping", arguments: {} },
@@ -219,16 +218,16 @@ describe("McpOverAcpHandler", () => {
       assert.ok(result);
     });
 
-    it("should route mcp/disconnect requests", async () => {
+    it("should route _mcp/disconnect requests", async () => {
       const server = mcpServer("test").build();
       handler.register(server);
 
-      await handler.routeRequest("mcp/connect", {
+      await handler.routeRequest("_mcp/connect", {
         connectionId: "conn-1",
         acp_url: server.acpUrl,
       });
 
-      const result = await handler.routeRequest("mcp/disconnect", {
+      const result = await handler.routeRequest("_mcp/disconnect", {
         connectionId: "conn-1",
       });
 
@@ -237,7 +236,7 @@ describe("McpOverAcpHandler", () => {
 
     it("should throw for unknown MCP method", async () => {
       await assert.rejects(
-        () => handler.routeRequest("mcp/unknown", {}),
+        () => handler.routeRequest("_mcp/unknown", {}),
         /Unknown MCP-over-ACP method/
       );
     });

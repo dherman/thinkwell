@@ -73,8 +73,8 @@ importers:
   packages/acp:
     dependencies:
       '@agentclientprotocol/sdk':
-        specifier: ^0.4.0
-        version: 0.4.9
+        specifier: ^0.16.1
+        version: 0.16.1(zod@3.25.76)
       '@thinkwell/conductor':
         specifier: workspace:*
         version: link:../conductor
@@ -129,8 +129,8 @@ importers:
   packages/thinkwell:
     dependencies:
       '@agentclientprotocol/sdk':
-        specifier: ^0.12.0
-        version: 0.12.0(zod@3.25.76)
+        specifier: ^0.16.1
+        version: 0.16.1(zod@3.25.76)
       '@thinkwell/acp':
         specifier: workspace:*
         version: link:../acp
@@ -202,13 +202,10 @@ importers:
 
 packages:
 
-  '@agentclientprotocol/sdk@0.12.0':
-    resolution: {integrity: sha512-V8uH/KK1t7utqyJmTA7y7DzKu6+jKFIXM+ZVouz8E55j8Ej2RV42rEvPKn3/PpBJlliI5crcGk1qQhZ7VwaepA==}
+  '@agentclientprotocol/sdk@0.16.1':
+    resolution: {integrity: sha512-1ad+Sc/0sCtZGHthxxvgEUo5Wsbw16I+aF+YwdiLnPwkZG8KAGUEAPK6LM6Pf69lCyJPt1Aomk1d+8oE3C4ZEw==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
-
-  '@agentclientprotocol/sdk@0.4.9':
-    resolution: {integrity: sha512-ExwH828LaTGoTTjxuw49l+fwOLA+Yx0+qkWn1TcHMOsY5mVI9CUfkj7ZDhv2klgZ7mJeT+lxX/Dn/KINv1AkNQ==}
 
   '@azu/format-text@1.0.2':
     resolution: {integrity: sha512-Swi4N7Edy1Eqq82GxgEECXSSLyn6GOb5htRFPzBDdUkECGXtlf12ynO5oJSpWKPwCaUssOu7NfhDcCWpIC6Ywg==}
@@ -1907,11 +1904,7 @@ packages:
 
 snapshots:
 
-  '@agentclientprotocol/sdk@0.12.0(zod@3.25.76)':
-    dependencies:
-      zod: 3.25.76
-
-  '@agentclientprotocol/sdk@0.4.9':
+  '@agentclientprotocol/sdk@0.16.1(zod@3.25.76)':
     dependencies:
       zod: 3.25.76
 

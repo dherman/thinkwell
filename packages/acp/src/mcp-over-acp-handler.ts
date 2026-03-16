@@ -28,12 +28,9 @@ interface ToolsDiscoveryState {
  * Handler for MCP-over-ACP protocol messages.
  *
  * This class manages the lifecycle of MCP connections tunneled through ACP:
- * - mcp/connect: Establishes a new MCP connection
- * - mcp/message: Routes MCP requests to the appropriate server
- * - mcp/disconnect: Tears down an MCP connection
- *
- * Note: The ACP SDK strips the underscore prefix from extension methods,
- * so we receive "mcp/connect" even though the wire format is "_mcp/connect".
+ * - _mcp/connect: Establishes a new MCP connection
+ * - _mcp/message: Routes MCP requests to the appropriate server
+ * - _mcp/disconnect: Tears down an MCP connection
  */
 export class McpOverAcpHandler {
   /** Maps acp:uuid URLs to registered MCP servers */
@@ -201,26 +198,24 @@ export class McpOverAcpHandler {
 
   /**
    * Check if this is an MCP-over-ACP request.
-   * Note: The ACP SDK strips the underscore prefix, so we check for "mcp/".
    */
   isMcpRequest(method: string): boolean {
-    return method.startsWith("mcp/");
+    return method.startsWith("_mcp/");
   }
 
   /**
    * Route an MCP-over-ACP request to the appropriate handler.
-   * Note: Methods arrive without the underscore prefix (e.g., "mcp/connect" not "_mcp/connect").
    */
   async routeRequest(
     method: string,
     params: Record<string, unknown>
   ): Promise<unknown> {
     switch (method) {
-      case "mcp/connect":
+      case "_mcp/connect":
         return this.handleConnect(params);
-      case "mcp/message":
+      case "_mcp/message":
         return this.handleMessage(params);
-      case "mcp/disconnect":
+      case "_mcp/disconnect":
         this.handleDisconnect(params);
         return undefined;
       default:
