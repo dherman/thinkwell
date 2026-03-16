@@ -29,7 +29,8 @@
     "dist-pkg"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsx ../../scripts/strip-features.ts --mode=release",
+    "build:debug": "tsc",
     "build:binary": "tsx scripts/bundle.ts && tsx scripts/build-binary.ts",
     "build:binary:darwin-arm64": "tsx scripts/bundle.ts && tsx scripts/build-binary.ts darwin-arm64",
     "build:binary:darwin-x64": "tsx scripts/bundle.ts && tsx scripts/build-binary.ts darwin-x64",

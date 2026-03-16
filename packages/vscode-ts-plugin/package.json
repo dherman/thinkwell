@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "prebuild": "tsx scripts/generate-bundled-types.ts",
-    "build": "tsc",
+    "build": "tsc && tsx ../../scripts/strip-features.ts --mode=release",
+    "build:debug": "tsc",
     "clean": "rm -rf dist",
     "test": "node --test --import tsx src/**/*.test.ts"
   },
