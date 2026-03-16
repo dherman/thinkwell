@@ -49,7 +49,7 @@
   "author": "David Herman",
   "license": "MIT",
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.12.0",
+    "@agentclientprotocol/sdk": "^0.16.1",
     "@thinkwell/acp": "workspace:*",
     "@thinkwell/conductor": "workspace:*",
     "@thinkwell/protocol": "workspace:*",

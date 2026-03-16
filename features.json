@@ -1,3 +1,6 @@
 {
-  "features": {}
+  "features": {
+    "LOG_PERMISSIONS": false,
+    "STRIP_CLAUDECODE_ENV": false
+  }
 }

@@ -12,6 +12,9 @@ import {
   type Stream,
   type AnyMessage,
 } from "@agentclientprotocol/sdk";
+import { features } from "./generated/features.js";
+import { appendFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   Conductor,
   fromCommands,
@@ -23,6 +26,24 @@ import {
 import { McpOverAcpHandler } from "./mcp-over-acp-handler.js";
 import type { ActiveSession, SessionUpdate } from "./session.js";
 import type { McpServerConfig } from "./types.js";
+
+/**
+ * Append an NDJSON record to the permissions log file.
+ * Only called when LOG_PERMISSIONS is enabled.
+ */
+function logPermission(
+  request: RequestPermissionRequest,
+  response: RequestPermissionResponse
+): void {
+  const logDir = process.env.THINKWELL_LOG_DIR ?? process.cwd();
+  const logPath = join(logDir, "permissions.ndjson");
+  const record = {
+    timestamp: new Date().toISOString(),
+    request,
+    response,
+  };
+  appendFileSync(logPath, JSON.stringify(record) + "\n");
+}
 
 /**
  * Session creation options
@@ -181,6 +202,9 @@ export class SacpConnection {
       case "tool_call_update":
       case "available_commands_update":
       case "current_mode_update":
+      case "config_option_update":
+      case "session_info_update":
+      case "usage_update":
         // These are informational updates we don't need to handle
         break;
     }
@@ -221,12 +245,16 @@ function createClient(
       // For now, auto-approve by selecting the first option
       // In a real client, this would prompt the user
       const firstOption = request.options[0];
-      return Promise.resolve({
+      const response: RequestPermissionResponse = {
         outcome: {
           outcome: "selected",
           optionId: firstOption?.optionId ?? "approve",
         },
-      });
+      };
+      if (features.LOG_PERMISSIONS) {
+        logPermission(request, response);
+      }
+      return Promise.resolve(response);
     },
 
     // Extension method handler for _mcp/* requests
