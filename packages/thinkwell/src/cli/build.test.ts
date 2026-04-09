@@ -185,7 +185,7 @@ describe("thinkwell build", { skip: SKIP }, () => {
       const output = readFileSync(join(projectDir, "dist/cli-tool.js"), "utf-8");
       assert.ok(output.startsWith("#!/usr/bin/env"), "Output should start with shebang");
 
-      // Verify the .d.ts also has the shebang on the first line
+      // tsc preserves shebangs in .d.ts output — verify we don't break that
       const dts = readFileSync(join(projectDir, "dist/cli-tool.d.ts"), "utf-8");
       assert.ok(dts.startsWith("#!/usr/bin/env"), "Declaration file should start with shebang");
     });
