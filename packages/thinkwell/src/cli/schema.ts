@@ -21,6 +21,7 @@ import ts from "typescript";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { generateSchemas as bundledGenerateSchemas } from "../build.js";
+import { extractShebang } from "./loader.js";
 
 // =============================================================================
 // Type Discovery
@@ -350,8 +351,11 @@ export function transformJsonSchemas(path: string, source: string, projectDir?: 
   const insertions = generateInsertions(markedTypes, schemas);
   let modifiedSource = applyInsertions(source, insertions);
 
-  // Add the type import at the beginning
-  modifiedSource = generateSchemaImport() + "\n" + modifiedSource;
+  // Preserve shebang: if present, extract it before prepending the import
+  const [shebang, rest] = extractShebang(modifiedSource);
+
+  // Add the type import at the beginning (after the shebang, if any)
+  modifiedSource = shebang + generateSchemaImport() + "\n" + rest;
 
   return modifiedSource;
 }
