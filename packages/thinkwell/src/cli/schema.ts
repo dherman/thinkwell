@@ -21,7 +21,6 @@ import ts from "typescript";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { generateSchemas as bundledGenerateSchemas } from "../build.js";
-import { extractShebang } from "./loader.js";
 
 // =============================================================================
 // Type Discovery
@@ -351,11 +350,24 @@ export function transformJsonSchemas(path: string, source: string, projectDir?: 
   const insertions = generateInsertions(markedTypes, schemas);
   let modifiedSource = applyInsertions(source, insertions);
 
-  // Preserve shebang: if present, extract it before prepending the import
-  const [shebang, rest] = extractShebang(modifiedSource);
+  // Preserve shebang: if present, keep it on the first line and insert
+  // the import after it. Inline the logic to avoid a circular dependency
+  // with loader.ts (which imports from this module).
+  let prefix = "";
+  let body = modifiedSource;
+  if (modifiedSource.startsWith("#!")) {
+    const newlineIndex = modifiedSource.indexOf("\n");
+    if (newlineIndex !== -1) {
+      prefix = modifiedSource.slice(0, newlineIndex + 1);
+      body = modifiedSource.slice(newlineIndex + 1);
+    } else {
+      prefix = modifiedSource + "\n";
+      body = "";
+    }
+  }
 
   // Add the type import at the beginning (after the shebang, if any)
-  modifiedSource = shebang + generateSchemaImport() + "\n" + rest;
+  modifiedSource = prefix + generateSchemaImport() + "\n" + body;
 
   return modifiedSource;
 }
