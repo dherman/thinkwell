@@ -147,6 +147,49 @@ describe("thinkwell build", { skip: SKIP }, () => {
       );
     });
 
+    it("should preserve shebangs in files with @JSONSchema types", async () => {
+      // Write a file with a shebang and @JSONSchema type
+      writeFileSync(
+        join(projectDir, "src/cli-tool.ts"),
+        [
+          "#!/usr/bin/env thinkwell",
+          'import type * as acp from "@thinkwell/acp";',
+          "",
+          "/** @JSONSchema */",
+          "export interface Config {",
+          "  verbose: boolean;",
+          "}",
+          "",
+          'console.log("hello");',
+          "",
+        ].join("\n"),
+      );
+
+      // Re-run the build
+      const originalExit = process.exit;
+      let exitCode: number | undefined;
+      process.exit = ((code?: number) => { exitCode = code; }) as never;
+      const originalCwd = process.cwd();
+
+      try {
+        process.chdir(projectDir);
+        await runBuild({ quiet: true });
+      } finally {
+        process.chdir(originalCwd);
+        process.exit = originalExit;
+      }
+
+      assert.strictEqual(exitCode, undefined, `Build failed with exit code ${exitCode}`);
+
+      // Verify the emitted .js has the shebang on the first line
+      const output = readFileSync(join(projectDir, "dist/cli-tool.js"), "utf-8");
+      assert.ok(output.startsWith("#!/usr/bin/env"), "Output should start with shebang");
+
+      // Verify the .d.ts also has the shebang on the first line
+      const dts = readFileSync(join(projectDir, "dist/cli-tool.d.ts"), "utf-8");
+      assert.ok(dts.startsWith("#!/usr/bin/env"), "Declaration file should start with shebang");
+    });
+
     it("should emit source maps", async () => {
       assert.ok(
         existsSync(join(projectDir, "dist/types.js.map")),
