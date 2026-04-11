@@ -1,6 +1,6 @@
 {
   "features": {
     "LOG_PERMISSIONS": false,
-    "STRIP_CLAUDECODE_ENV": false
+    "STRIP_CLAUDECODE_ENV": true
   }
 }
