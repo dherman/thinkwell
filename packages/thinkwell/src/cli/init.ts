@@ -166,24 +166,14 @@ async function installPackage(
 // ============================================================================
 
 /**
- * Create a package.json for a new project, pre-populated with the
- * required thinkwell and typescript dependencies so that the user
- * only needs to run their package manager's install command.
+ * Create a minimal package.json for a new project.
  */
 function createPackageJson(projectDir: string): void {
   const name = basename(projectDir);
-  const cliVersion = getCliVersion();
-  const thinkwellVersion = cliVersion.startsWith("^") ? cliVersion : `^${cliVersion}`;
   const content = {
     name,
     version: "0.1.0",
     type: "module",
-    dependencies: {
-      thinkwell: thinkwellVersion,
-    },
-    devDependencies: {
-      typescript: getTypescriptVersion(),
-    },
   };
   const pkgPath = join(projectDir, "package.json");
   writeFileSync(pkgPath, JSON.stringify(content, null, 2) + "\n");
@@ -219,18 +209,12 @@ function getMissingDependencies(result: DependencyCheckResult): MissingDependenc
 export async function runInit(options: InitOptions): Promise<void> {
   const { yes, projectDir } = options;
 
-  // Create package.json if it doesn't exist.
-  // The created file already includes thinkwell and typescript deps,
-  // so the user only needs to run their package manager's install command.
-  const createdPackageJson = !hasPackageJson(projectDir);
-  if (createdPackageJson) {
+  // Create package.json if it doesn't exist
+  if (!hasPackageJson(projectDir)) {
     console.log("No package.json found. Creating one...");
     createPackageJson(projectDir);
-    console.log(`Created ${cyanBold("package.json")} with thinkwell and typescript dependencies.`);
+    console.log(`Created ${cyanBold("package.json")}`);
     console.log("");
-    const pm = detectPackageManager(projectDir);
-    console.log(`Run ${cyanBold(pm.name === "yarn" ? "yarn" : `${pm.name} install`)} to install dependencies.`);
-    return;
   }
 
   // Detect package manager

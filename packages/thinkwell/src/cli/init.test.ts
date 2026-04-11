@@ -81,20 +81,12 @@ describe("thinkwell init", () => {
       assert.match(stdout, /No package\.json found\. Creating one/);
       assert.match(stdout, /Created package\.json/);
 
-      // Verify package.json was created with deps pre-populated
+      // Verify package.json was created
       const pkgPath = join(tempDir, "package.json");
       assert.ok(existsSync(pkgPath), "package.json should be created");
 
       const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
       assert.strictEqual(pkg.type, "module");
-      assert.ok(pkg.dependencies?.thinkwell, "should include thinkwell dependency");
-      assert.ok(pkg.devDependencies?.typescript, "should include typescript devDependency");
-    });
-
-    it("should tell user to run install after creating package.json", () => {
-      const { status, stdout } = runThinkwellInit(tempDir, ["--yes"]);
-      assert.strictEqual(status, 0);
-      assert.match(stdout, /install/i, "should mention running install");
     });
   });
 
