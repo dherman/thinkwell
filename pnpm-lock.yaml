@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@anthropic-ai/claude-agent-sdk': 0.2.104
-
 importers:
 
   .:
