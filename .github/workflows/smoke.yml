@@ -5,9 +5,16 @@ on:
     - cron: '0 6 * * 0'  # Sunday 6am UTC
   workflow_dispatch:       # Manual trigger
 
+  # TODO: Add a parallel Kiro CLI smoke test job once headless auth is fixed.
+  # Kiro's SIGV4 auth (AWS IAM credentials via OIDC federation) is broken in
+  # the current CLI — regression from Amazon Q Developer CLI migration.
+  # Tracking: https://github.com/kirodotdev/Kiro/issues/5938
+  # When fixed, add a `smoke-kiro` job using setup-kiro-cli-action with
+  # enable-sigv4 and THINKWELL_AGENT=kiro.
+
 jobs:
   smoke:
-    name: Smoke Tests
+    name: Smoke Tests (Claude)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
