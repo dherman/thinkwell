@@ -51,11 +51,14 @@ pnpm --filter thinkwell bundle
 
 ### 4. Smoke Test
 
-Run the greeting example by hand to verify the release build works end-to-end. This must be run manually (not via Claude Code) since the release build doesn't enable nested Claude Code execution. It should show a status spinner followed by a greeting with no errors:
+Trigger the smoke tests in CI (requires `ANTHROPIC_API_KEY` GitHub secret):
 
 ```bash
-(cd examples && node ../packages/thinkwell/bin/thinkwell src/greeting.ts)
+gh workflow run smoke.yml
+gh run watch --exit-status
 ```
+
+Alternatively, run locally with your Claude Code subscription auth: `pnpm smoke`
 
 ### 5. Publish to npm
 
@@ -165,11 +168,14 @@ pnpm --filter thinkwell bundle
 
 ### 4. Smoke Test
 
-Run the greeting example by hand to verify the release build works end-to-end. This must be run manually (not via Claude Code) since the release build doesn't enable nested Claude Code execution. It should show a status spinner followed by a greeting with no errors:
+Trigger the smoke tests in CI (requires `ANTHROPIC_API_KEY` GitHub secret):
 
 ```bash
-(cd examples && node ../packages/thinkwell/bin/thinkwell src/greeting.ts)
+gh workflow run smoke.yml
+gh run watch --exit-status
 ```
+
+Alternatively, run locally with your Claude Code subscription auth: `pnpm smoke`
 
 ### 5. Publish to npm
 

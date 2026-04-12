@@ -1,14 +1,14 @@
-# Build-Time Feature Flags
+# Smoke Tests
 
 ## Implementation Plan
 
-- [x] Create `features.json` at monorepo root (empty initial config)
-- [x] Add `ts-morph` as a root dev dependency
-- [x] Create `scripts/generate-features.ts` — reads `features.json`, writes `src/generated/features.ts` per package
-- [x] Create `scripts/strip-features.ts` — ts-morph for declaration stripping + esbuild transform for dead branch elimination
-- [x] Update `.gitignore` to exclude `src/generated/`
-- [x] Update root `package.json` scripts (`build`, `build:debug`, `generate-features`)
-- [x] Update per-package `package.json` scripts (`build`, `build:debug`)
-- [x] Update `.github/workflows/ci.yml` to add debug-mode test job
-- [x] Verify: `pnpm build` (release) and `pnpm build:debug` both succeed
-- [x] Verify: tests pass in both modes
+- [x] Add tool-use test case to `packages/thinkwell/src/integration.test.ts`
+- [x] Add `test:smoke` script to `packages/thinkwell/package.json`
+- [x] Add `smoke` script to root `package.json`
+- [x] Create `.github/workflows/smoke.yml` (weekly cron + manual dispatch)
+- [x] Update `doc/runbook/release.md` — replace manual greeting step with `pnpm smoke`
+- [x] Verify: `pnpm smoke` passes locally with subscription auth
+- [x] Root-cause ToolSearch interference with MCP tool schemas; add `ENABLE_TOOL_SEARCH=0` workaround to workflow
+- [x] Remove debug logging from `packages/acp/src/mcp-server.ts`
+- [ ] One-time setup: create Anthropic API key, set $5/month spending limit, add as GitHub secret
+- [x] Update release runbook to use `gh workflow run smoke.yml` instead of local `pnpm smoke`

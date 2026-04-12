@@ -73,7 +73,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
 
     // .result should resolve to a valid greeting
     const result = await stream.result;
-    assert.ok(typeof result.greeting === "string", "Expected greeting to be a string");
+    assert.ok(typeof result.greeting === "string", `Expected greeting to be a string, got: ${JSON.stringify(result)}`);
     assert.ok(result.greeting.length > 0, "Expected non-empty greeting");
   });
 
@@ -84,7 +84,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
       .text("Say hello. Return a short greeting.")
       .run();
 
-    assert.ok(typeof result.greeting === "string", "Expected greeting to be a string");
+    assert.ok(typeof result.greeting === "string", `Expected greeting to be a string, got: ${JSON.stringify(result)}`);
     assert.ok(result.greeting.length > 0, "Expected non-empty greeting");
   });
 
@@ -104,7 +104,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
 
     // .result should still resolve even though we broke out early
     const result = await stream.result;
-    assert.ok(typeof result.greeting === "string", "Expected greeting after early break");
+    assert.ok(typeof result.greeting === "string", `Expected greeting after early break, got: ${JSON.stringify(result)}`);
   });
 
   it("fire-and-forget: await .result without iterating", async () => {
@@ -116,7 +116,47 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
 
     // Never iterate — just await the result
     const result = await stream.result;
-    assert.ok(typeof result.greeting === "string", "Expected greeting from fire-and-forget");
+    assert.ok(typeof result.greeting === "string", `Expected greeting from fire-and-forget, got: ${JSON.stringify(result)}`);
+  });
+
+  it("tool use: agent should invoke a custom tool and return structured result", async () => {
+    const a = await ensureAgent();
+
+    const MathResultSchema = schemaOf<{ expression: string; result: number }>({
+      type: "object",
+      properties: {
+        expression: { type: "string", description: "The original expression" },
+        result: { type: "number", description: "The computed result" },
+      },
+      required: ["expression", "result"],
+    });
+
+    let toolWasCalled = false;
+
+    const result = await a
+      .think(MathResultSchema)
+      .text("Use the add tool to compute 3 + 4, then return the result.")
+      .tool(
+        "add",
+        "Add two numbers together",
+        schemaOf<{ a: number; b: number }>({
+          type: "object",
+          properties: {
+            a: { type: "number", description: "First number" },
+            b: { type: "number", description: "Second number" },
+          },
+          required: ["a", "b"],
+        }),
+        async (input: { a: number; b: number }) => {
+          toolWasCalled = true;
+          return { result: input.a + input.b };
+        }
+      )
+      .run();
+
+    assert.ok(toolWasCalled, `Expected the add tool to be called, got: ${JSON.stringify(result)}`);
+    assert.ok(typeof result.expression === "string" && result.expression.length > 0, `Expected non-empty expression, got: ${JSON.stringify(result)}`);
+    assert.strictEqual(result.result, 7, `Expected 3 + 4 = 7, got: ${JSON.stringify(result)}`);
   });
 
   it("run() should return typed result for a discriminated union schema", async () => {

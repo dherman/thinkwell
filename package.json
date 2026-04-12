@@ -7,6 +7,7 @@
     "build:debug": "tsx scripts/generate-features.ts --mode=debug && pnpm -r build:debug",
     "generate-features": "tsx scripts/generate-features.ts",
     "test": "pnpm -r test",
+    "smoke": "pnpm --filter thinkwell test:smoke",
     "clean": "pnpm -r clean",
     "package": "pnpm -r build && pnpm --filter thinkwell-vscode package"
   },
