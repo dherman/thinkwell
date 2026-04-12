@@ -151,7 +151,7 @@ export class McpServer {
     // Echo back the client's protocol version if provided, otherwise use a known good version
     const clientVersion = params?.protocolVersion ?? "2024-11-05";
 
-    return {
+    const result = {
       protocolVersion: clientVersion,
       serverInfo: {
         name: this.name,
@@ -163,12 +163,14 @@ export class McpServer {
       instructions,
       tools,  // Include tools directly in initialize response
     };
+    return result;
   }
 
   private handleToolsList(): McpToolsListResult {
-    return {
+    const result = {
       tools: this.getToolDefinitions(),
     };
+    return result;
   }
 
   private async handleToolsCall(

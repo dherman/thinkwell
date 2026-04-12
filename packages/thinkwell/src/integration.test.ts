@@ -73,7 +73,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
 
     // .result should resolve to a valid greeting
     const result = await stream.result;
-    assert.ok(typeof result.greeting === "string", "Expected greeting to be a string");
+    assert.ok(typeof result.greeting === "string", `Expected greeting to be a string, got: ${JSON.stringify(result)}`);
     assert.ok(result.greeting.length > 0, "Expected non-empty greeting");
   });
 
@@ -84,7 +84,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
       .text("Say hello. Return a short greeting.")
       .run();
 
-    assert.ok(typeof result.greeting === "string", "Expected greeting to be a string");
+    assert.ok(typeof result.greeting === "string", `Expected greeting to be a string, got: ${JSON.stringify(result)}`);
     assert.ok(result.greeting.length > 0, "Expected non-empty greeting");
   });
 
@@ -104,7 +104,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
 
     // .result should still resolve even though we broke out early
     const result = await stream.result;
-    assert.ok(typeof result.greeting === "string", "Expected greeting after early break");
+    assert.ok(typeof result.greeting === "string", `Expected greeting after early break, got: ${JSON.stringify(result)}`);
   });
 
   it("fire-and-forget: await .result without iterating", async () => {
@@ -116,7 +116,45 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
 
     // Never iterate — just await the result
     const result = await stream.result;
-    assert.ok(typeof result.greeting === "string", "Expected greeting from fire-and-forget");
+    assert.ok(typeof result.greeting === "string", `Expected greeting from fire-and-forget, got: ${JSON.stringify(result)}`);
+  });
+
+  it("tool use: agent should invoke a custom tool and return structured result", async () => {
+    const a = await ensureAgent();
+
+    // Use a nonce so the model MUST call the tool to get the right answer.
+    // It cannot compute the result from the prompt alone.
+    const nonce = Math.floor(Math.random() * 900000) + 100000;
+
+    const ResultSchema = schemaOf<{ token: number }>({
+      type: "object",
+      properties: {
+        token: { type: "number", description: "The token returned by the get_token tool" },
+      },
+      required: ["token"],
+    });
+
+    let toolWasCalled = false;
+
+    const result = await a
+      .think(ResultSchema)
+      .text("Call the get_token tool, then return the token it gives you.")
+      .tool(
+        "get_token",
+        "Returns a secret token. You must call this tool to get the token value.",
+        schemaOf<Record<string, never>>({
+          type: "object",
+          properties: {},
+        }),
+        async () => {
+          toolWasCalled = true;
+          return { token: nonce };
+        }
+      )
+      .run();
+
+    assert.ok(toolWasCalled, `Expected get_token tool to be called, got: ${JSON.stringify(result)}`);
+    assert.strictEqual(result.token, nonce, `Expected token ${nonce}, got: ${JSON.stringify(result)}`);
   });
 
   it("run() should return typed result for a discriminated union schema", async () => {
