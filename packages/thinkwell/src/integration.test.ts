@@ -122,41 +122,39 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
   it("tool use: agent should invoke a custom tool and return structured result", async () => {
     const a = await ensureAgent();
 
-    const MathResultSchema = schemaOf<{ expression: string; result: number }>({
+    // Use a nonce so the model MUST call the tool to get the right answer.
+    // It cannot compute the result from the prompt alone.
+    const nonce = Math.floor(Math.random() * 900000) + 100000;
+
+    const ResultSchema = schemaOf<{ token: number }>({
       type: "object",
       properties: {
-        expression: { type: "string", description: "The original expression" },
-        result: { type: "number", description: "The computed result" },
+        token: { type: "number", description: "The token returned by the get_token tool" },
       },
-      required: ["expression", "result"],
+      required: ["token"],
     });
 
     let toolWasCalled = false;
 
     const result = await a
-      .think(MathResultSchema)
-      .text("Use the add tool to compute 3 + 4, then return the result.")
+      .think(ResultSchema)
+      .text("Call the get_token tool, then return the token it gives you.")
       .tool(
-        "add",
-        "Add two numbers together",
-        schemaOf<{ a: number; b: number }>({
+        "get_token",
+        "Returns a secret token. You must call this tool to get the token value.",
+        schemaOf<Record<string, never>>({
           type: "object",
-          properties: {
-            a: { type: "number", description: "First number" },
-            b: { type: "number", description: "Second number" },
-          },
-          required: ["a", "b"],
+          properties: {},
         }),
-        async (input: { a: number; b: number }) => {
+        async () => {
           toolWasCalled = true;
-          return { result: input.a + input.b };
+          return { token: nonce };
         }
       )
       .run();
 
-    assert.ok(toolWasCalled, `Expected the add tool to be called, got: ${JSON.stringify(result)}`);
-    assert.ok(typeof result.expression === "string" && result.expression.length > 0, `Expected non-empty expression, got: ${JSON.stringify(result)}`);
-    assert.strictEqual(result.result, 7, `Expected 3 + 4 = 7, got: ${JSON.stringify(result)}`);
+    assert.ok(toolWasCalled, `Expected get_token tool to be called, got: ${JSON.stringify(result)}`);
+    assert.strictEqual(result.token, nonce, `Expected token ${nonce}, got: ${JSON.stringify(result)}`);
   });
 
   it("run() should return typed result for a discriminated union schema", async () => {

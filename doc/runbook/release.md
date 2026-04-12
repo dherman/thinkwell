@@ -54,7 +54,7 @@ pnpm --filter thinkwell bundle
 Trigger the smoke tests in CI (requires `ANTHROPIC_API_KEY` GitHub secret):
 
 ```bash
-gh workflow run smoke.yml
+gh workflow run smoke.yml --ref main
 gh run watch --exit-status
 ```
 
@@ -171,7 +171,7 @@ pnpm --filter thinkwell bundle
 Trigger the smoke tests in CI (requires `ANTHROPIC_API_KEY` GitHub secret):
 
 ```bash
-gh workflow run smoke.yml
+gh workflow run smoke.yml --ref main
 gh run watch --exit-status
 ```
 
