@@ -30,7 +30,7 @@ import type {
   ToolCallContent as AcpToolCallContent,
   ContentBlock as AcpContentBlock,
 } from "@agentclientprotocol/sdk";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -277,14 +277,57 @@ class AgentImpl implements Agent {
 }
 
 /**
+ * Protocol-level message tracer.
+ *
+ * When $THINKWELL_TRACE is set to a directory path, every JSON-RPC
+ * message flowing between the client and agent is appended to an
+ * NDJSON file in that directory (one file per open() call). Each
+ * line contains a monotonic sequence number, high-resolution
+ * timestamp, direction, and the full message payload.
+ *
+ * Usage:
+ *   THINKWELL_TRACE=/tmp/tw-trace thinkwell src/greeting.ts
+ *
+ * Then inspect the trace:
+ *   cat /tmp/tw-trace/trace-*.ndjson | jq .
+ */
+function createTracer(): ((dir: "recv" | "send", msg: unknown) => void) | null {
+  const traceDir = process.env.THINKWELL_TRACE;
+  if (!traceDir) return null;
+
+  mkdirSync(traceDir, { recursive: true });
+  const tracePath = join(traceDir, `trace-${Date.now()}.ndjson`);
+  let seq = 0;
+  const t0 = performance.now();
+
+  return (dir: "recv" | "send", msg: unknown) => {
+    const record = {
+      seq: seq++,
+      ms: Math.round((performance.now() - t0) * 1000) / 1000,
+      dir,
+      msg,
+    };
+    try {
+      appendFileSync(tracePath, JSON.stringify(record) + "\n");
+    } catch {
+      // Best-effort — don't crash on trace failures
+    }
+  };
+}
+
+/**
  * Convert a ComponentConnection to the SDK's Stream interface.
  */
-function componentConnectionToStream(connection: ComponentConnection): Stream {
+function componentConnectionToStream(
+  connection: ComponentConnection,
+  trace: ((dir: "recv" | "send", msg: unknown) => void) | null,
+): Stream {
   // Create a ReadableStream from the async iterable
   const readable = new ReadableStream<AnyMessage>({
     async start(controller) {
       try {
         for await (const message of connection.messages) {
+          trace?.("recv", message);
           controller.enqueue(message as AnyMessage);
         }
         controller.close();
@@ -297,6 +340,7 @@ function componentConnectionToStream(connection: ComponentConnection): Stream {
   // Create a WritableStream that sends to the connection
   const writable = new WritableStream<AnyMessage>({
     write(message) {
+      trace?.("send", message);
       connection.send(message as JsonRpcMessage);
     },
     close() {
@@ -569,7 +613,8 @@ export async function open(
   const pair = createChannelPair();
 
   // Create a Stream adapter from the ComponentConnection
-  const stream = componentConnectionToStream(pair.left);
+  const trace = createTracer();
+  const stream = componentConnectionToStream(pair.left, trace);
 
   // Create the MCP handler
   const mcpHandler = new McpOverAcpHandler();
