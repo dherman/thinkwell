@@ -1,5 +1,6 @@
 {
   "features": {
+    "FAULT_INJECTION": false,
     "LOG_PERMISSIONS": false,
     "STRIP_CLAUDECODE_ENV": true
   }
