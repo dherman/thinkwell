@@ -13,9 +13,28 @@ on:
   # enable-sigv4 and THINKWELL_AGENT=kiro.
 
 jobs:
+  preflight:
+    name: Check secrets
+    runs-on: ubuntu-latest
+    outputs:
+      has-key: ${{ steps.check.outputs.has-key }}
+    steps:
+      - name: Check for API key
+        id: check
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "has-key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::ANTHROPIC_API_KEY is not configured — skipping smoke tests"
+            echo "has-key=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
   smoke:
     name: Smoke Tests (Claude)
-    if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    needs: preflight
+    if: needs.preflight.outputs.has-key == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
