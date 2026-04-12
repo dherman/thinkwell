@@ -70,8 +70,8 @@ async function main() {
     console.log(styleText(["bold", "white"], `✨ ${greeting.message}`));
   } catch (error) {
     status.clear();
-    console.error("Error:", error);
-    throw error;
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
   } finally {
     await agent.close();
   }

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { features } from "./generated/features.js";
 import {
   mcpServer,
   createSkillServer,
@@ -550,15 +551,9 @@ class PlanImpl<Output> implements Plan<Output> {
     // Track if we've received a result
     let resultReceived = false;
     let result: Output | undefined;
+    let resultError: Error | undefined;
     let resolveResultReady: () => void;
     const resultReady = new Promise<void>((r) => { resolveResultReady = r; });
-
-    // Accept a return_result invocation, unwrapping if needed.
-    const acceptResult = (input: unknown) => {
-      result = (needsWrap ? (input as Record<string, unknown>).result : input) as Output;
-      resultReceived = true;
-      resolveResultReady();
-    };
 
     // Get the output schema for the return_result tool.
     // The Anthropic API requires tool input schemas to have type: "object" at
@@ -569,6 +564,46 @@ class PlanImpl<Output> implements Plan<Output> {
     const outputSchema = needsWrap
       ? { type: "object", properties: { result: rawSchema }, required: ["result"] }
       : rawSchema;
+
+    // Accept a return_result invocation, unwrapping if needed.
+    // Guard against double calls: the MCP handler and the multi-turn loop
+    // can both invoke acceptResult for the same tool call. The first call
+    // wins; subsequent calls are no-ops.
+    const acceptResult = (input: unknown) => {
+      if (resultReceived) return;
+      const value = (needsWrap ? (input as Record<string, unknown>).result : input) as Output;
+
+      // Validate required fields. Without a full JSON Schema validator,
+      // we check the most common failure mode: the agent omitting
+      // required properties from the result object.
+      const schemaRequired = (rawSchema as Record<string, unknown>).required;
+      let required = Array.isArray(schemaRequired) ? schemaRequired : undefined;
+
+      // Fault injection: THINKWELL_INJECT_REQUIRED_FIELD=fieldName adds
+      // a fake required field the agent can't satisfy, to test error UX.
+      if (features.FAULT_INJECTION) {
+        const injectedField = process.env.THINKWELL_INJECT_REQUIRED_FIELD;
+        if (injectedField) {
+          required = required ? [...required, injectedField] : [injectedField];
+        }
+      }
+      if (Array.isArray(required) && value != null && typeof value === "object") {
+        const obj = value as Record<string, unknown>;
+        const missing = required.filter((key: string) => !(key in obj));
+        if (missing.length > 0) {
+          resultError = new TypeError(
+            `Agent result is missing required field(s): ${missing.join(", ")}`
+          );
+          resultReceived = true;
+          resolveResultReady();
+          return;
+        }
+      }
+
+      result = value;
+      resultReceived = true;
+      resolveResultReady();
+    };
 
     // Add return instruction
     prompt += "\n\nWhen you have your answer, call the `return_result` MCP tool with the result.";
@@ -686,14 +721,8 @@ class PlanImpl<Output> implements Plan<Output> {
 
           await promptPromise;
 
-          // The ACP SDK's receive loop does not await #processMessage, so
-          // the prompt response can resolve before an in-flight return_result
-          // handler finishes its async chain. However, the session_update
-          // notification (tool_start) is processed synchronously — pushUpdate
-          // runs before any microtask yield — so it is guaranteed to be in
-          // our update queue before the prompt response resolves. If we saw
-          // the tool_start for return_result, the handler is in-flight and
-          // resultReady will resolve; otherwise the agent never called it.
+          // If we saw a tool_start for return_result but the MCP handler
+          // hasn't resolved yet, wait for it.
           if (!resultReceived && pendingToolCalls.some(c => c.name === "return_result")) {
             await resultReady;
           }
@@ -734,10 +763,14 @@ class PlanImpl<Output> implements Plan<Output> {
           await sendTurn(followUp);
         }
 
-        if (resultReceived && result !== undefined) {
+        if (resultError) {
+          stream.rejectResult(resultError);
+        } else if (resultReceived && result !== undefined) {
           stream.resolveResult(result);
+        } else if (resultReceived) {
+          stream.rejectResult(new TypeError("Agent returned an undefined value"));
         } else {
-          stream.rejectResult(new Error("Session ended without calling return_result"));
+          stream.rejectResult(new Error("Agent session ended without returning a result"));
         }
       } finally {
         stream.close();
