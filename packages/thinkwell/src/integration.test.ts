@@ -35,7 +35,7 @@ async function withRetry(fn: () => Promise<void>, maxRetries = 3, baseDelayMs = 
       return;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (attempt < maxRetries && /rate_limit_error|429/.test(msg)) {
+      if (attempt < maxRetries && /rate_limit_error/.test(msg)) {
         const delay = baseDelayMs * 2 ** attempt;
         console.log(`  Rate limited, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries})...`);
         await new Promise((r) => setTimeout(r, delay));
