@@ -24,7 +24,7 @@ Today the only smoke test is a single manual step in the release runbook: run th
 
 ### Authentication
 
-Thinkwell's `open('claude')` spawns `@zed-industries/claude-agent-acp`, which uses the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`). The Agent SDK supports two authentication methods:
+Thinkwell's `open('claude')` spawns `@agentclientprotocol/claude-agent-acp`, which uses the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`). The Agent SDK supports two authentication methods:
 
 1. **`ANTHROPIC_API_KEY`** — Pay-per-use API billing. Recommended for CI/CD by Anthropic's docs.
 2. **Subscription auth** — Uses credentials from `claude auth login` stored in `~/.claude/`. Works with Pro/Max plans.
