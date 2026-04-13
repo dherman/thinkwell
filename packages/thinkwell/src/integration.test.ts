@@ -27,6 +27,25 @@ describe("Thinkwell integration tests", { skip: SKIP_INTEGRATION }, () => {
   });
 });
 
+/** Retry a test body on rate-limit (429) errors with exponential backoff. */
+async function withRetry(fn: () => Promise<void>, maxRetries = 3, baseDelayMs = 15_000): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fn();
+      return;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt < maxRetries && /rate_limit_error|429/.test(msg)) {
+        const delay = baseDelayMs * 2 ** attempt;
+        console.log(`  Rate limited, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries})...`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 /**
  * Live agent integration tests for stream() and run().
  *
@@ -55,7 +74,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
     required: ["greeting"],
   });
 
-  it("stream() should iterate and resolve .result", async () => {
+  it("stream() should iterate and resolve .result", () => withRetry(async () => {
     const a = await ensureAgent();
     const stream = a
       .think(GreetingSchema)
@@ -75,9 +94,9 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
     const result = await stream.result;
     assert.ok(typeof result.greeting === "string", `Expected greeting to be a string, got: ${JSON.stringify(result)}`);
     assert.ok(result.greeting.length > 0, "Expected non-empty greeting");
-  });
+  }));
 
-  it("run() should return typed result (backward compat)", async () => {
+  it("run() should return typed result (backward compat)", () => withRetry(async () => {
     const a = await ensureAgent();
     const result = await a
       .think(GreetingSchema)
@@ -86,9 +105,9 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
 
     assert.ok(typeof result.greeting === "string", `Expected greeting to be a string, got: ${JSON.stringify(result)}`);
     assert.ok(result.greeting.length > 0, "Expected non-empty greeting");
-  });
+  }));
 
-  it("early termination: break from for-await should not break .result", async () => {
+  it("early termination: break from for-await should not break .result", () => withRetry(async () => {
     const a = await ensureAgent();
     const stream = a
       .think(GreetingSchema)
@@ -105,9 +124,9 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
     // .result should still resolve even though we broke out early
     const result = await stream.result;
     assert.ok(typeof result.greeting === "string", `Expected greeting after early break, got: ${JSON.stringify(result)}`);
-  });
+  }));
 
-  it("fire-and-forget: await .result without iterating", async () => {
+  it("fire-and-forget: await .result without iterating", () => withRetry(async () => {
     const a = await ensureAgent();
     const stream = a
       .think(GreetingSchema)
@@ -117,9 +136,9 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
     // Never iterate — just await the result
     const result = await stream.result;
     assert.ok(typeof result.greeting === "string", `Expected greeting from fire-and-forget, got: ${JSON.stringify(result)}`);
-  });
+  }));
 
-  it("tool use: agent should invoke a custom tool and return structured result", async () => {
+  it("tool use: agent should invoke a custom tool and return structured result", () => withRetry(async () => {
     const a = await ensureAgent();
 
     // Use a nonce so the model MUST call the tool to get the right answer.
@@ -155,9 +174,9 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
 
     assert.ok(toolWasCalled, `Expected get_token tool to be called, got: ${JSON.stringify(result)}`);
     assert.strictEqual(result.token, nonce, `Expected token ${nonce}, got: ${JSON.stringify(result)}`);
-  });
+  }));
 
-  it("run() should return typed result for a discriminated union schema", async () => {
+  it("run() should return typed result for a discriminated union schema", () => withRetry(async () => {
     // Union schemas (anyOf/oneOf) lack a top-level type: "object", so
     // Plan must wrap them for the Anthropic API and unwrap on return.
     type Action =
@@ -202,7 +221,7 @@ describe("Thought Stream live integration", { skip: SKIP_LIVE }, () => {
     } else {
       assert.ok(typeof result.department === "string" && result.department.length > 0, "escalate should have a non-empty department");
     }
-  });
+  }));
 });
 
 /**

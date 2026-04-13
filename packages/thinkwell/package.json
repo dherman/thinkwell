@@ -39,7 +39,7 @@
     "bundle": "tsx scripts/bundle.ts",
     "clean": "rm -rf dist dist-bin dist-pkg",
     "test": "node --test --import tsx src/**/*.test.ts",
-    "test:smoke": "node --test --test-force-exit --test-timeout=90000 --import tsx src/integration.test.ts"
+    "test:smoke": "node --test --test-force-exit --test-timeout=180000 --import tsx src/integration.test.ts"
   },
   "keywords": [
     "thinkwell",
