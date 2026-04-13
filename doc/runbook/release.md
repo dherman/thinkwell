@@ -40,7 +40,18 @@ This triggers the GitHub Actions release workflow, which:
 - Creates a GitHub Release with binaries and checksums
 - Marks it as a pre-release (due to "alpha" in the tag)
 
-### 3. Build (Release Mode)
+### 3. Wait for Release Workflow to Succeed
+
+**Do not proceed to npm or VSCode Marketplace publishing until the release workflow has succeeded.** npm versions can only be unpublished within a narrow window, and Marketplace versions effectively cannot be reused — publishing a version whose GitHub release never built leaves the ecosystem in an inconsistent state.
+
+```bash
+RUN_ID=$(gh run list --workflow=release.yml --branch v0.5.0-alpha.1 --limit 1 --json databaseId -q '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status --interval 20
+```
+
+If the workflow fails, investigate before continuing. For a flaky failure (e.g., a known intermittent test), rerun with `gh run rerun "$RUN_ID" --failed` and re-watch. For a real regression, fix forward on a new patch version — the tag is already public.
+
+### 4. Build (Release Mode)
 
 Run a **release** build (not debug) to ensure feature flags are set correctly and disabled features are stripped. Then bundle the thinkwell package (produces `dist-pkg/`, which is included in the npm package):
 
@@ -49,7 +60,7 @@ pnpm build
 pnpm --filter thinkwell bundle
 ```
 
-### 4. Smoke Test
+### 5. Smoke Test
 
 Trigger the smoke tests in CI (requires `ANTHROPIC_API_KEY` GitHub secret):
 
@@ -60,7 +71,7 @@ gh run watch --exit-status
 
 Alternatively, run locally with your Claude Code subscription auth: `pnpm smoke`
 
-### 5. Publish to npm
+### 6. Publish to npm
 
 ```bash
 pnpm -r publish --tag next --access public --no-git-checks
@@ -68,7 +79,7 @@ pnpm -r publish --tag next --access public --no-git-checks
 
 This publishes all packages to the `next` tag (for pre-releases).
 
-### 6. Publish VSCode Extension
+### 7. Publish VSCode Extension
 
 Publish the pre-built `.vsix` to the VSCode Marketplace:
 
@@ -79,7 +90,7 @@ npx @vscode/vsce publish --pre-release --packagePath packages/vscode-extension/t
 
 The `--packagePath` flag publishes the pre-built `.vsix` directly, bypassing `npm list` validation (which doesn't work with pnpm workspaces). The `--pre-release` flag marks it as a pre-release in the marketplace.
 
-### 7. Update Homebrew Formula
+### 8. Update Homebrew Formula
 
 After the GitHub Release is created (wait for the workflow to complete):
 
@@ -105,7 +116,7 @@ After the GitHub Release is created (wait for the workflow to complete):
    git push origin main
    ```
 
-### 8. Verify Installation
+### 9. Verify Installation
 
 Test all installation methods:
 
@@ -157,7 +168,18 @@ This triggers the GitHub Actions release workflow, which:
 - Creates a GitHub Release with binaries and checksums
 - Since the tag doesn't contain "alpha", "beta", or "rc", it's marked as a stable release
 
-### 3. Build (Release Mode)
+### 3. Wait for Release Workflow to Succeed
+
+**Do not proceed to npm or VSCode Marketplace publishing until the release workflow has succeeded.** npm versions can only be unpublished within a narrow window, and Marketplace versions effectively cannot be reused — publishing a version whose GitHub release never built leaves the ecosystem in an inconsistent state.
+
+```bash
+RUN_ID=$(gh run list --workflow=release.yml --branch v0.5.0 --limit 1 --json databaseId -q '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status --interval 20
+```
+
+If the workflow fails, investigate before continuing. For a flaky failure (e.g., a known intermittent test), rerun with `gh run rerun "$RUN_ID" --failed` and re-watch. For a real regression, fix forward on a new patch version — the tag is already public.
+
+### 4. Build (Release Mode)
 
 Run a **release** build (not debug) to ensure feature flags are set correctly and disabled features are stripped. Then bundle the thinkwell package (produces `dist-pkg/`, which is included in the npm package):
 
@@ -166,7 +188,7 @@ pnpm build
 pnpm --filter thinkwell bundle
 ```
 
-### 4. Smoke Test
+### 5. Smoke Test
 
 Trigger the smoke tests in CI (requires `ANTHROPIC_API_KEY` GitHub secret):
 
@@ -177,7 +199,7 @@ gh run watch --exit-status
 
 Alternatively, run locally with your Claude Code subscription auth: `pnpm smoke`
 
-### 5. Publish to npm
+### 6. Publish to npm
 
 ```bash
 pnpm -r publish --access public --no-git-checks
@@ -185,7 +207,7 @@ pnpm -r publish --access public --no-git-checks
 
 This publishes all packages to the `latest` tag (default for stable releases).
 
-### 6. Publish VSCode Extension
+### 7. Publish VSCode Extension
 
 Publish the pre-built `.vsix` to the VSCode Marketplace:
 
@@ -194,7 +216,7 @@ pnpm --filter thinkwell-vscode package
 npx @vscode/vsce publish --packagePath packages/vscode-extension/thinkwell-vscode-0.5.0.vsix
 ```
 
-### 7. Update Homebrew Formula
+### 8. Update Homebrew Formula
 
 After the GitHub Release is created (wait for the workflow to complete):
 
@@ -220,7 +242,7 @@ After the GitHub Release is created (wait for the workflow to complete):
    git push origin main
    ```
 
-### 8. Verify Installation
+### 9. Verify Installation
 
 Test all installation methods:
 
