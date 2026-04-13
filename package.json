@@ -2,6 +2,13 @@
   "name": "thinkwell-monorepo",
   "private": true,
   "packageManager": "pnpm@9.15.0",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">= 24",
+      "onFail": "error"
+    }
+  },
   "scripts": {
     "build": "tsx scripts/generate-features.ts --mode=release && pnpm -r build",
     "build:debug": "tsx scripts/generate-features.ts --mode=debug && pnpm -r build:debug",
