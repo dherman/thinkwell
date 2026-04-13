@@ -587,9 +587,17 @@ class PlanImpl<Output> implements Plan<Output> {
           required = required ? [...required, injectedField] : [injectedField];
         }
       }
-      if (Array.isArray(required) && value != null && typeof value === "object") {
+      if (Array.isArray(required)) {
+        if (value == null || typeof value !== "object") {
+          resultError = new TypeError(
+            `Agent result must be an object when schema has required fields, got ${value === null ? "null" : typeof value}`
+          );
+          resultReceived = true;
+          resolveResultReady();
+          return;
+        }
         const obj = value as Record<string, unknown>;
-        const missing = required.filter((key: string) => !(key in obj));
+        const missing = required.filter((key: string) => !Object.hasOwn(obj, key));
         if (missing.length > 0) {
           resultError = new TypeError(
             `Agent result is missing required field(s): ${missing.join(", ")}`

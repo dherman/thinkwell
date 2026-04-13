@@ -295,8 +295,13 @@ function createTracer(): ((dir: "recv" | "send", msg: unknown) => void) | null {
   const traceDir = process.env.THINKWELL_TRACE;
   if (!traceDir) return null;
 
-  mkdirSync(traceDir, { recursive: true });
-  const tracePath = join(traceDir, `trace-${Date.now()}.ndjson`);
+  try {
+    mkdirSync(traceDir, { recursive: true });
+  } catch {
+    // Best-effort — disable tracing if directory creation fails
+    return null;
+  }
+  const tracePath = join(traceDir, `trace-${process.pid}-${Date.now()}.ndjson`);
   let seq = 0;
   const t0 = performance.now();
 
