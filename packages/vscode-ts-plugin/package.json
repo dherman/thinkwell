@@ -1,6 +1,6 @@
 {
   "name": "@thinkwell/vscode-ts-plugin",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "TypeScript Language Service plugin for @JSONSchema augmentations",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
