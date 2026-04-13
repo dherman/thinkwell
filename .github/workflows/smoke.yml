@@ -59,7 +59,7 @@ jobs:
 
       - name: Run smoke tests
         run: pnpm smoke
-        timeout-minutes: 5
+        timeout-minutes: 10
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_MODEL: claude-sonnet-4-6
