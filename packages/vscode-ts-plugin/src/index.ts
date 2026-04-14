@@ -14,8 +14,8 @@ import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { type MarkedType, findMarkedTypes, hasJsonSchemaMarkers } from "./scanner";
 import { generateVirtualDeclarations } from "./virtual-declarations";
 import { patchModuleResolution, getVirtualTypeContent } from "./standalone-resolver";
+import { getAugmentationsCacheDir } from "./cache-dir";
 
-const VIRTUAL_DIR = ".thinkwell";
 const VIRTUAL_FILE_NAME = "augmentations.d.ts";
 
 interface PluginState {
@@ -182,7 +182,7 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
     info: ts.server.PluginCreateInfo,
     projectDir: string,
   ): ts.LanguageService {
-    const virtualFilePath = path.join(projectDir, VIRTUAL_DIR, VIRTUAL_FILE_NAME);
+    const virtualFilePath = path.join(getAugmentationsCacheDir(projectDir), VIRTUAL_FILE_NAME);
 
     // Write a minimal placeholder so the augmentations file exists on disk
     // BEFORE tsserver's first updateGraph. This ensures tsserver can create
@@ -212,7 +212,7 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
     // Monkey-patch resolveModuleNameLiterals for standalone scripts
     // that import thinkwell without node_modules.
     // ---------------------------------------------------------------
-    patchModuleResolution(info, tsModule);
+    patchModuleResolution(info, tsModule, virtualFilePath);
 
     // ---------------------------------------------------------------
     // Patch getScriptSnapshot, getScriptVersion, getScriptFileNames,

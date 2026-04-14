@@ -11,6 +11,7 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import init from "./index";
+import { getAugmentationsCacheDir } from "./cache-dir";
 
 const COMPILER_OPTIONS: ts.CompilerOptions = {
   target: ts.ScriptTarget.ES2022,
@@ -96,7 +97,7 @@ export function createTestProject(
       : path.join(projectDir, relativePath);
   }
 
-  const augmentationsPath = path.join(projectDir, ".thinkwell", "augmentations.d.ts");
+  const augmentationsPath = path.join(getAugmentationsCacheDir(projectDir), "augmentations.d.ts");
 
   /** Get all tracked file names, plus the augmentations file if it exists on disk. */
   function getFileNames(): string[] {

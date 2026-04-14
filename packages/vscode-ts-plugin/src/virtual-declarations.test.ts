@@ -3,8 +3,12 @@ import assert from "node:assert/strict";
 import { generateVirtualDeclarations } from "./virtual-declarations";
 import type { MarkedType } from "./scanner";
 
-/** Augmentations file path used consistently across tests. */
-const AUGMENTATIONS_PATH = "/project/.thinkwell/augmentations.d.ts";
+/**
+ * Augmentations file path used consistently across tests.
+ * Uses a cache-dir-style path (outside the project tree) to match
+ * the real plugin behavior.
+ */
+const AUGMENTATIONS_PATH = "/cache/thinkwell-plugin/abc123/augmentations.d.ts";
 
 describe("generateVirtualDeclarations", () => {
   it("generates empty content for no types", () => {
@@ -18,7 +22,8 @@ describe("generateVirtualDeclarations", () => {
     ]);
     const result = generateVirtualDeclarations(types, AUGMENTATIONS_PATH);
     assert.ok(result.includes('declare namespace Greeting {'));
-    assert.ok(result.includes('import("../src/types.js").Greeting'));
+    // Relative path traverses from cache dir up to project source
+    assert.ok(result.includes('import("../../../project/src/types.js").Greeting'));
     assert.ok(result.includes('import("thinkwell").SchemaProvider'));
     assert.ok(!result.includes("export declare namespace"));
   });
@@ -46,9 +51,9 @@ describe("generateVirtualDeclarations", () => {
     assert.ok(result.includes("declare namespace Greeting"));
     assert.ok(result.includes("declare namespace Farewell"));
     assert.ok(result.includes("declare namespace Sentiment"));
-    assert.ok(result.includes('import("../src/types.js").Greeting'));
-    assert.ok(result.includes('import("../src/types.js").Farewell'));
-    assert.ok(result.includes('import("../src/models.js").Sentiment'));
+    assert.ok(result.includes('import("../../../project/src/types.js").Greeting'));
+    assert.ok(result.includes('import("../../../project/src/types.js").Farewell'));
+    assert.ok(result.includes('import("../../../project/src/models.js").Sentiment'));
     assert.ok(result.includes("// From /project/src/types.ts"));
     assert.ok(result.includes("// From /project/src/models.ts"));
   });
