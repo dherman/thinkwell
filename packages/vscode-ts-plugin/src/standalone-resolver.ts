@@ -7,7 +7,7 @@
  * resolves `thinkwell`, `@thinkwell/acp`, and `@thinkwell/protocol` imports
  * to bundled .d.ts declarations embedded in the plugin at build time.
  *
- * The augmentations file (`.thinkwell/augmentations.d.ts`) also needs
+ * The augmentations file (`augmentations.d.ts` in the OS cache) also needs
  * custom resolution because it uses `import("thinkwell").SchemaProvider`
  * type references that must resolve to the same `SchemaProvider` generic
  * interface used by `think()`.
@@ -121,6 +121,7 @@ function resolveRelativeVirtualImport(
 export function patchModuleResolution(
   info: ts.server.PluginCreateInfo,
   tsModule: typeof ts,
+  augmentationsFilePath: string,
 ): void {
   const log = (msg: string) => info.project.log(msg);
 
@@ -138,7 +139,7 @@ export function patchModuleResolution(
 
   /** Check if a file is the virtual augmentations file. */
   function isAugmentationsFile(fileName: string): boolean {
-    return fileName.endsWith(".thinkwell/augmentations.d.ts");
+    return fileName === augmentationsFilePath;
   }
 
   /** Check if a file is a bundled virtual type file. */
@@ -228,7 +229,35 @@ export function patchModuleResolution(
       return results;
     }
 
-    // Resolve each unresolved thinkwell import to a virtual path
+    // For the augmentations file (which lives in an OS cache dir, not the
+    // project tree), try resolving thinkwell imports from the project dir
+    // first. This ensures the augmentations file uses the SAME SchemaProvider
+    // type as the project code, which is critical for generic inference in
+    // think<T>(schema: SchemaProvider<T>). Falling back to bundled types
+    // would give a structurally identical but module-identity-distinct type,
+    // causing T to resolve as `unknown`.
+    if (isAugmentationsFile(containingFile)) {
+      const projectDir = info.project.getCurrentDirectory();
+      const proxyContainingFile = path.join(projectDir, "__augmentations_proxy__.d.ts");
+      for (let i = 0; i < moduleLiterals.length; i++) {
+        const specifier = getText(moduleLiterals[i]);
+        if (!THINKWELL_MODULES.has(specifier)) continue;
+        if (results[i].resolvedModule) continue;
+
+        // Try resolving from the project directory so node_modules/thinkwell is found
+        const projectResult = tsModule.resolveModuleName(
+          specifier, proxyContainingFile, options, tsModule.sys,
+        );
+        if (projectResult.resolvedModule) {
+          log(`[thinkwell] Resolved import '${specifier}' in ${path.basename(containingFile)} → ${projectResult.resolvedModule.resolvedFileName} (via project dir)`);
+          results[i] = projectResult;
+          continue;
+        }
+      }
+    }
+
+    // Resolve remaining unresolved thinkwell imports to bundled virtual types
+    // (standalone scripts and augmentations without project node_modules)
     for (let i = 0; i < moduleLiterals.length; i++) {
       const specifier = getText(moduleLiterals[i]);
 

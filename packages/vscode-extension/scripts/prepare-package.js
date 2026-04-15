@@ -23,6 +23,7 @@ const pluginDst = path.join(nodeModulesDir, "@thinkwell/vscode-ts-plugin");
 const files = [
   "package.json",
   "dist/index.js",
+  "dist/cache-dir.js",
   "dist/scanner.js",
   "dist/virtual-declarations.js",
   "dist/standalone-resolver.js",

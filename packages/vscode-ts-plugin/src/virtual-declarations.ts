@@ -1,7 +1,7 @@
 /**
  * Generates the augmentation `.d.ts` content from discovered
- * @JSONSchema-marked types. The plugin writes this to disk at
- * `.thinkwell/augmentations.d.ts` in the project root.
+ * @JSONSchema-marked types. The plugin writes this to the OS cache
+ * directory to keep the user's project tree clean.
  */
 
 import type { MarkedType } from "./scanner";
@@ -49,6 +49,11 @@ function generateNamespaceDeclaration(
  * source file, suitable for use in `import("...")` type references.
  *
  * Strips the `.ts` / `.tsx` extension and ensures a leading `./` or `../`.
+ *
+ * Since the augmentations file lives in an OS cache directory, these
+ * relative paths traverse up from the cache to the project tree. This is
+ * longer than when the file lived in `.thinkwell/`, but TypeScript handles
+ * these paths correctly with its module resolution.
  */
 function relativeModulePath(
   augmentationsFilePath: string,
