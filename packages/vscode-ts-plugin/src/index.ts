@@ -289,6 +289,22 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
     }
 
     // ---------------------------------------------------------------
+    // Run the initial scan eagerly so the augmentations file (if any
+    // @JSONSchema types exist) is on disk and in getScriptFileNames
+    // BEFORE tsserver's first updateGraph. This is critical: if the
+    // file only appears during getSemanticDiagnostics, tsserver has
+    // already built the program without it.
+    // ---------------------------------------------------------------
+    const fileNames = info.languageServiceHost.getScriptFileNames();
+    if (fileNames.length > 0) {
+      state.initialScanDone = true;
+      fullScan(tsModule, info, state);
+      info.project.log(
+        `[thinkwell] Initial scan complete. Found ${state.augmentedTypeNames.size} augmented type(s).`,
+      );
+    }
+
+    // ---------------------------------------------------------------
     // Wrap the language service proxy to intercept diagnostics and
     // trigger rescans on file changes.
     // ---------------------------------------------------------------
@@ -302,16 +318,16 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
 
     // On getSemanticDiagnostics: rescan the file first, then filter results
     proxy.getSemanticDiagnostics = (fileName: string): ts.Diagnostic[] => {
-      // Deferred initial scan — write augmentations file on first call
+      // Run deferred initial scan if it couldn't run during plugin creation
+      // (e.g., because getScriptFileNames was empty at that point).
       if (!state.initialScanDone) {
-        const fileNames = info.languageServiceHost.getScriptFileNames();
-        if (fileNames.length > 0) {
+        const currentFileNames = info.languageServiceHost.getScriptFileNames();
+        if (currentFileNames.length > 0) {
           state.initialScanDone = true;
           fullScan(tsModule, info, state);
           info.project.log(
-            `[thinkwell] Initial scan complete. Found ${state.augmentedTypeNames.size} augmented type(s).`,
+            `[thinkwell] Deferred initial scan complete. Found ${state.augmentedTypeNames.size} augmented type(s).`,
           );
-
         }
       }
 
