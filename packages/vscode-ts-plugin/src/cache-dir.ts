@@ -1,51 +1,24 @@
 /**
- * Computes the OS-appropriate cache directory for the thinkwell VSCode plugin.
+ * Computes the cache directory for the thinkwell VSCode plugin's
+ * generated augmentation files.
  *
- * Augmentation files are written here instead of in the user's project tree,
- * keeping the project directory clean and avoiding accidental commits.
+ * Uses `node_modules/.cache/thinkwell/` inside the project directory.
+ * This location is:
+ * - Already gitignored (under node_modules/)
+ * - A well-known convention (Babel, webpack, eslint use it)
+ * - Close enough to node_modules/thinkwell that `import("thinkwell")`
+ *   in the augmentations file resolves naturally via Node's
+ *   parent-directory walk
+ * - Invisible to users browsing their source tree
  */
 
-import { createHash } from "node:crypto";
-import { homedir, platform } from "node:os";
 import path from "node:path";
 
 /**
- * Get the OS-appropriate base cache directory.
+ * Get the cache directory for a project's augmentation files.
  *
- * - macOS:   ~/Library/Caches
- * - Linux:   $XDG_CACHE_HOME or ~/.cache
- * - Windows: %LOCALAPPDATA% or ~/AppData/Local
- */
-function osCacheDir(): string {
-  switch (platform()) {
-    case "darwin":
-      return path.join(homedir(), "Library", "Caches");
-    case "win32":
-      return process.env.LOCALAPPDATA ?? path.join(homedir(), "AppData", "Local");
-    default:
-      // Linux / FreeBSD / etc — follow XDG Base Directory spec
-      return process.env.XDG_CACHE_HOME ?? path.join(homedir(), ".cache");
-  }
-}
-
-/**
- * Compute a short, stable hash of the project directory path.
- *
- * This gives each project its own subdirectory in the cache without
- * leaking the full project path into the directory name.
- */
-function projectHash(projectDir: string): string {
-  return createHash("sha256").update(projectDir).digest("hex").slice(0, 12);
-}
-
-/**
- * Get the cache directory for a specific project's augmentation files.
- *
- * Returns a path like:
- * - macOS:   ~/Library/Caches/thinkwell-plugin/<hash>/
- * - Linux:   ~/.cache/thinkwell-plugin/<hash>/
- * - Windows: %LOCALAPPDATA%/thinkwell-plugin/<hash>/
+ * Returns `<projectDir>/node_modules/.cache/thinkwell/`.
  */
 export function getAugmentationsCacheDir(projectDir: string): string {
-  return path.join(osCacheDir(), "thinkwell-plugin", projectHash(projectDir));
+  return path.join(projectDir, "node_modules", ".cache", "thinkwell");
 }
