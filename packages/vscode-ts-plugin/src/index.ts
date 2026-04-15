@@ -31,6 +31,8 @@ interface PluginState {
   augmentedTypeNames: Set<string>;
   /** Whether the initial full scan has been performed. */
   initialScanDone: boolean;
+  /** Whether the cache dir and augmentations file have been created on disk. */
+  fileCreated: boolean;
 }
 
 /**
@@ -129,22 +131,30 @@ function writeVirtualFile(
     }
   }
 
-  // If no types found, revert to the placeholder content (not empty)
-  // so tsserver keeps the file in the program.
-  const PLACEHOLDER = "// @thinkwell augmentations — will be populated on first scan\n";
-  const effectiveContent = newContent || PLACEHOLDER;
-
   // Only write if content actually changed
-  if (effectiveContent === state.virtualContent) return;
-  state.virtualContent = effectiveContent;
+  if (newContent === state.virtualContent) return;
+  state.virtualContent = newContent;
   state.virtualFileVersion++;
+
+  // Only create the cache dir and file when types are first found.
+  // Once created, keep writing updates (including empty content) so
+  // tsserver sees the file change rather than having it disappear.
+  if (!state.fileCreated && !newContent) {
+    // No types found and file never created — nothing to do
+    return;
+  }
 
   try {
     const dir = path.dirname(state.virtualFilePath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(state.virtualFilePath, effectiveContent, "utf-8");
+    // Write a placeholder to disk when content is empty — the file must
+    // exist on disk for tsserver's ScriptInfo creation, but the in-memory
+    // snapshot (returned by getScriptSnapshot) is what tsserver actually uses.
+    const PLACEHOLDER = "// @thinkwell augmentations\n";
+    writeFileSync(state.virtualFilePath, newContent || PLACEHOLDER, "utf-8");
+    state.fileCreated = true;
     info.project.log(`[thinkwell] Wrote augmentations to ${state.virtualFilePath} (version ${state.virtualFileVersion})`);
   } catch (e) {
     info.project.log(`[thinkwell] Failed to write augmentations: ${e}`);
@@ -184,28 +194,18 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
   ): ts.LanguageService {
     const virtualFilePath = path.join(getAugmentationsCacheDir(projectDir), VIRTUAL_FILE_NAME);
 
-    // Write a minimal placeholder so the augmentations file exists on disk
-    // BEFORE tsserver's first updateGraph. This ensures tsserver can create
-    // a ScriptInfo for it (ScriptInfo creation for non-open files requires
-    // the file to exist on disk).
-    const PLACEHOLDER = "// @thinkwell augmentations — will be populated on first scan\n";
-    try {
-      const dir = path.dirname(virtualFilePath);
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-      }
-      writeFileSync(virtualFilePath, PLACEHOLDER, "utf-8");
-    } catch {
-      // Ignore — best effort
-    }
+    // Don't write a placeholder eagerly — the cache dir and file are only
+    // created when the initial scan finds @JSONSchema types. This avoids
+    // littering the cache with empty directories for every tsserver project.
 
     const state: PluginState = {
       typesByFile: new Map(),
-      virtualContent: PLACEHOLDER,
+      virtualContent: "",
       virtualFileVersion: 0,
       virtualFilePath,
       augmentedTypeNames: new Set(),
       initialScanDone: false,
+      fileCreated: false,
     };
 
     // ---------------------------------------------------------------
@@ -238,7 +238,7 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
     const origGetScriptFileNames = info.languageServiceHost.getScriptFileNames.bind(info.languageServiceHost);
     info.languageServiceHost.getScriptFileNames = () => {
       const names = origGetScriptFileNames();
-      if (state.virtualContent && !names.includes(virtualFilePath)) {
+      if (state.fileCreated && !names.includes(virtualFilePath)) {
         return [...names, virtualFilePath];
       }
       return names;
@@ -246,7 +246,7 @@ function init(modules: { typescript: typeof ts }): ts.server.PluginModule {
 
     const origGetScriptSnapshot = info.languageServiceHost.getScriptSnapshot.bind(info.languageServiceHost);
     info.languageServiceHost.getScriptSnapshot = (fileName: string) => {
-      if (fileName === virtualFilePath && state.virtualContent) {
+      if (fileName === virtualFilePath && state.fileCreated) {
         // Call original to ensure ScriptInfo is created and attached
         // to the project. The Project's getScriptSnapshot creates the
         // ScriptInfo via getOrCreateScriptInfoAndAttachToProject(),
